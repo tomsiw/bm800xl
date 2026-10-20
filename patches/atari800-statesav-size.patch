@@ -1,0 +1,27 @@
+diff --git a/src/libatari800/libatari800.h b/src/libatari800/libatari800.h
+index 94c56aa..f17731c 100644
+--- a/src/libatari800/libatari800.h
++++ b/src/libatari800/libatari800.h
+@@ -119,7 +119,22 @@ typedef struct {
+ } input_template_t;
+ 
+ 
++/*
++ * Size of the save-state buffer carried in emulator_state_t.
++ *
++ * Upstream hard-codes 210000, which is silently too small for anything above
++ * 64 kB of emulated RAM: the in-memory save backend stops writing once this
++ * many bytes have been produced without reporting an error, so a snapshot of a
++ * 128/192/320 kB machine is silently truncated.
++ *
++ * The wrapper is the only change this project makes to the Atari800 sources:
++ * it lets the required capacity be selected from the build system
++ * (Makefile.core passes STATESAV_MAX_SIZE) while leaving upstream's value as
++ * the default for every other user of this file.
++ */
++#ifndef STATESAV_MAX_SIZE
+ #define STATESAV_MAX_SIZE 210000
++#endif
+ 
+ /* byte offsets into output_template.state array of groups of data
+    to prevent the need for a full parsing of the save state data to

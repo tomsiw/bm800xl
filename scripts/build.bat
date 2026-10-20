@@ -1,0 +1,1 @@
+powershell -ExecutionPolicy Bypass -File build.ps1 -Profile kernel64-pi4

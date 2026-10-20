@@ -1,0 +1,19 @@
+# Upstream sources used by this project, with the exact revisions.
+#
+# scripts/fetch-sources.ps1 reads this file and downloads these revisions, so a
+# build can be reproduced even though both upstreams move.
+#
+# Format:
+#   <name> <archive-url> <archive-subdirectory> <sha256-of-archive> <patch-or-->
+#
+# The SHA-256 is of the .tar.gz that GitHub produced for that revision.  It is
+# verified after download: a mismatch means GitHub served something unexpected,
+# and the fetch stops rather than building an unknown tree.
+#
+# Documents are fetched from codeload.github.com, which serves the archive for
+# a branch or tag without needing Git.  That is deliberate -- see
+# docs/building.md for why Git is not used here.
+
+circle https://codeload.github.com/rsta2/circle/tar.gz/refs/heads/master circle-master 569e5bf83bf65a68bd02ce9ad13dbca24967637ab93dcf187fcd821aac2b8723 -
+
+atari800 https://codeload.github.com/atari800/atari800/tar.gz/refs/tags/ATARI800_7_2_1 atari800-ATARI800_7_2_1 c85cd0242d27bc1b780b24a34c4c7eee4fb076e776176642d9cd53948a832a0a patches/atari800-statesav-size.patch

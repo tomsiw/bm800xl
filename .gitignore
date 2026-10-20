@@ -1,0 +1,75 @@
+# Build products
+#
+# Everything the build produces goes under build/, which is created by
+# scripts/build.ps1 and is not part of the source tree.
+build/
+
+# Circle's own build products.  They live inside the vendored tree because that
+# is where Circle's makefiles put them, and they are regenerated per
+# architecture by the build script.
+external/circle/.built-for
+external/circle/lib/*.a
+external/circle/lib/**/*.a
+external/circle/lib/**/*.o
+external/circle/lib/**/*.d
+external/circle/addon/fatfs/*.a
+external/circle/addon/fatfs/*.o
+external/circle/addon/fatfs/*.d
+external/circle/addon/SDCard/*.a
+external/circle/addon/SDCard/*.o
+external/circle/addon/SDCard/*.d
+external/circle/tools/*.exe
+external/circle/tools/cflashy
+external/circle/tools/converttool
+
+# Circle's Pi 4 ARM stub: built from external/circle/boot/armstub/armstub8.S by
+# scripts/build-armstub.ps1, and by the kernel64-pi4 build.  The source is
+# Circle's and is tracked; these are the products.
+external/circle/boot/armstub8-rpi4.bin
+external/circle/boot/armstub8-rpi4.o
+external/circle/boot/armstub8-rpi4.elf
+external/circle/boot/armstub8-rpi4.lst
+external/circle/boot/armstub/*.o
+external/circle/boot/armstub/*.elf
+external/circle/boot/armstub/*.bin
+external/circle/boot/armstub/*.lst
+
+# The firmware files Circle's boot/Makefile downloads, and the device trees.
+# They are large, they are not ours, and they are re-fetchable.
+external/circle/boot/*.elf
+external/circle/boot/*.dat
+external/circle/boot/*.bin
+external/circle/boot/bcm*.dtb
+external/circle/boot/*.dtbo
+external/circle/boot/overlays/*.dtbo
+external/circle/boot/LICENCE.broadcom
+external/circle/boot/COPYING.linux
+
+# Downloaded upstream archives, kept only so a re-fetch does not re-download.
+external/*.tar.gz
+
+# Stray build products, if a makefile is ever run by hand from the root rather
+# than through scripts/build.ps1.  Circle's Rules.mk writes them into the
+# working directory.
+/atari-emulator.*
+/kernel*.img
+/kernel*.map
+/kernel*.elf
+/kernel*.lst
+/obj/
+
+# The recovery directory the Windows permission-repair script writes, and any
+# scratch directories left by verification runs.
+atari-acl-recovery/
+_verify_*
+
+# Atari OS ROM images are copyrighted works.  They belong to whoever owns the
+# machine being emulated, not to this repository, so they stay local: drop them
+# into ROMS/ on the build machine and they are picked up from there.
+ROMS/
+
+# Runtime files the emulator writes onto the SD card.
+bootlog.txt
+bootlog.prev.txt
+runtimelog.txt
+crashed.flag

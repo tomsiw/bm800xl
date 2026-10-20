@@ -1,0 +1,238 @@
+#
+# atari800 core library, built for the bare-metal Raspberry Pi target.
+#
+# This makefile compiles a *subset* of the upstream Atari800 sources into a
+# static library.  The subset is the portable emulation core; every OS
+# dependent subsystem (SDL/X11/curses front end, file selector, native sound
+# and joystick backends, recorder, IDE/PBI extensions, ...) is compiled out
+# through src/core/config.h.
+#
+# It is driven by the top level Makefile, which passes in:
+#
+#   CROSS   cross compiler prefix (arm-none-eabi- / aarch64-none-elf-)
+#   AARCH   32 or 64
+#   RASPPI  1..5
+#   OBJDIR  directory for object files
+#   LIBDIR  directory for the archive
+#
+# Upstream sources are never modified.
+#
+
+ATARI800 ?= $(CURDIR)/external/atari800
+CIRCLE   ?= $(CURDIR)/external/circle
+SRC      := $(ATARI800)/src
+
+CROSS    ?= aarch64-none-elf-
+CC       := $(CROSS)gcc
+AR       := $(CROSS)ar
+
+# AArch64 only.  RASPPI still matters, because the core includes headers that
+# Circle's drivers also include and those are selected by it -- but the core
+# itself is the same code for every board.
+AARCH    ?= 64
+RASPPI   ?= 3
+
+ifeq ($(AARCH),64)
+TARGETFLAGS := -march=armv8-a -DAARCH=64 -DRASPPI=$(RASPPI)
+else
+$(error This project builds AArch64 only; AARCH=32 is not supported. Every \
+	supported board has a 64-bit core, and the Pi 5 can only run AArch64.)
+endif
+
+# ---------------------------------------------------------------------------
+# Sources that make up the portable emulation core.
+#
+# This mirrors upstream's `atari800_SOURCES` plus the conditionals that apply
+# to this configuration:
+#
+#   WITH_SOUND            -> pokeysnd.c mzpokeysnd.c remez.c
+#   WITH_SOUND_LIBATARI800-> libatari800/sound.c
+#   WITH_VIDEO_LIBATARI800-> NOT true here, so ui_basic.c and ui.c are included
+#   WANT_EMUOS_ALTIRRA    -> roms/altirra*.c
+#   WANT_NEW_CYCLE_EXACT  -> cycle_map.c
+#
+# Deliberately absent, and why:
+#   main.c (src/)              upstream front end entry point; this project
+#                              provides its own
+#   monitor.c                  debugger; MONITOR is off, and the single
+#                              MONITOR_Exit() reference is inside the monitor
+#                              key handling
+#   videomode.c                display geometry for upstream's SDL/X11 front
+#                              ends; only reachable with
+#                              SUPPORTS_CHANGE_VIDEOMODE, which is off
+#   sound_oss.c                native sound backends -- the platform layer
+#                              implements PLATFORM_Sound*
+#   atari_x11.c atari_curses.c atari_ps2.c atari_rpi.c
+#                              upstream front ends for other hosts
+#   file_export.c pokeyrec.c   video/audio recording
+#   rdevice.c netsio.c netsiowin.c download.c rtime.c
+#                              network and remote-device features
+#   ide.c pbi_mio.c pbi_bb.c pbi_scsi.c pbi_xld.c pbi_proto80.c
+#                              PBI and IDE extensions
+#   af80.c bit3.c xep80.c xep80_fonts.c voicebox.c votrax.c votraxsnd.c
+#                              optional 80-column and speech hardware
+#   filter_ntsc.c              the full NTSC comb filter
+# ---------------------------------------------------------------------------
+CORE_SRCS := \
+	acidtest.c \
+	afile.c \
+	antic.c \
+	artifact.c \
+	atari.c \
+	binload.c \
+	cartridge.c \
+	cartridge_info.c \
+	cassette.c \
+	cfg.c \
+	colours.c \
+	colours_external.c \
+	colours_ntsc.c \
+	colours_pal.c \
+	compfile.c \
+	cpu.c \
+	crc32.c \
+	cycle_map.c \
+	devices.c \
+	esc.c \
+	gtia.c \
+	img_tape.c \
+	input.c \
+	log.c \
+	memory.c \
+	mzpokeysnd.c \
+	pal_blending.c \
+	pbi.c \
+	pia.c \
+	pokey.c \
+	pokeysnd.c \
+	remez.c \
+	rtime.c \
+	screen.c \
+	sio.c \
+	sound.c \
+	statesav.c \
+	sysrom.c \
+	ui.c \
+	ui_basic.c \
+	util.c
+
+# The library front end contributes the in-memory save-state backend, which is
+# shared by the core's own save/restore code.  The sound backend that also lives
+# in that directory is NOT compiled: this project implements the platform sound
+# contract itself.
+LIBATARI800_SRCS := $(ATARI800)/src/libatari800/statesav.c
+
+# The three OS ROM images that this project ships are linked in as C arrays,
+# so the emulator works with no filesystem present at all.  They are used as a
+# fallback whenever the ROM files on the SD card cannot be found.
+ROMS_SRCS := \
+	$(ATARI800)/src/roms/altirraos_xl.c \
+	$(ATARI800)/src/roms/altirraos_800.c \
+	$(ATARI800)/src/roms/altirra_5200_os.c \
+	$(ATARI800)/src/roms/altirra_basic.c \
+	$(ATARI800)/src/roms/altirra_5200_charset.c
+
+# ---------------------------------------------------------------------------
+# This project's platform layer.
+#
+# These files compile against the core's headers and implement the host side
+# of the core's platform contract: the file system, the audio bridge, the
+# entry points the kernel uses, and a headless stand-in for the core's own
+# user interface (which is replaced by this project's OSD menu).
+# ---------------------------------------------------------------------------
+PORT_SRCS := \
+	src/port/platform.c \
+	src/port/sound_bridge.c \
+	src/port/ui_stub.c \
+	src/port/vfs.c
+
+CORE_OBJS := $(patsubst %.c,$(OBJDIR)/%.o,$(CORE_SRCS))
+
+# The bundled ROM arrays are compiled separately so that their object files
+# can be discarded by the linker if they are never referenced.
+ROMS_OBJS := $(OBJDIR)/roms/altirraos_xl.o \
+	     $(OBJDIR)/roms/altirraos_800.o \
+	     $(OBJDIR)/roms/altirra_5200_os.o \
+	     $(OBJDIR)/roms/altirra_basic.o \
+	     $(OBJDIR)/roms/altirra_5200_charset.o
+
+# Port sources live under src/port and land in their own object directory.
+PORT_OBJS := $(OBJDIR)/port/platform.o \
+	     $(OBJDIR)/port/sound_bridge.o \
+	     $(OBJDIR)/port/ui_stub.o \
+	     $(OBJDIR)/port/vfs.o
+
+# The library front end's save-state backend.
+LIBATARI800_OBJS := $(OBJDIR)/libatari800/statesav.o
+
+OBJS := $(CORE_OBJS) $(ROMS_OBJS) $(PORT_OBJS) $(LIBATARI800_OBJS)
+
+# ---------------------------------------------------------------------------
+# Compiler flags
+#
+# -Isrc/core  : the generated config.h, which every core source includes first
+# -Isrc/port  : vfs.h, atari_port.h and the audio interface
+# -Isrc/input : joystick_types.h, the controller values the platform layer
+#               shares with the drivers.  Only that one header is reachable
+#               from here: it is deliberately free of any dependency, because
+#               the platform layer is C and the drivers are C++ that needs
+#               Circle.
+# -I$(SRC)    : the core's own headers
+# -I$(SRC)/roms : the bundled ROM array headers
+#
+# STATESAV_MAX_SIZE raises the core's save-state buffer.  Upstream's 210000 is
+# silently too small for anything above 64 kB of emulated RAM.  The value below
+# covers a 320 kB machine with room to spare; see src/core/config.h and
+# docs/atari800-integration.md.
+# ---------------------------------------------------------------------------
+CFLAGS := -O2 -g -Wall -Wno-unused-parameter -Wno-missing-field-initializers \
+	  -ffunction-sections -fdata-sections \
+	  -DSTATESAV_MAX_SIZE=524288 \
+	  -I$(CURDIR)/src/core \
+	  -I$(CURDIR)/src/port \
+	  -I$(CURDIR)/src/input \
+	  -I$(CIRCLE)/addon/fatfs \
+	  -I$(SRC) \
+	  -I$(SRC)/roms \
+	  $(TARGETFLAGS)
+
+# Link-time garbage collection relies on the caller passing --gc-sections; we
+# only need the input sections to be separable, which the flags above do.
+
+VPATH := $(SRC)
+
+.PHONY: all clean
+all: $(LIBDIR)/libatari800.a
+
+# Rules for the plain core sources (they live directly in $(SRC)).
+$(OBJDIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	@echo "  CC    [core] $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+# Rules for the bundled ROM arrays (they live in $(SRC)/roms).
+$(OBJDIR)/roms/%.o: $(SRC)/roms/%.c
+	@mkdir -p $(dir $@)
+	@echo "  CC    [roms] $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+# Rules for this project's platform layer (they live in src/port).
+$(OBJDIR)/port/%.o: src/port/%.c
+	@mkdir -p $(dir $@)
+	@echo "  CC    [port] $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+# Rules for the library front end sources (they live in $(SRC)/libatari800).
+$(OBJDIR)/libatari800/%.o: $(SRC)/libatari800/%.c
+	@mkdir -p $(dir $@)
+	@echo "  CC    [lib] $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+$(LIBDIR)/libatari800.a: $(OBJS)
+	@mkdir -p $(LIBDIR)
+	@rm -f $@
+	@echo "  AR    [core] $@"
+	@$(AR) cr $@ $(OBJS)
+
+clean:
+	@rm -rf $(OBJDIR)
