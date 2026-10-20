@@ -29,15 +29,6 @@
 #include <errno.h>
 
 /*
- * Temporary diagnostic counters from Circle's xHCI endpoint driver, which records
- * refused transfers instead of asserting (see xhciendpoint.cpp).
- */
-extern "C" unsigned long g_xhci_bad_buffer;
-extern "C" unsigned long g_xhci_bad_buffer_len;
-extern "C" unsigned long g_xhci_bad_buffer_ep;
-extern "C" unsigned long g_xhci_bad_buffer_count;
-
-/*
  * NOTE: routing newlib's reentrant allocator (_malloc_r and friends) directly
  * onto Circle's was tried here and REVERTED.  Circle's CHeapAllocator is not
  * reentrant, and newlib's internals allocate from contexts it never expected --
@@ -511,24 +502,6 @@ boolean CAtariKernel::Initialize (void)
 		m_Settings.nArtifact = ATARI_ARTIFACT_PAL_SIMPLE;
 
 		Settings_Save (m_Storage, m_SettingsPath, m_Settings);
-	}
-
-	/*
-	 * Report a rejected USB transfer, if any.
-	 *
-	 * The xHCI driver refuses bulk/interrupt transfers whose buffer address is
-	 * not above the kernel image.  That should never happen, and when it does it
-	 * means a pointer was corrupted -- but the old assertion halted before this
-	 * log file existed, so all we ever learned was that it happened.  The driver
-	 * now records the value instead and we write it here, once the card is up.
-	 */
-	if (g_xhci_bad_buffer_count != 0)
-	{
-		CBootLog::Get ()->RecordRuntimef (
-			"USB: %lu transfer(s) refused, bad buffer 0x%08lx, "
-			"len %lu, endpoint type 0x%lx",
-			g_xhci_bad_buffer_count, g_xhci_bad_buffer,
-			g_xhci_bad_buffer_len, g_xhci_bad_buffer_ep);
 	}
 
 	m_pBootLog->Stage (BootStageVideo);

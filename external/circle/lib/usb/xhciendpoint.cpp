@@ -33,23 +33,6 @@
 
 static const char From[] = "xhciep";
 
-/*
- * TEMPORARY DIAGNOSTIC -- this project only, not upstream Circle.
- *
- * The bulk/interrupt assertion below has been firing intermittently depending
- * on nothing but the size of unrelated code, which means a pointer is being
- * corrupted somewhere.  An assertion proves only that the value is bad; it
- * cannot say what the value was, and it halts before this project has an SD card
- * to write a log to.  These globals record the value instead and the application
- * writes them out once its log is open.
- */
-extern "C" {
-	unsigned long g_xhci_bad_buffer = 0;
-	unsigned long g_xhci_bad_buffer_len = 0;
-	unsigned long g_xhci_bad_buffer_ep = 0;
-	unsigned long g_xhci_bad_buffer_count = 0;
-}
-
 
 CXHCIEndpoint::CXHCIEndpoint (CXHCIUSBDevice *pDevice, CXHCIDevice *pXHCIDevice)
 :	m_pDevice (pDevice),
@@ -297,18 +280,7 @@ boolean CXHCIEndpoint::TransferAsync (CUSBRequest *pURB, unsigned nTimeoutMs)
 
 		assert (pBuffer != 0);
 		assert (nBufLen > 0);
-
-		/* Record instead of asserting -- see the globals above. */
-		if ((uintptr) pBuffer <= MEM_KERNEL_END)
-		{
-			g_xhci_bad_buffer = (unsigned long) (uintptr) pBuffer;
-			g_xhci_bad_buffer_len = (unsigned long) nBufLen;
-			g_xhci_bad_buffer_ep = (unsigned long) m_uchEndpointType;
-			g_xhci_bad_buffer_count++;
-
-			return FALSE;
-		}
-
+		assert ((uintptr) pBuffer > MEM_KERNEL_END);
 		CleanAndInvalidateDataCacheRange ((uintptr) pBuffer, nBufLen);
 
 		if (!EnqueueTRB (  XHCI_TRB_TYPE_NORMAL << XHCI_TRB_CONTROL_TRB_TYPE__SHIFT
