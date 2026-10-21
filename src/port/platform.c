@@ -1028,6 +1028,14 @@ static void ApplySoundConfiguration(void)
  * Bring-up
  * ======================================================================== */
 
+/*
+ * Declared here as well as at its definition further down, because ATARI_Init()
+ * has to clear it: mounting a cartridge during bring-up sets it, and the boot
+ * cold start has already done the work by then.  Repeated tentative definitions
+ * of a file-scope static are allowed in C.
+ */
+static int s_bColdStartPending;
+
 int ATARI_Init(const atari_config_t *cfg)
 {
 	int argc;
@@ -1228,6 +1236,21 @@ int ATARI_Init(const atari_config_t *cfg)
 
 	s_initialised = 1;
 	ATARI_ColdReset();
+
+	/*
+	 * The boot cold start has happened, so any reset requested while the machine
+	 * was being brought up is now redundant.
+	 *
+	 * Mounting the cartridge from the settings happens during initialisation, and
+	 * ATARI_MountCartridge() always asks for a deferred cold start -- which is
+	 * correct when a user inserts a cartridge at runtime, but not here, because
+	 * the cold reset above already covers it.  Leaving the flag set meant the
+	 * request stayed pending until the first time the menu was closed, and the
+	 * machine then reset itself: boot with a cartridge in settings, open the OSD,
+	 * close it without touching anything, and the cartridge restarted from the
+	 * top.
+	 */
+	s_bColdStartPending = 0;
 
 	return 1;
 }
@@ -1500,10 +1523,24 @@ int ATARI_RunFrame(void)
 		if (now < s_next_frame_time) {
 			s_host_idle(s_host_context, (uint32_t)(s_next_frame_time - now));
 		}
-		else if (now - s_next_frame_time > 200000) {
+		else if (s_next_frame_time < now) {
 			/*
-			 * More than 200 ms behind: give up on catching up rather than
-			 * emulating a burst of frames with no sound.
+			 * Late: drop the debt instead of catching up.
+			 *
+			 * The emulator used to repay lateness by running the next frames
+			 * back to back, and only gave up once it was 200 ms behind.  That is
+			 * wrong for audio, because each of those catch-up frames produces a
+			 * full frame of sound -- 882 samples, 20 ms -- in no wall-clock time
+			 * at all.  A menu redraw costs 25-30 ms against a 20 ms frame, so
+			 * opening the OSD built up a small debt, closing it repaid that debt
+			 * as a burst, and the burst filled the output queue.  Production then
+			 * matched consumption again and the queue never drained, so the
+			 * delay was permanent -- which is exactly what was heard: no latency
+			 * until the OSD had been used, and a clear delay afterwards.
+			 *
+			 * Resynchronising to now lets the machine run a fraction of a frame
+			 * slow, which for an emulator is invisible, instead of generating
+			 * audio faster than the speaker can play it.
 			 */
 			s_next_frame_time = now;
 			s_frame_phase = 0;
@@ -2061,6 +2098,11 @@ int ATARI_UnmountDisk(int drive)
  * has released both.
  */
 static int s_bColdStartPending;
+
+void ATARI_ClearPendingColdStart(void)
+{
+	s_bColdStartPending = 0;
+}
 
 void ATARI_ApplyPendingColdStart(void)
 {

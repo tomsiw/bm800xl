@@ -998,6 +998,25 @@ void CAtariKernel::MountMediaFromSettings (void)
 					m_Settings.CassettePath, ATARI_LastError ());
 		}
 	}
+
+	/*
+	 * Mounting the saved cartridge above asked for a deferred cold start, and
+	 * this is where that request has to be dropped.
+	 *
+	 * ATARI_MountCartridge() always defers the reset, which is right when a user
+	 * inserts a cartridge from the menu -- the emulated CPU must not start running
+	 * while the OSD owns the display.  During bring-up it is wrong: the machine
+	 * has just been initialised and cold-started, and the cartridge is mapped by
+	 * CARTRIDGE_Insert() as it is read.  Nothing clears the request otherwise, so
+	 * it stayed pending until the first time the menu was closed, and the machine
+	 * then reset itself -- boot with a cartridge in settings, open the OSD, close
+	 * it, and the cartridge started over.
+	 *
+	 * Clearing it here rather than in ATARI_Init() is deliberate: this mounting
+	 * runs *after* initialisation, so clearing it any earlier is undone by the
+	 * mount that follows.
+	 */
+	ATARI_ClearPendingColdStart ();
 }
 
 TShutdownMode CAtariKernel::Run (void)

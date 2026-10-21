@@ -465,6 +465,17 @@ int ATARI_UnmountDisk(int drive);
 void ATARI_ApplyPendingColdStart(void);
 
 /*
+ * Drops a pending cold start without performing it.
+ *
+ * Needed once, at the end of bring-up.  Mounting the saved cartridge asks for a
+ * deferred reset, which is the right behaviour from the menu but not while the
+ * machine is being initialised: it has just been cold-started, and the cartridge
+ * is mapped as it is read.  Without this the request stays pending and fires the
+ * first time the menu closes, restarting the machine for no reason.
+ */
+void ATARI_ClearPendingColdStart(void);
+
+/*
  * Writes the emulated machine's state to the runtime log.
  *
  * Called from the exception handler, where the host has already failed.  The
