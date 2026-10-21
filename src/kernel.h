@@ -47,7 +47,7 @@ enum TShutdownMode
 };
 
 /*
- * An exception handler that writes to the runtime log as well as the screen.
+ * An exception handler that writes to the runtime log as well as the serial port.
  *
  * Circle's own handler dumps the exception to the text console and halts.  On a
  * machine with no serial console that dump exists only on the screen, so a fault
@@ -56,7 +56,8 @@ enum TShutdownMode
  * same information in RUNTIMELOG.TXT, where it survives the machine being turned
  * off.
  *
- * The base implementation is still called, so the on-screen dump is unchanged.
+ * With the text console removed, the runtime log is the only place a fault can be
+ * recorded at all: the base implementation's dump no longer has a screen to go to.
  */
 class CAtariExceptionHandler : public CExceptionHandler
 {
@@ -80,7 +81,14 @@ protected:
 	CActLED			m_ActLED;
 	CKernelOptions		m_Options;
 	CDeviceNameService	m_DeviceNameService;
-	CScreenDevice		m_Screen;
+	/*
+	 * No CScreenDevice here.  The text console allocated its own framebuffer,
+	 * cleared it, displayed a few lines of start-up text, and was then replaced by
+	 * the emulator's own framebuffer -- a visible text flash and a second display
+	 * mode switch on the way to the picture.  Everything it was used for is now
+	 * buffered in the boot log (which is written to the SD card as soon as one is
+	 * mounted) and, if one is attached, sent to the serial port.
+	 */
 	CSerialDevice		m_Serial;
 	CAtariExceptionHandler	m_ExceptionHandler;
 	CInterruptSystem	m_Interrupt;

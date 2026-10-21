@@ -511,11 +511,15 @@ static int s_initialised;
 static char s_last_error[160];
 
 /*
- * Channels the open audio sink was started with, so a later settings change can
- * tell whether it asks for something the sink cannot deliver without a restart.
- * Zero means nothing is open.
+ * There used to be a static here recording "channels the sink was opened with,
+ * zero if nothing is open".  It was only ever written on the path where this file
+ * opens the sink itself, but at start-up the core opens it first -- Sound_Init
+ * calls PLATFORM_SoundSetup during initialisation, before ApplySoundConfiguration
+ * runs -- so the variable read zero while sound was audibly working, and the log
+ * said "stereo change deferred until restart (0 -> 1 channels)" on a machine that
+ * was already running mono.  The negotiated shape is in Sound_out, which the core
+ * fills in from whatever the device accepted, so that is what is read instead.
  */
-static int s_nSoundChannelsOpen;
 
 /* Rate used when the configured one is missing or out of range. */
 #define SOUND_RATE_FALLBACK_HZ	48000
@@ -997,10 +1001,15 @@ static void ApplySoundConfiguration(void)
 	 * restarted, and it is logged when that happens.
 	 */
 	if (Sound_enabled) {
-		if (Sound_desired.channels != s_nSoundChannelsOpen) {
+		/*
+		 * Compare against what the device actually runs with, not against a
+		 * private note of what we think we opened.
+		 */
+		if (Sound_desired.channels != (int) Sound_out.channels) {
 			ATARI_RuntimeLog("sound: stereo change deferred until restart "
-					 "(%d -> %d channels)",
-					 s_nSoundChannelsOpen, Sound_desired.channels);
+					 "(%u -> %u channels)",
+					 (unsigned) Sound_out.channels,
+					 (unsigned) Sound_desired.channels);
 		}
 
 		POKEYSND_SetVolume(s_config.sound_volume);
@@ -1011,12 +1020,12 @@ static void ApplySoundConfiguration(void)
 			 Sound_desired.channels, Sound_desired.freq);
 
 	if (Sound_Setup()) {
-		s_nSoundChannelsOpen = Sound_desired.channels;
-
 		POKEYSND_SetVolume(s_config.sound_volume);
 		Sound_Continue();
 
-		ATARI_RuntimeLog("sound: sink open");
+		ATARI_RuntimeLog("sound: sink open, %u channel(s) at %u Hz",
+				 (unsigned) Sound_out.channels,
+				 (unsigned) Sound_out.freq);
 	}
 	else {
 		ATARI_RuntimeLog("sound: sink FAILED to open");

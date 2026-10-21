@@ -76,7 +76,7 @@ const char *BootLogStageName (TBootStage Stage)
 	switch (Stage)
 	{
 	case BootStagePowerOn:		return "power-on (Circle started)";
-	case BootStageScreen:		return "text console";
+	case BootStageScreen:		return "boot log ready";
 	case BootStageUsb:		return "USB host controller";
 	case BootStageSdCard:		return "SD card interface";
 	case BootStageFilesystems:	return "file systems mounted";
@@ -226,14 +226,15 @@ void CBootLog::RecordRuntime (const char *pMessage)
 	 * This used to forward to Circle's logger as well, on the theory that a
 	 * failing machine showing nothing was worse than one showing why.  That was
 	 * wrong for a log that carries a line per frame boundary or per disk read:
-	 * the logger draws to the text console, which is on screen, so hundreds of
-	 * diagnostic lines were painted over the emulated machine's picture.  The
-	 * result was a screen flickering between the Atari and a wall of text --
-	 * worse than either, and it hid the machine completely.
+	 * the logger then drew to the text console, so hundreds of diagnostic lines
+	 * were painted over the emulated machine's picture.  The result was a screen
+	 * flickering between the Atari and a wall of text -- worse than either, and it
+	 * hid the machine completely.
 	 *
-	 * Diagnostic information belongs in the file.  Only a failure that stops
-	 * start-up is shown on screen, and that goes through PaintReport() instead,
-	 * which paints over the picture deliberately and once.
+	 * The text console itself is gone now, so that particular mess can no longer
+	 * happen; the rule holds anyway.  Diagnostic information belongs in the file.
+	 * Only a failure that stops start-up is shown on screen, and that goes through
+	 * PaintReport() instead, which paints over the picture deliberately and once.
 	 */
 }
 
@@ -266,10 +267,11 @@ void CBootLog::Record (const char *pMessage)
 		/*
 		 * Only when a logger was attached on purpose.
 		 *
-		 * In the released build nothing is attached, because Circle's logger
-		 * draws to the text console and those messages then sit on screen over
-		 * the emulated machine's picture.  A real Atari shows its own screen and
-		 * nothing else, so the boot log goes to its file on the SD card only.
+		 * In the released build nothing is attached: a real Atari shows its own
+		 * screen and nothing else, so the boot log goes to its file on the SD card
+		 * only.  When this was written the logger drew to Circle's text console,
+		 * which put the messages on screen over the emulated picture; the console
+		 * has since been removed, but the rule stands.
 		 *
 		 * Attaching a logger is still supported for bring-up on new hardware,
 		 * which is why this is a parameter rather than being removed.

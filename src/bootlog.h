@@ -59,7 +59,18 @@
 enum TBootStage
 {
 	BootStagePowerOn = 0,		/* the kernel is running at all */
-	BootStageScreen,		/* Circle's text console up */
+	/*
+	 * Circle's own initialisation is done: the serial port, logger, interrupt
+	 * system and timer are up and the boot log can be recorded with timestamps.
+	 *
+	 * This was called "text console" and reported as such.  There is no text
+	 * console any more -- it allocated a framebuffer of its own and was replaced
+	 * by the emulator's, so it was removed -- and a stage label that names
+	 * something which no longer exists sends whoever is investigating a slow boot
+	 * looking in the wrong place.  The enumerator keeps its name so that the
+	 * colours and the order stay untouched.
+	 */
+	BootStageScreen,
 	BootStageUsb,			/* USB host controller up */
 	BootStageSdCard,		/* SD card interface up */
 	BootStageFilesystems,		/* SD and USB mounted */

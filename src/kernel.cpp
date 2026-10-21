@@ -282,17 +282,19 @@ void CAtariExceptionHandler::Throw (unsigned nException, TAbortFrame *pFrame)
 }
 
 CKernel::CKernel (void)
-:	m_Screen (m_Options.GetWidth (), m_Options.GetHeight ()),
-	m_Serial (&m_Interrupt, 0),
+:	m_Serial (&m_Interrupt, 0),
 	m_Timer (&m_Interrupt),
 	/*
 	 * Errors and panics only.
 	 *
-	 * Circle's logger writes to the text console, which is the screen, so at its
-	 * default level every notice and warning from the framework and from this
-	 * kernel appeared over the emulated machine's picture -- including the
-	 * version banner and the USB enumeration chatter.  A real Atari shows its
-	 * own screen and nothing else.
+	 * At the time this was written Circle's logger drew to the text console, so
+	 * at its default level every notice and warning from the framework and from
+	 * this kernel appeared over the emulated machine's picture -- including the
+	 * version banner and the USB enumeration chatter.  The console has since been
+	 * removed and the logger now targets the serial port, where the chatter costs
+	 * nothing; the level is kept as it is because a real Atari shows its own
+	 * screen and nothing else, and because it also governs how much the file log
+	 * keeps.
 	 *
 	 * LogError is deliberately not LogNone: a failure that the user cannot see
 	 * is worse than a line of text, and the whole boot sequence reported itself
@@ -323,10 +325,19 @@ boolean CKernel::Initialize (void)
 {
 	boolean bOK = TRUE;
 
-	if (bOK)
-	{
-		bOK = m_Screen.Initialize ();
-	}
+	/*
+	 * No text console is brought up.
+	 *
+	 * It used to be initialized here, which allocated a framebuffer of its own,
+	 * cleared it and showed a few lines of start-up text -- all of which was
+	 * then thrown away when the emulator's framebuffer replaced it.  Removing it
+	 * saves that allocation and clear, removes the visible text flash, and
+	 * leaves the display untouched until the emulated machine's own picture
+	 * appears.
+	 *
+	 * The serial port stays: it costs almost nothing, works without a card or a
+	 * display, and is the only output available if the SD card cannot be mounted.
+	 */
 
 	if (bOK)
 	{
@@ -337,11 +348,21 @@ boolean CKernel::Initialize (void)
 
 	if (bOK)
 	{
+		/*
+		 * The logger targets the serial port.
+		 *
+		 * It used to fall back to the screen when the configured log device was
+		 * not found, which is no longer possible: with no console there is
+		 * nothing to fall back to.  m_Serial is a CDevice and is always present
+		 * (writes to an unconnected port are harmless), so the logger always has
+		 * somewhere valid to go, and this project installs its own file target
+		 * later anyway.
+		 */
 		CDevice *pTarget =
 			CDeviceNameService::Get ()->GetDevice (m_Options.GetLogDevice (), FALSE);
 		if (pTarget == 0)
 		{
-			pTarget = &m_Screen;
+			pTarget = &m_Serial;
 		}
 		bOK = m_Logger.Initialize (pTarget);
 	}
@@ -397,8 +418,42 @@ CAtariKernel::~CAtariKernel (void)
 	s_pKernelForClock = 0;
 }
 
+/*
+ * Reading the ARM generic timer directly.
+ *
+ * Circle's CTimer is not available until CKernel::Initialize() has brought up the
+ * interrupt system and the timer itself, and the whole point here is to measure
+ * what happened *before* that -- the firmware's own start-up and Circle's system
+ * init.  The generic counter is free-running from power-on and readable at any
+ * time, so it can measure the interval that CTimer cannot.
+ *
+ * CNTFRQ_EL0 reports the frequency; on this SoC it is 54 MHz or 19.2 MHz
+ * depending on the model, so it must be read rather than assumed.
+ */
+static u64 ReadBootCounter (void)
+{
+	u64 nValue;
+	__asm volatile ("mrs %0, cntpct_el0" : "=r" (nValue));
+	return nValue;
+}
+
+static u64 ReadBootCounterHz (void)
+{
+	u64 nValue;
+	__asm volatile ("mrs %0, cntfrq_el0" : "=r" (nValue));
+	return nValue != 0 ? nValue : 1;
+}
+
 boolean CAtariKernel::Initialize (void)
 {
+	/*
+	 * Taken as early as this project has any control at all: the difference
+	 * between this reading and the one after CKernel::Initialize() is the
+	 * firmware plus Circle's system init, and it is the largest unexplained block
+	 * in the boot.
+	 */
+	const u64 nEntryTicks = ReadBootCounter ();
+	const u64 nEntryHz = ReadBootCounterHz ();
 	/*
 	 * The boot log is created here rather than in the constructor.
 	 *
@@ -411,21 +466,41 @@ boolean CAtariKernel::Initialize (void)
 	m_pBootLog = CBootLog::Get ();
 
 	/*
-	 * From here to the first frame, every step is reported twice: into the
-	 * message buffer and to the screen, which does not survive -- the
-	 * framebuffer created later replaces the text console.  If anything below
-	 * fails, the buffered messages are painted on screen and written to a file
-	 * on the SD card, so the machine explains itself instead of showing nothing.
+	 * From here to the first frame, every step is reported into the message
+	 * buffer.  There is no text console any more, so nothing is shown until the
+	 * emulator's own framebuffer is up.  If anything below fails, the buffered
+	 * messages are painted on screen and written to a file on the SD card, so the
+	 * machine explains itself instead of showing nothing.
 	 */
 	m_pBootLog->Stage (BootStagePowerOn);
 
-	// Bring up the screen, logger, interrupt system and timer first, so that
-	// anything that goes wrong afterwards can be seen.
+	// Bring up the serial port, logger, interrupt system and timer first, so that
+	// anything that goes wrong afterwards has somewhere to be reported.
 	if (!CKernel::Initialize ())
 	{
-		// Not even the text console came up.  There is nowhere to report to,
-		// but the caller still gets an honest FALSE.
+		// Not even Circle's own initialisation completed.  There is nowhere to
+		// report to, but the caller still gets an honest FALSE.
 		return FALSE;
+	}
+
+	/*
+	 * Now that the timer exists, report how the first seconds were spent.
+	 *
+	 * "since power-on" is everything before this project ran: firmware, load of
+	 * the kernel image, and Circle's system init.  "Circle init" is the text
+	 * console, serial, logger, interrupt system and timer.  Both figures are in
+	 * milliseconds from the free-running counter, so they do not depend on the
+	 * boot log's own clock.
+	 */
+	{
+		u64 nNow = ReadBootCounter ();
+		u64 nSincePowerOnMs = (nNow * 1000) / nEntryHz;
+		u64 nCircleMs = ((nNow - nEntryTicks) * 1000) / nEntryHz;
+
+		m_pBootLog->Recordf ("boot timing: %lu ms since power-on, of which "
+				     "%lu ms is Circle's own init",
+				     (unsigned long) nSincePowerOnMs,
+				     (unsigned long) nCircleMs);
 	}
 
 	/*
@@ -446,28 +521,24 @@ boolean CAtariKernel::Initialize (void)
 	/*
 	 * No logger is attached to the boot log in the released build.
 	 *
-	 * Circle's logger writes to the text console, which is on screen, so
+	 * At the time this was written Circle's logger drew to the text console, so
 	 * attaching it left the start-up messages displayed over the emulated
-	 * machine's picture.  A real Atari shows its own screen and nothing else.
-	 * The boot log still records everything to BOOTLOG.TXT on the SD card, which
-	 * is where it is actually useful.
+	 * machine's picture.  The console is gone and the logger now targets the
+	 * serial port, but the rule stands: a real Atari shows its own screen and
+	 * nothing else.  The boot log still records everything to BOOTLOG.TXT on the
+	 * SD card, which is where it is actually useful.
 	 *
-	 * Pass &m_Logger here to put the messages back on screen when bringing this
-	 * up on new hardware -- that is the only change needed.
+	 * Pass &m_Logger here to also send the messages to the serial port when
+	 * bringing this up on new hardware -- that is the only change needed.
 	 */
-	m_pBootLog->Attach (0, 0);	/* no on-screen output; file only */
+	m_pBootLog->Attach (0, 0);	/* file only */
 	m_pBootLog->Stage (BootStageScreen);
 
 	/*
-	 * Clear the text console.
-	 *
-	 * With the logger silenced nothing more is written to it, so whatever the
-	 * firmware or Circle left behind would otherwise stay on screen until the
-	 * framebuffer appears.  Clearing it makes the screen black from the start,
-	 * which is what the emulated machine's own screen should replace.
+	 * Nothing is drawn yet: there is no text console any more and the framebuffer
+	 * comes later.  Until then the screen shows whatever the firmware left, which
+	 * is preferable to a text console appearing and being replaced.
 	 */
-	m_Screen.Write ("\x1b[2J\x1b[H", 7);	/* clear, home; no text */
-
 	m_pBootLog->Record ("Atari XL/XE emulator for Raspberry Pi");
 	m_pBootLog->Recordf ("Build: %s %s", __DATE__, __TIME__);
 
@@ -520,13 +591,12 @@ boolean CAtariKernel::Initialize (void)
 	if (!m_Storage.Initialize (SystemDirectory))
 	{
 		/*
-		 * Reported on the text console as well as in the log: the log file
-		 * cannot be opened without a card, and the framebuffer does not exist
-		 * yet, so the stage colour cannot be painted either.  Circle's console
-		 * is the only output left at this point.
+		 * Recorded in the boot log and reported through the serial port, which is
+		 * the only output left: there is no text console, the log file cannot be
+		 * opened without a card, and the framebuffer does not exist yet so the
+		 * stage colour cannot be painted either.
 		 */
 		m_pBootLog->Record ("PANIC: cannot mount the SD card");
-		m_Screen.Write ("The SD card could not be mounted.\r\n", 33);
 
 		ReportStartupFailure ("The SD card could not be mounted");
 		return FALSE;
