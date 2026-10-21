@@ -1716,9 +1716,18 @@ void ATARI_SetVideoStandard(atari_video_standard_t video)
 	 */
 	Atari800_SetTVMode(CoreTvMode(video));
 
+	/*
+	 * Re-apply the sound configuration through the one guarded path.
+	 *
+	 * This used to call Sound_Setup() directly, which re-opened the audio device
+	 * even when it was already running -- and did so without the "already open"
+	 * check that ApplySoundConfiguration() performs.  That is what produced two
+	 * sink-open attempts at startup, and almost certainly what makes the first
+	 * video-standard switch feel slow: it is reopening a device that never
+	 * needed reopening.
+	 */
 	if (s_config.sound_enabled) {
-		Sound_Setup();
-		Sound_Continue();
+		ApplySoundConfiguration();
 	}
 
 	ATARI_SetArtifact(s_config.artifact);
@@ -1751,8 +1760,11 @@ void ATARI_SetVolume(int volume_0_100)
 	 * to take effect on the currently selected mixer.
 	 */
 	if (s_config.sound_enabled) {
-		Sound_Setup();
-		Sound_Continue();
+		/*
+		 * Same reason as above: go through the guarded path rather than opening
+		 * the device directly, so an already-running sink is not reopened.
+		 */
+		ApplySoundConfiguration();
 	}
 }
 

@@ -124,6 +124,87 @@ extern "C" void RuntimeLogSink (const char *pMessage)
  * log first, flushed line by line, and then hand over to the base handler so the
  * on-screen behaviour is exactly as it was.
  */
+/*
+ * A log target that writes Circle's own messages into our runtime log.
+ *
+ * Circle's drivers report through CLogger -- the HDMI sound device, for one,
+ * explains exactly why it refused to start -- but the default target is the
+ * framebuffer console, which paints text over the Atari picture and is lost as
+ * soon as the machine is powered off.  Raising the screen threshold to silence
+ * them also silenced the explanations.
+ *
+ * Installing this as the logger's target keeps the screen clean and puts those
+ * messages in runtimelog.txt, where they can be read afterwards.  Lines are
+ * forwarded as they arrive and prefixed so they are distinguishable from ours.
+ */
+class CRuntimeLogTarget : public CDevice
+{
+public:
+	int Write (const void *pBuffer, size_t nCount) override
+	{
+		const char *pText = (const char *) pBuffer;
+		size_t nStart = 0;
+
+		for (size_t i = 0; i < nCount; i++)
+		{
+			if (pText[i] != '\n')
+			{
+				continue;
+			}
+
+			if (i > nStart)
+			{
+				Forward (pText + nStart, i - nStart);
+			}
+
+			nStart = i + 1;
+		}
+
+		// A final chunk without a newline still deserves to be recorded.
+		if (nStart < nCount)
+		{
+			Forward (pText + nStart, nCount - nStart);
+		}
+
+		return (int) nCount;
+	}
+
+private:
+	void Forward (const char *pText, size_t nLength)
+	{
+		// The runtime log writes whole lines of bounded length.
+		static const size_t MaxLength = 160;
+		char Line[MaxLength + 1];
+
+		if (nLength > MaxLength)
+		{
+			nLength = MaxLength;
+		}
+
+		memcpy (Line, pText, nLength);
+		Line[nLength] = '\0';
+
+		if (!s_bRuntimeLogReady)
+		{
+			// Nothing to write to yet; the log file opens later than the first
+			// messages, and those are boot noise we can afford to lose.
+			return;
+		}
+
+		CBootLog::Get ()->RecordRuntimef ("circle: %s", Line);
+	}
+
+public:
+	static void SetReady (boolean bReady) { s_bRuntimeLogReady = bReady; }
+
+private:
+	static boolean s_bRuntimeLogReady;
+};
+
+boolean CRuntimeLogTarget::s_bRuntimeLogReady = FALSE;
+
+static CRuntimeLogTarget s_RuntimeLogTarget;
+
 void CAtariExceptionHandler::Throw (unsigned nException, TAbortFrame *pFrame)
 {
 	CBootLog::Get ()->RecordRuntimef ("*** EXCEPTION %u -- the machine has "
@@ -201,7 +282,18 @@ CKernel::CKernel (void)
 	 * silently before the emulator reached the point of being able to say
 	 * anything at all.  Everything below LogError still reaches the log file.
 	 */
-	m_Logger (LogPanic, &m_Timer)
+	/*
+	 * The threshold is on what Circle is allowed to *generate*, not on where it
+	 * goes: the check happens before any target is consulted, so a logger built
+	 * with LogPanic silently discarded every error the drivers reported -- which
+	 * is why the HDMI sound device's own explanation never appeared anywhere.
+	 *
+	 * The target is our runtime-log device, not the screen, so the picture stays
+	 * clean regardless of this level.  Warnings are the useful floor: they
+	 * include the reasons drivers refuse to start, without the per-frame noise
+	 * that debug output would add.
+	 */
+	m_Logger (LogWarning, &m_Timer)
 {
 	m_ActLED.Blink (5);	// show we are alive
 }
@@ -318,6 +410,21 @@ boolean CAtariKernel::Initialize (void)
 		// but the caller still gets an honest FALSE.
 		return FALSE;
 	}
+
+	/*
+	 * Take over Circle's logging once the kernel has set it up.
+	 *
+	 * This must come after CKernel::Initialize(), not before: that call ends in
+	 * CLogger::Initialize(), which assigns the target to the screen device.
+	 * Installing ours earlier was simply overwritten -- which is why no driver
+	 * message ever reached the log, not even the ones explaining why the audio
+	 * device refused to start.
+	 *
+	 * With this target in place, nothing a driver reports can paint over the
+	 * picture.  Messages are discarded until the runtime log file exists (see
+	 * CRuntimeLogTarget::SetReady), then recorded.
+	 */
+	CLogger::Get ()->SetNewTarget (&s_RuntimeLogTarget);
 
 	/*
 	 * No logger is attached to the boot log in the released build.
@@ -559,6 +666,12 @@ boolean CAtariKernel::Initialize (void)
 	// would silently disable sound on a machine with no USB device attached,
 	// which is exactly when the user is most likely to be looking for sound.
 	m_pBootLog->Stage (BootStageAudio);
+
+	/*
+	 * The log file exists from here on, so Circle's messages can be recorded.
+	 * The target was installed at power-on to keep the screen clean.
+	 */
+	CRuntimeLogTarget::SetReady (TRUE);
 
 	if (m_Settings.bSoundEnabled)
 	{

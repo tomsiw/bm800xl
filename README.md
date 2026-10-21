@@ -203,40 +203,58 @@ ROMS/                The OS ROM images to copy onto the SD card
 
 This matters, so it is stated plainly rather than buried.
 
-**Verified in this repository:**
+**Verified in this repository (build-time):**
 
 - All kernel images build cleanly and link as AArch64
-  (`aarch64-none-elf`), about 800 KiB each.
+  (`aarch64-none-elf`), about 830 KiB each.
 - `scripts/verify.ps1` confirms each image is ELF64/AArch64, has its entry point
   at 0x80000, contains `_start`, carries the filename the firmware looks for on
-  that board, and is under Circle's 4 MiB kernel limit.
+  that board, and is under Circle's kernel size limit.
 - Every module compiles warning-free, including with Circle's own flags
   (`-nostdinc++`, `-fno-exceptions`, `-fno-rtti`, `-std=c++17`).
 - The `audio_sink_t` contract, the keyboard interface and the VTAB/VFS redirection
   were each checked against the real upstream headers.
 
-**NOT verified — there has been no Raspberry Pi available to run this on:**
+**Verified on hardware (Raspberry Pi 400, 720p, HDMI):**
 
-- Whether it boots, and whether the emulated machine starts.
-- Video output, timing, double buffering and the scaling geometry.
-- Sound, including the PWM duty mapping and the audio ring buffer.
-- USB enumeration, hot-plugging, and the raw HID report format of any particular
-  keyboard.
-- USB gamepad decoding, and which controllers are recognised.
-- The GPIO keyboard matrix and the 9-pin joystick ports on real switches, and the
-  RP1 GPIO behaviour on Pi 5.
-- SD card and USB mounting, and writing back to disk and cassette images.
-- Performance, and whether the emulator reaches 50/60 fps on each model.
+- It boots to BASIC, and the emulated machine runs.
+- Video output at the correct aspect ratio with side bars.
+- USB keyboard; the on-screen menu opens, navigates and closes.
+- Mounting disk images, cartridges and cassettes from USB storage, and running
+  them; ejecting and re-mounting; visiting the menu with an image loaded and
+  cold-resetting afterwards.
+- All settings are applied at startup and persist across a power cycle —
+  machine type, RAM size (64/128/192/320 kB), video standard, and the rest.
+- The crash marker ejects all media and restores machine defaults on the next
+  boot, so a bad image cannot trap the machine in a crash loop.
+- **Sound over HDMI**, at the correct pitch when the frame rate keeps up.
 
-The last point matters most for the Pi 5: this project's `RASPPI` handling means
-the Pi 5 image is built with RP1 support compiled in and *should* therefore work,
-but "should" here rests on Circle's documentation and its source, not on a Pi.
-A 4 MiB kernel limit, a 720p framebuffer and a 320 kB emulated machine are being
-asked of a board nobody has tried it on.
+**NOT yet verified:**
 
-Anything in the documentation that describes how the hardware behaves should be
-read as "this is what the code does and why", not as an observation. Where a
-statement could not be established from the sources, the documentation says so.
+- Pi Zero 2 W, Pi 3, Pi 4 and Pi 5: only the Pi 400 has been run.
+- The GPIO keyboard matrix, the 9-pin joystick ports, and USB gamepads.
+- Writing back to disk and cassette images; hot-plugging USB storage.
+- Frame rate: about 30 fps against a 50 fps (PAL) target on the Pi 400. The
+  emulation itself costs ~3 ms per frame, so the remainder is this project's
+  rendering and presentation path. At 30 fps the emulator produces only ~60% of
+  the audio samples the sound device consumes, so music plays with gaps and
+  sounds slowed — a symptom of the frame rate, not of the audio path.
+- Cassette loading beyond insertion.
+
+### HDMI audio requires the HDMI0 port
+
+The firmware only enables HDMI audio packets on **HDMI0**. Video works on both
+ports, so a machine can look perfectly normal while the sound device refuses to
+start with `Requires HDMI display with audio support` — a statement about the
+port, not about the display.
+
+On the Pi 400 used for testing, HDMI0 turned out to be the port **second from
+the power connector**, not the nearest one. Circle's own `sample/34-sounddevices`
+is the quickest way to identify which port is which on a given board: it plays a
+tone and prints its progress, with no emulator involved.
+
+`hdmi_force_edid_audio=1` is set in `config.txt` for displays whose EDID does not
+advertise audio clearly. It is harmless on a display without speakers.
 
 
 ---

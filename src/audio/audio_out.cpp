@@ -216,9 +216,14 @@ void CAtariAudioDevice::PushSamples (const void *pData, unsigned nSamples)
 
 unsigned CAtariAudioDevice::GetChunk (u32 *pBuffer, unsigned nChunkSize)
 {
-	// One chunk is a whole number of 32-bit FIFO words, and the PWM takes two
-	// of them - left and right - per frame.
-	unsigned nFrames = nChunkSize / 2;
+	/*
+	 * The write format is Signed16 with two channels, so one 32-bit word holds
+	 * exactly one frame: the left sample in the low half and the right in the
+	 * high half.  The base class converts that to whatever the hardware needs --
+	 * IEC958 for HDMI -- which is why this no longer writes finished 32-bit
+	 * words, and why nChunkSize counts frames rather than words.
+	 */
+	unsigned nFrames = nChunkSize;
 
 	// A single read of the producer's index and a single write of ours is all
 	// the synchronisation a single-producer/single-consumer ring needs.
@@ -232,7 +237,7 @@ unsigned CAtariAudioDevice::GetChunk (u32 *pBuffer, unsigned nChunkSize)
 		nFrames = nAvail;
 	}
 
-	u32 *pWord = pBuffer;
+	s16 *pOut = (s16 *) pBuffer;
 	unsigned nPos = nOut;
 
 	for (unsigned i = 0; i < nFrames; i++)
@@ -254,32 +259,27 @@ unsigned CAtariAudioDevice::GetChunk (u32 *pBuffer, unsigned nChunkSize)
 			nPos++;
 		}
 
-		// Left-justified: the audio is 16-bit, the IEC958 sample slot is 32-bit.
-		u32 nLeftWord  = (u32) ((s32) nLeft  << 16);
-		u32 nRightWord = (u32) ((s32) nRight << 16);
-
 		if (m_bSwapChannels)
 		{
-			*pWord++ = nRightWord;
-			*pWord++ = nLeftWord;
+			*pOut++ = nRight;
+			*pOut++ = nLeft;
 		}
 		else
 		{
-			*pWord++ = nLeftWord;
-			*pWord++ = nRightWord;
+			*pOut++ = nLeft;
+			*pOut++ = nRight;
 		}
 	}
 
 	DataMemBarrier ();
 	m_nOut = nOut + nFrames * m_nChannels;
 
-	// Underrun: the rest of the chunk is digital silence, so an empty ring
-	// sounds like the level the output idles at instead of repeating whatever
-	// the DMA buffer happened to hold.  The transfer continues, so playback
-	// resumes by itself as soon as the emulator writes again.
-	while (pWord < pBuffer + nChunkSize)
+	// Underrun: the rest of the chunk is digital silence, which for a sample
+	// stream is zero.  The transfer continues, so playback resumes by itself as
+	// soon as the emulator writes again.
+	while (pOut < (s16 *) pBuffer + nChunkSize * 2)
 	{
-		*pWord++ = m_nSilence;
+		*pOut++ = 0;
 	}
 
 	return nChunkSize;
