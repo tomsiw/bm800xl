@@ -390,7 +390,10 @@ CAtariKernel::CAtariKernel (void)
 	m_bInitialized (FALSE),
 	m_bAudioOpen (FALSE),
 	m_bFirstFrameDrawn (FALSE),
-	m_bFrameErrorReported (FALSE)
+	m_bFrameErrorReported (FALSE),
+	m_bKeyboardSeen (FALSE),
+	m_bKeyboardWarned (FALSE),
+	m_nKeyboardFrames (0)
 {
 	m_SettingsPath[0] = '\0';
 	m_LastFrameError[0] = '\0';
@@ -807,26 +810,46 @@ boolean CAtariKernel::Initialize (void)
 	// -----------------------------------------------------------------------
 	m_pBootLog->Stage (BootStageInput);
 
+	/*
+	 * Each of these is recorded separately.
+	 *
+	 * A Zero 2 W with no keyboard attached stopped inside this stage and wrote
+	 * nothing further: the last marker was the stage itself, so the whole of
+	 * input, media and menu set-up was one unexplained block.  One line per step
+	 * makes the next stop name itself.
+	 */
+	m_pBootLog->Record ("input: creating the keyboard");
+
 	if (!InitializeKeyboard ())
 	{
 		ReportStartupFailure ("No keyboard could be set up");
 		return FALSE;
 	}
 
+	m_pBootLog->Record ("input: keyboard created");
+
 	// Controllers are not essential: a machine with none still runs, and one
 	// plugged in later is picked up.  Failures are logged, never fatal.
 	InitializeJoysticks ();
 
+	m_pBootLog->Record ("input: joysticks created");
+
 	MountMediaFromSettings ();
+
+	m_pBootLog->Record ("input: media mounted");
 
 	// -----------------------------------------------------------------------
 	// Menu
 	// -----------------------------------------------------------------------
 	m_Menu.Initialize (&m_Video, &m_Storage, this, &m_Settings, m_SettingsPath);
 
+	m_pBootLog->Record ("input: menu created");
+
 	// Persist whatever was loaded, so that a first run leaves a settings file
 	// the user can find and edit.
 	Settings_Save (m_Storage, m_SettingsPath, m_Settings);
+
+	m_pBootLog->Record ("input: settings saved");
 
 	m_bInitialized = TRUE;
 
@@ -913,8 +936,15 @@ boolean CAtariKernel::InitializeKeyboard (void)
 
 		if (!m_pKeyboard->Initialize ())
 		{
-			m_Logger.Write (FromKernel, LogWarning,
-					"No USB keyboard attached; the emulator runs but cannot be used");
+			/*
+			 * Deliberately silent.
+			 *
+			 * Start-up scans the USB bus before Circle has registered a
+			 * keyboard, so anything said here would also appear on a machine
+			 * whose keyboard works perfectly a frame later -- which is what the
+			 * old message did, and why it was not worth reading.  The frame loop
+			 * reports the real situation instead; see UpdateKeyboardStatus().
+			 */
 		}
 	}
 
@@ -1104,8 +1134,65 @@ TShutdownMode CAtariKernel::Run (void)
 	return ShutdownNone;
 }
 
+/*
+ * Reports the keyboard's presence when that is a fact.
+ *
+ * Nothing is said at start-up because the answer there is meaningless: the scan
+ * runs before Circle has registered a keyboard, so it reads "absent" on machines
+ * where one works a frame later.
+ *
+ * Called once per frame.  A keyboard that turns up gets a notice, and one that
+ * stays away for two seconds gets a warning -- two seconds being long enough that
+ * its absence is a property of the machine rather than of enumeration timing.
+ * Each is said once; the frame loop runs fifty times a second and the log is a
+ * file on the SD card.
+ */
+void CAtariKernel::UpdateKeyboardStatus (void)
+{
+	if (m_pKeyboard == 0 || (m_bKeyboardSeen && m_bKeyboardWarned))
+	{
+		return;
+	}
+
+	if (m_pKeyboard->IsPresent ())
+	{
+		if (!m_bKeyboardSeen)
+		{
+			m_bKeyboardSeen = TRUE;
+
+			if (m_nKeyboardFrames > 0)
+			{
+				// It was not there when the machine started, and now it is.
+				m_Logger.Write (FromKernel, LogNotice, "Keyboard connected");
+			}
+
+			if (!m_bKeyboardWarned)
+			{
+				m_bKeyboardWarned = TRUE;	// nothing to warn about
+			}
+		}
+
+		return;
+	}
+
+	m_nKeyboardFrames++;
+
+	// Half a second at fifty frames: the frame count is only a fallback for a
+	// machine where the pacer is not running yet.
+	if (!m_bKeyboardWarned && m_nKeyboardFrames == 100)
+	{
+		m_bKeyboardWarned = TRUE;
+
+		m_Logger.Write (FromKernel, LogWarning,
+				"No keyboard has appeared; the machine runs but cannot "
+				"be typed on until one is connected");
+	}
+}
+
 void CAtariKernel::RunFrame (void)
 {
+	UpdateKeyboardStatus ();
+
 	// Set when the menu acted on a key this frame.  The OSD is drawn on a
 	// reduced cadence while it is open (see the draw section below), and an
 	// interaction must be visible immediately rather than on the next tick.

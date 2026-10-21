@@ -277,17 +277,32 @@ cannot be detected automatically.
 
 ## The USB keyboard does not work
 
-1. **Is it plugged in before power-on, or is hot-plug working?** The emulator
-   waits briefly for a keyboard at start-up and reports in the log if none
-   appeared. It carries on running either way; plug the keyboard in and it should
-   be picked up.
-2. **Is the keyboard source set to USB?** F12 → the keyboard mode setting. If it
+1. **Is it plugged in before power-on, or is hot-plug working?** Start-up no longer
+   waits for a keyboard: it scans what the USB stack has already enumerated and
+   carries on, so a keyboard plugged in later is picked up by the frame loop. The
+   log says nothing at start-up, because that scan runs before Circle has
+   registered a keyboard and would report "absent" on a machine where one works a
+   frame later. If no keyboard has appeared after about two seconds of running, the
+   log says so once, and says `Keyboard connected` if one turns up afterwards.
+2. **Is it behind a USB hub? On a Pi Zero 2 W, that is the most likely cause.** A
+   directly-connected keyboard works; behind a hub it may not be enumerated at
+   all, and then it is simply invisible. Circle's own `sample/08-usbkeyboard`
+   behaves identically with none of this project's code involved, so this is a
+   limit of Circle's USB stack on BCM2837. Connect the keyboard directly.
+3. **Is the keyboard source set to USB?** F12 → the keyboard mode setting. If it
    is set to GPIO, the emulator is looking at the GPIO header, not at USB.
-3. **Does the Pi supply enough power?** A keyboard plus a USB drive on a Pi Zero
+4. **Does the Pi supply enough power?** A keyboard plus a USB drive on a Pi Zero
    2 W can brown out the board. Use a powered hub.
-4. **On the Pi 5**, USB is provided by two xHCI controllers behind PCIe; both are
+5. **On the Pi 5**, USB is provided by two xHCI controllers behind PCIe; both are
    initialised, so any port should work. If it does not, try another port — this
    is one of the areas flagged as needing real-hardware verification.
+
+If the machine does not reach the first frame **at all** when a hub is attached,
+that was an older bug: enumeration used to be driven during start-up, and a device
+that never returned a descriptor was retried without end. Current builds leave
+that enumeration to the frame loop, so a bad device costs frames rather than the
+boot. If you see this on a current build, the log will show the last
+`input: …` step reached.
 
 ---
 

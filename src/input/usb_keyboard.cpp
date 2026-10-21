@@ -796,30 +796,49 @@ boolean CUSBAtariKeyboard::Initialize (void)
 	CTimer *pTimer = CTimer::Get ();
 
 	/*
-	 * Circle's system clock runs at HZ ticks a second (100) and the MHz
-	 * counter the ratio is built from is available as soon as the timer is,
-	 * so this cannot divide by zero -- but the elapsed time is only
-	 * observable with a timer, and without one the check runs once.
+	 * CLOCKHZ ticks make one second, so the elapsed time in milliseconds is
+	 * (ticks * 1000) / CLOCKHZ.
 	 *
-	 * A keyboard may already be attached, because the USB stack enumerates
-	 * during its own Initialize(), and that is why the check comes before
-	 * the wait.
+	 * This used to divide by "CTimer::GetClockTicks()", which is not a frequency
+	 * at all but the free-running microsecond counter.  On a machine with a
+	 * keyboard it never mattered, because the check below returns at once; on one
+	 * without, the divisor grew with the machine's uptime and the elapsed time
+	 * advanced a few milliseconds per second, so the wait never ended.  Booting a
+	 * Zero 2 W with no keyboard attached therefore stopped here, after the
+	 * "keyboard and controllers" stage and before the first frame -- a black
+	 * screen with nothing logged, because nothing had failed.
 	 */
-	const unsigned nTicksPerSecond = 100;
-	unsigned nClockHz = CTimer::GetClockTicks ();
+	const unsigned nTicksPerSecond = CLOCKHZ;
+
 	unsigned nStart = pTimer != 0 ? pTimer->GetTicks () : 0;
 	unsigned nElapsed = 0;
 
 	do
 	{
-		Update ();
+		/*
+		 * Scanned, not driven.
+		 *
+		 * Update() also calls CUSBHCIDevice::UpdatePlugAndPlay(), which drives
+		 * enumeration.  During bring-up that is dangerous: on a Zero 2 W with a
+		 * hub attached, Circle found a device it could not read a descriptor from
+		 * ("usbdev0-1: Cannot get device descriptor (short)") and retried it
+		 * without ever returning, so the machine stopped here -- after the
+		 * "keyboard and controllers" stage and before the first frame, with
+		 * nothing logged because nothing had failed.
+		 *
+		 * The USB stack has already enumerated what is attached by the time this
+		 * runs, so scanning finds a keyboard without driving anything.  Driving
+		 * plug-and-play is left to Update() from the frame loop, where a device
+		 * that misbehaves can at worst cost frames rather than the boot.
+		 */
+		ScanDevices ();
 
 		if (IsPresent ())
 		{
 			return TRUE;
 		}
 
-		if (pTimer == 0 || nClockHz == 0 || m_nTimeoutMs == 0)
+		if (pTimer == 0 || nTicksPerSecond == 0 || m_nTimeoutMs == 0)
 		{
 			break;
 		}
@@ -827,10 +846,10 @@ boolean CUSBAtariKeyboard::Initialize (void)
 		CTimer::SimpleMsDelay (USB_KEYBOARD_POLL_MS);
 
 		/*
-		 * The tick count wraps like the clock it counts, so the
-		 * difference is taken as an unsigned subtraction.
+		 * The tick count wraps like the clock it counts, so the difference is
+		 * taken as an unsigned subtraction.
 		 */
-		nElapsed = (pTimer->GetTicks () - nStart) / (nClockHz / nTicksPerSecond);
+		nElapsed = (pTimer->GetTicks () - nStart) * 1000 / nTicksPerSecond;
 	}
 	while (nElapsed < m_nTimeoutMs);
 

@@ -68,9 +68,17 @@ public:
 	 * normally a member of CKernel too.
 	 *
 	 * N_TIMEOUT_MS bounds how long Initialize() waits for a keyboard to turn
-	 * up, so that the emulator can start with none attached.
+	 * up.  It is zero, so start-up never waits at all.
+	 *
+	 * A keyboard is already enumerated by the time this runs -- the USB stack does
+	 * that during its own initialisation -- and Update() keeps looking every frame
+	 * afterwards, so one plugged in later is picked up regardless.  Waiting here
+	 * bought nothing and cost a black screen whenever no keyboard was present: on
+	 * a Zero 2 W with nothing attached the machine stopped at this stage, after
+	 * the "keyboard and controllers" marker and before the first frame, with
+	 * nothing logged because nothing had failed.
 	 */
-	CUSBAtariKeyboard (CUSBHCIDevice *pUSBHCI, unsigned nTimeoutMs = 5000);
+	CUSBAtariKeyboard (CUSBHCIDevice *pUSBHCI, unsigned nTimeoutMs = 0);
 	~CUSBAtariKeyboard (void);
 
 	/*

@@ -123,13 +123,31 @@ Everything else is reachable. The less obvious ones:
 
 ## Hot plugging
 
-The keyboard may be plugged in before or after power-on. At start-up the
-emulator waits briefly for a keyboard and reports in the log if none appeared;
-it carries on running either way, and a keyboard plugged in later is picked up.
+The keyboard may be plugged in before or after power-on, and a keyboard plugged
+in later is picked up. Start-up no longer waits for one: it scans the devices the
+USB stack has already enumerated and then gets on with booting, so a missing
+keyboard cannot delay the emulator reaching its first frame.
 
 Up to four USB keyboards can be attached at once, and unplugging one releases
 whatever keys it was holding — so an unplugged keyboard cannot leave a key stuck
 down.
+
+### A USB hub may not work on a Pi Zero 2 W
+
+A keyboard connected **directly** works. Behind a USB hub on a Pi Zero 2 W it
+may not be enumerated at all, and in that case it is simply invisible to the
+emulator: no keys, and the log reports no keyboard found.
+
+Circle's own `sample/08-usbkeyboard`, with none of this project's code involved,
+behaves the same way on that board, so this is a limit of Circle's USB stack on
+BCM2837 rather than anything the emulator does. Connect the keyboard directly, or
+try a different hub.
+
+Earlier builds could additionally **stop before the first frame** when such a hub
+was attached, because USB enumeration was driven during start-up and a device that
+failed to return a descriptor was retried forever. Bring-up now only scans; the
+enumeration that can stall is left to the frame loop, where it costs frames
+instead of the boot.
 
 One practical consequence: **while the OSD menu is open, the USB keyboard sends
 nothing to the emulated machine.** This is deliberate — without it, the arrow

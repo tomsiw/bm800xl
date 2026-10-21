@@ -227,19 +227,50 @@ This matters, so it is stated plainly rather than buried.
   machine type, RAM size (64/128/192/320 kB), video standard, and the rest.
 - The crash marker ejects all media and restores machine defaults on the next
   boot, so a bad image cannot trap the machine in a crash loop.
-- **Sound over HDMI**, at the correct pitch when the frame rate keeps up.
+- **Sound over HDMI**, at the correct pitch.
+- **Frame rate: 49.8 fps against the 50 fps target.** The emulation itself costs
+  about 1.5 ms per frame and the renderer about 5.5 ms, so the frame has room to
+  spare. Earlier builds ran at 30 fps because the renderer wrote the framebuffer
+  one pixel at a time into memory the ARM cannot cache; that is fixed.
+
+**Verified on hardware (Raspberry Pi Zero 2 W, 720p, HDMI, no audio on the display):**
+
+- It boots to BASIC and runs at **49.7 fps against the 50 fps target**, using the
+  `kernel64` image (`kernel8.img`). The rendering cost does not depend on what
+  the ATARI is drawing, so this is representative of a real workload.
+- Boot reaches the first frame in about 6.6 s: 4.1 s of firmware (before any of
+  this project's code runs), 0.4 s of Circle's own init, and the rest storage,
+  core start-up and the first picture.
+- The USB keyboard works **connected directly**. Through a USB hub it is not
+  enumerated — see below.
 
 **NOT yet verified:**
 
-- Pi Zero 2 W, Pi 3, Pi 4 and Pi 5: only the Pi 400 has been run.
+- Pi 3, Pi 4 and Pi 5. The Pi 400 covers the Pi 4 class; the others have not been
+  run. The `kernel64` image is the one built for the Zero 2 W.
 - The GPIO keyboard matrix, the 9-pin joystick ports, and USB gamepads.
 - Writing back to disk and cassette images; hot-plugging USB storage.
-- Frame rate: about 30 fps against a 50 fps (PAL) target on the Pi 400. The
-  emulation itself costs ~3 ms per frame, so the remainder is this project's
-  rendering and presentation path. At 30 fps the emulator produces only ~60% of
-  the audio samples the sound device consumes, so music plays with gaps and
-  sounds slowed — a symptom of the frame rate, not of the audio path.
 - Cassette loading beyond insertion.
+- Sound on the Zero 2 W: the test display had no speakers, so the sound device
+  refused to open, which is the correct behaviour on such a display.
+
+### A USB hub is not enumerated on the Zero 2 W
+
+A keyboard plugged **directly** into the Zero 2 W works. The same keyboard behind
+a USB hub does not, and worse, it used to stop the machine before the first
+frame: Circle's plug-and-play enumeration found a device it could not read a
+descriptor from (`usbdev0-1: Cannot get device descriptor (short)`) and retried
+it without returning.
+
+That enumeration is no longer driven during start-up — it is left to the frame
+loop, where a bad device costs frames rather than the boot — so a hub no longer
+prevents the machine from starting. It still does not deliver its keyboard.
+
+This was confirmed with Circle's own `sample/08-usbkeyboard`, unmodified, which
+shows the same behaviour with none of this project's code involved. It is a
+limitation of Circle's USB stack on BCM2837, not of the emulator. If a hub is
+needed, use one that enumerates correctly on this board, or connect the keyboard
+directly.
 
 ### HDMI audio requires the HDMI0 port
 

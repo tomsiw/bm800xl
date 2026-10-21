@@ -155,6 +155,10 @@ private:
 	// Runs one frame: keyboard, emulation, screen, sound, menu.
 	void RunFrame (void);
 
+	// Reports keyboard presence once it is a fact rather than a guess about
+	// enumeration timing.  Called at the top of every frame.
+	void UpdateKeyboardStatus (void);
+
 	// The host clock and idle functions the emulation core calls.  Their
 	// signatures are fixed by src/port/atari_port.h.
 	static uint64_t GetHostClock (void *pContext);
@@ -206,6 +210,19 @@ private:
 	 */
 	boolean			m_bFrameErrorReported;
 	char			m_LastFrameError[96];
+
+	/*
+	 * Keyboard presence, reported when it is a fact rather than a guess.
+	 *
+	 * Start-up scans the USB bus before Circle has registered a keyboard, so a
+	 * message there would appear on a machine whose keyboard works -- which is
+	 * what it used to do, and why it was worth ignoring.  The frame loop checks
+	 * instead: a notice when a keyboard appears, and a warning only once enough
+	 * frames have gone by that its absence is real.
+	 */
+	boolean			m_bKeyboardSeen;
+	boolean			m_bKeyboardWarned;
+	unsigned		m_nKeyboardFrames;
 };
 
 #endif
