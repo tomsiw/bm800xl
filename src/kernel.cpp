@@ -894,6 +894,28 @@ void CAtariKernel::RunFrame (void)
 	 * Checking the final state instead catches every route out of the menu,
 	 * whether it was Toggle() or the menu closing itself.
 	 */
+	/*
+	 * Apply a deferred cold start when the menu closes.
+	 *
+	 * Inserting a cartridge asks for a reset, but it cannot be performed from
+	 * inside the menu: that ran the emulated machine while the OSD owned the
+	 * display and another image was open on the same storage, which is where the
+	 * machine hung after selecting a disk and then a cartridge.  This transition
+	 * -- menu open last frame, closed this frame -- is the first safe moment, and
+	 * it catches every route out, including the menu closing itself.
+	 */
+	{
+		static boolean bMenuWasOpen = FALSE;
+		boolean bMenuOpen = m_Menu.IsOpen ();
+
+		if (bMenuWasOpen && !bMenuOpen)
+		{
+			ATARI_ApplyPendingColdStart ();
+		}
+
+		bMenuWasOpen = bMenuOpen;
+	}
+
 	if (m_pKeyboard != 0)
 	{
 		m_pKeyboard->SetMenuActive (m_Menu.IsOpen ());

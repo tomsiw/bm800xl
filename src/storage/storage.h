@@ -192,8 +192,18 @@ private:
 			       const char *pExtensions, boolean bIncludeDirectories);
 
 private:
-	FATFS m_SystemFileSystem;
-	FATFS m_UserFileSystem;
+	/*
+	 * The FatFs volume objects live on the heap, not inside this class.
+	 *
+	 * A FATFS contains the sector window FatFs uses for FAT and directory
+	 * access, and that window is handed to disk_read() and then -- when it is
+	 * cache-aligned -- straight to the USB mass storage driver as a DMA buffer.
+	 * Circle asserts that such a buffer lies above MEM_KERNEL_END, and anything
+	 * inside a statically allocated object is below it, so the buffers must come
+	 * from the heap.
+	 */
+	FATFS *m_pSystemFileSystem;
+	FATFS *m_pUserFileSystem;
 
 	boolean m_bSystemVolume;
 	boolean m_bUserVolume;

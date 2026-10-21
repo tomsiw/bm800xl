@@ -28,6 +28,7 @@
 #include "ff.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 /* ---------------------------------------------------------------------------
  * Configuration
@@ -57,7 +58,34 @@ struct atari_vfs_dir {
 	struct dirent entry;
 };
 
-static struct atari_vfs_file s_files[ATARI_VFS_MAX_FILES];
+/*
+ * The file slots, on the heap rather than in .bss.
+ *
+ * Each slot holds a FatFs FIL, and with FF_FS_TINY == 0 every FIL carries its
+ * own sector buffer.  Those buffers are handed to disk_read() and, when they
+ * happen to be cache-aligned, passed straight through to the USB mass storage
+ * driver as DMA buffers -- which asserts that a DMA buffer lies above
+ * MEM_KERNEL_END.
+ *
+ * A static array lives inside the kernel image, below that boundary, so its
+ * buffers could never be used for USB transfers.  Circle's heap is well above
+ * it.  Allocating the slots here is therefore a correctness requirement, not an
+ * optimisation.
+ */
+static struct atari_vfs_file *s_files;
+
+static void EnsureFiles(void)
+{
+	if (s_files != 0) {
+		return;
+	}
+
+	s_files = (struct atari_vfs_file *)
+		  malloc(sizeof *s_files * ATARI_VFS_MAX_FILES);
+	if (s_files != 0) {
+		memset(s_files, 0, sizeof *s_files * ATARI_VFS_MAX_FILES);
+	}
+}
 
 /*
  * Bounded trace of file operations, for following an ATR image through this
@@ -81,6 +109,11 @@ static struct atari_vfs_dir s_dirs[ATARI_VFS_MAX_DIRS];
 static struct atari_vfs_file *FileFromHandle(FILE *handle)
 {
 	int i;
+
+	EnsureFiles();
+	if (s_files == 0) {
+		return 0;
+	}
 
 	for (i = 0; i < ATARI_VFS_MAX_FILES; ++i) {
 		if (HANDLE_OF(&s_files[i]) == handle) {
@@ -186,6 +219,12 @@ static int TranslatePath(const char *alias_path, char *target, size_t target_siz
 static struct atari_vfs_file *AllocFile(void)
 {
 	int i;
+
+	EnsureFiles();
+	if (s_files == 0) {
+		return 0;
+	}
+
 	for (i = 0; i < ATARI_VFS_MAX_FILES; ++i) {
 		if (!s_files[i].used) {
 			memset(&s_files[i], 0, sizeof s_files[i]);
@@ -376,7 +415,7 @@ void ATARI_VFS_GetHandleStats(unsigned *pUsed, unsigned *pTotal)
 	unsigned used = 0;
 
 	for (unsigned i = 0; i < ATARI_VFS_MAX_FILES; i++) {
-		if (s_files[i].used) {
+		if (s_files != 0 && s_files[i].used) {
 			used++;
 		}
 	}
@@ -529,10 +568,26 @@ int ATARI_VFS_Seek(FILE *handle, long offset, int whence)
 		return -1;
 	}
 
-	if (f_lseek(&file->fil, target) != FR_OK) {
-		file->error = 1;
-		ATARI_RuntimeLog("file seek error - failed to seek");
-		return -1;
+	{
+		FRESULT result = f_lseek(&file->fil, target);
+
+		if (result != FR_OK) {
+			file->error = 1;
+
+			/*
+			 * Record the FatFs result, not just "it failed".
+			 *
+			 * A seek that fails on a handle which was working a moment ago is
+			 * either the file object having been closed underneath us
+			 * (FR_INVALID_OBJECT) or the storage layer refusing to talk
+			 * (FR_DISK_ERR).  Those two point at completely different bugs, and
+			 * the distinction was previously being thrown away here.
+			 */
+			ATARI_RuntimeLog("file seek error - failed to seek to %lu "
+					 "whence %d (FatFs result %d)",
+					 (unsigned long) target, whence, (int) result);
+			return -1;
+		}
 	}
 
 	/* Seeking clears the end-of-file indication, as in C. */

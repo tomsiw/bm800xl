@@ -454,6 +454,17 @@ int ATARI_MountDisk(int drive, const char *path, int read_only);
 int ATARI_UnmountDisk(int drive);
 
 /*
+ * Performs a cold start that a cartridge insertion asked for, if one is pending.
+ *
+ * Inserting a cartridge cannot reset the machine on the spot: the call arrives
+ * from inside the menu, and running the emulated machine there -- with another
+ * image already open on the same storage -- is what hung the machine.  The
+ * request is held until the menu closes, and the kernel calls this at that
+ * transition.  Does nothing when nothing is pending.
+ */
+void ATARI_ApplyPendingColdStart(void);
+
+/*
  * Writes the emulated machine's state to the runtime log.
  *
  * Called from the exception handler, where the host has already failed.  The

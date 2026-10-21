@@ -1978,6 +1978,29 @@ int ATARI_UnmountDisk(int drive)
 	return 1;
 }
 
+/*
+ * A cartridge takes effect on the next reset, and that reset is deferred until
+ * the menu closes.
+ *
+ * Doing it inside the menu ran the emulated machine while the OSD still owned
+ * the display and, more importantly, while the storage layer was mid-session
+ * with another image already open.  Selecting a disk and then a cartridge hung
+ * there; deferring the reset means it happens once, at a point where the menu
+ * has released both.
+ */
+static int s_bColdStartPending;
+
+void ATARI_ApplyPendingColdStart(void)
+{
+	if (!s_bColdStartPending) {
+		return;
+	}
+
+	s_bColdStartPending = 0;
+	ATARI_RuntimeLog("cartridge: applying the deferred cold start");
+	ATARI_ColdReset();
+}
+
 int ATARI_MountCartridge(const char *path)
 {
 	if (!s_initialised) {
@@ -2011,18 +2034,21 @@ int ATARI_MountCartridge(const char *path)
 		int nResult = CARTRIDGE_Insert(path);
 
 		if (nResult == 0 || nResult == CARTRIDGE_BAD_CHECKSUM) {
-			ATARI_RuntimeLog("cartridge: mounted %s%s, cold start",
+			ATARI_RuntimeLog("cartridge: mounted %s%s",
 					 path,
 					 nResult == CARTRIDGE_BAD_CHECKSUM
 					 ? " (bad checksum, still usable)" : "");
 
 			/*
-			 * A cartridge takes effect on the next reset; do it now so that the
-			 * user sees the new cartridge immediately, as other ports do.
+			 * The machine is not reset here.  This call arrives from inside the
+			 * menu, and running the emulated CPU while the OSD owns the display
+			 * and another image is open on the same storage is what hung after
+			 * selecting a disk and then a cartridge.  The reset is applied when
+			 * the menu closes, so the user still sees the new cartridge at once.
 			 */
-			Atari800_Coldstart();
-
-			ATARI_RuntimeLog("cartridge: cold start returned");
+			s_bColdStartPending = 1;
+			ATARI_RuntimeLog("cartridge: cold start deferred until the menu "
+					 "closes");
 			return 1;
 		}
 

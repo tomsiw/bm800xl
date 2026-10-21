@@ -25,7 +25,9 @@
 static const char FromStorage[] = "storage";
 
 CAtariStorage::CAtariStorage (void)
-:	m_bSystemVolume (FALSE),
+:	m_pSystemFileSystem (new FATFS),
+	m_pUserFileSystem (new FATFS),
+	m_bSystemVolume (FALSE),
 	m_bUserVolume (FALSE),
 	m_nEntryCount (0)
 {
@@ -48,7 +50,7 @@ CAtariStorage::~CAtariStorage (void)
 boolean CAtariStorage::Initialize (const char *pSystemDirectory)
 {
 	// The SD card carries the emulator's own files, so it must work.
-	if (f_mount (&m_SystemFileSystem, STORAGE_VOLUME_SYSTEM, 1) != FR_OK)
+	if (f_mount (m_pSystemFileSystem, STORAGE_VOLUME_SYSTEM, 1) != FR_OK)
 	{
 		CLogger::Get ()->Write (FromStorage, LogError,
 					"Cannot mount the SD card as %s",
@@ -95,15 +97,28 @@ boolean CAtariStorage::RefreshUserVolume (void)
 {
 	boolean bWasAvailable = m_bUserVolume;
 
-	// Mounting fails cleanly when nothing is attached, so this doubles as the
-	// "has a drive appeared yet?" test.
-	if (f_mount (&m_UserFileSystem, STORAGE_VOLUME_USER, 1) == FR_OK)
+	/*
+	 * Never re-mount a volume that is already mounted.
+	 *
+	 * f_mount() with opt = 1 re-initialises the volume, and FatFs invalidates
+	 * every open file on it when that happens.  This function is called when the
+	 * menu opens, so re-mounting there silently destroyed the handle of any disk
+	 * image already loaded: every later seek returned FR_INVALID_OBJECT, the
+	 * emulated machine read whatever was at position zero instead of the sector
+	 * it asked for, and it ran off into the weeds.
+	 *
+	 * That is why mounting an image and then opening the menu broke the machine,
+	 * and why a power cycle -- where nothing re-mounts -- worked.
+	 *
+	 * Mounting is only needed to discover a drive that has not been seen yet, so
+	 * it is attempted only in that case.  The cost is that a drive removed and
+	 * reinserted without a reboot is not noticed; a read on the stale volume
+	 * fails cleanly rather than corrupting a live image.
+	 */
+	if (!m_bUserVolume)
 	{
-		m_bUserVolume = TRUE;
-	}
-	else
-	{
-		m_bUserVolume = FALSE;
+		m_bUserVolume = f_mount (m_pUserFileSystem,
+					 STORAGE_VOLUME_USER, 1) == FR_OK;
 	}
 
 	return m_bUserVolume != bWasAvailable;
