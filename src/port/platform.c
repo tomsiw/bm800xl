@@ -1800,18 +1800,23 @@ void ATARI_SetVolume(int volume_0_100)
 		return;
 	}
 	POKEYSND_SetVolume(s_config.sound_volume);
+
 	/*
-	 * The POKEY mixer latches the volume when it is initialised, so the
-	 * configuration has to be pushed through the sound setup for the change
-	 * to take effect on the currently selected mixer.
+	 * The mixer has to be re-initialised for the new volume to be heard.
+	 *
+	 * POKEY's mixer copies POKEYSND_volume into its own gain tables when it is
+	 * initialised (mzpokeysnd.c: "volume.s16 = POKEYSND_volume * 0xffff / 256.0"),
+	 * so setting the variable alone changes nothing on the mixer that is already
+	 * running.  That is why changing the volume in the menu used to do nothing
+	 * until the sound was switched off and on again -- switching it re-ran the
+	 * whole set-up and re-initialised the mixer as a side effect.
+	 *
+	 * POKEYSND_DoInit() repeats POKEY's initialisation with the parameters it
+	 * already holds.  It touches no device, which matters here: reopening the
+	 * audio sink hangs on this hardware, so re-initialising the mixer is the only
+	 * way to make a volume change audible without a restart.
 	 */
-	if (s_config.sound_enabled) {
-		/*
-		 * Same reason as above: go through the guarded path rather than opening
-		 * the device directly, so an already-running sink is not reopened.
-		 */
-		ApplySoundConfiguration();
-	}
+	POKEYSND_DoInit();
 }
 
 void ATARI_SetSoundEnabled(int enabled)
