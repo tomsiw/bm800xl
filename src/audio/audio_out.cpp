@@ -83,12 +83,8 @@ public:
 
 protected:
 	/// \brief Fills one DMA chunk with samples, or with digital silence if
-	///	   the ring has run dry
-	/// \note Called from the DMA interrupt handler
-	unsigned GetChunk (u32 *pBuffer, unsigned nChunkSize) override;
 
 private:
-	void PushSamples (const void *pData, unsigned nSamples);
 
 private:
 	s16		m_Ring[AudioRingSamples];
@@ -135,44 +131,35 @@ CAtariAudioDevice::CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSa
 // Producer side, called from the emulation loop
 //
 
+/*
+ * These hand the stream to Circle's own queue instead of to a ring of ours.
+ *
+ * The class used to override GetChunk(), which meant GetChunkInternal() -- the
+ * only place that inserts IEC958 subframe framing (control channel, parity,
+ * preamble) -- was never called, and the DMA was given raw PCM where the
+ * hardware expects framed S/PDIF subframes.  That is audible as distortion that
+ * no amount of rate, buffer or framing tuning can remove.
+ *
+ * Without the override, the base class drains its queue through that path and
+ * encodes the stream itself, which is what the queue exists for.
+ */
 unsigned CAtariAudioDevice::FreeBytes (void)
 {
-	DataMemBarrier ();
+	// Space left in Circle's queue, in whole frames.  A partial frame would break
+	// the channel interleaving of everything written after it.
+	unsigned nFrameSize = m_nChannels * sizeof (s16);
+	unsigned nUsed = GetQueueFramesAvail ();
+	unsigned nSize = GetQueueSizeFrames ();
 
-	unsigned nFree = AudioRingSamples - (m_nIn - m_nOut);
+	unsigned nFreeFrames = nSize > nUsed ? nSize - nUsed : 0;
 
-	// The ring holds the stream exactly as it arrives, so only whole frames
-	// can be handed over: a partial frame would break the channel interleaving
-	// of everything that is written after it.
-	return (nFree / m_nChannels) * m_nChannels * sizeof (s16);
+	return nFreeFrames * nFrameSize;
 }
-
 unsigned CAtariAudioDevice::WriteStream (const void *pData, unsigned nCount)
 {
-	unsigned nFrameSize = m_nChannels * sizeof (s16);
-	unsigned nFrames = nCount / nFrameSize;
-	if (nFrames == 0)
-	{
-		return 0;
-	}
+	int nResult = Write (pData, nCount);
 
-	DataMemBarrier ();
-
-	unsigned nFreeFrames = (AudioRingSamples - (m_nIn - m_nOut)) / m_nChannels;
-	if (nFrames > nFreeFrames)
-	{
-		nFrames = nFreeFrames;
-	}
-	if (nFrames == 0)
-	{
-		// No room at all: report it instead of waiting, the caller decides
-		// what to drop.
-		return 0;
-	}
-
-	PushSamples (pData, nFrames * m_nChannels);
-
-	return nFrames * nFrameSize;
+	return nResult > 0 ? (unsigned) nResult : 0;
 }
 
 void CAtariAudioDevice::PadSilence (unsigned nCount)
@@ -180,7 +167,7 @@ void CAtariAudioDevice::PadSilence (unsigned nCount)
 	// All-zero PCM is digital silence: in a sample stream zero is the absence of
 	// signal, so the padding is simply zeroed samples.  The chunks are bounded so
 	// that a caller offering more than fits is not delayed, and the loop stops as
-	// soon as the ring is full.
+	// soon as the queue is full.
 	static const u8 ZeroPCM[AudioZeroChunkBytes] = { };
 
 	unsigned nMaxChunk = (unsigned) sizeof ZeroPCM;
@@ -199,102 +186,9 @@ void CAtariAudioDevice::PadSilence (unsigned nCount)
 	}
 }
 
-void CAtariAudioDevice::PushSamples (const void *pData, unsigned nSamples)
-{
-	unsigned nPos = m_nIn & (AudioRingSamples - 1);
-	unsigned nFirst = AudioRingSamples - nPos;
-	if (nFirst > nSamples)
-	{
-		nFirst = nSamples;
-	}
-
-	memcpy (&m_Ring[nPos], pData, nFirst * sizeof (s16));
-	if (nSamples > nFirst)
-	{
-		memcpy (m_Ring, (const u8 *) pData + nFirst * sizeof (s16),
-			(nSamples - nFirst) * sizeof (s16));
-	}
-
-	// The samples have to be in the ring before the index says that they are
-	// there: from the store below on, GetChunk() may run at any moment.
-	DataMemBarrier ();
-	m_nIn += nSamples;
-}
-
 //
 // Consumer side, called from the DMA interrupt handler
 //
-
-unsigned CAtariAudioDevice::GetChunk (u32 *pBuffer, unsigned nChunkSize)
-{
-	/*
-	 * The write format is Signed16 with two channels, so one 32-bit word holds
-	 * exactly one frame: the left sample in the low half and the right in the
-	 * high half.  The base class converts that to whatever the hardware needs --
-	 * IEC958 for HDMI -- which is why this no longer writes finished 32-bit
-	 * words, and why nChunkSize counts frames rather than words.
-	 */
-	unsigned nFrames = nChunkSize;
-
-	// A single read of the producer's index and a single write of ours is all
-	// the synchronisation a single-producer/single-consumer ring needs.
-	DataMemBarrier ();
-
-	unsigned nIn = m_nIn;
-	unsigned nOut = m_nOut;
-	unsigned nAvail = (nIn - nOut) / m_nChannels;
-	if (nFrames > nAvail)
-	{
-		nFrames = nAvail;
-	}
-
-	s16 *pOut = (s16 *) pBuffer;
-	unsigned nPos = nOut;
-
-	for (unsigned i = 0; i < nFrames; i++)
-	{
-		s16 nLeft;
-		s16 nRight;
-
-		if (m_nChannels == 2)
-		{
-			nLeft  = m_Ring[nPos & (AudioRingSamples - 1)];
-			nRight = m_Ring[(nPos + 1) & (AudioRingSamples - 1)];
-			nPos += 2;
-		}
-		else
-		{
-			// A mono machine drives both output channels: the Atari's
-			// single POKEY channel has to be heard on either side.
-			nLeft = nRight = m_Ring[nPos & (AudioRingSamples - 1)];
-			nPos++;
-		}
-
-		if (m_bSwapChannels)
-		{
-			*pOut++ = nRight;
-			*pOut++ = nLeft;
-		}
-		else
-		{
-			*pOut++ = nLeft;
-			*pOut++ = nRight;
-		}
-	}
-
-	DataMemBarrier ();
-	m_nOut = nOut + nFrames * m_nChannels;
-
-	// Underrun: the rest of the chunk is digital silence, which for a sample
-	// stream is zero.  The transfer continues, so playback resumes by itself as
-	// soon as the emulator writes again.
-	while (pOut < (s16 *) pBuffer + nChunkSize * 2)
-	{
-		*pOut++ = 0;
-	}
-
-	return nChunkSize;
-}
 
 //
 // Lifetime
