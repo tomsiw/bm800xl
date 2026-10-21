@@ -32,6 +32,18 @@ static const unsigned ScreenHeight	= 240;
 static const unsigned ScreenXOrigin	= 24;
 static const unsigned ScreenVisibleWidth = 336;
 
+/*
+ * Widest destination row that can be staged, matching the size of
+ * CAtariVideoOut::m_ColumnMap.  A wider geometry than this falls back to
+ * writing the framebuffer directly.
+ */
+static const unsigned MaxDestinationWidth = 1920;
+
+/* Staging for one destination row, used to turn per-pixel uncached writes into
+ * burst copies.  Shared by the screen scaler and the menu's dimming, which are
+ * the two places that touch large numbers of framebuffer pixels. */
+static u16 s_DimRow[MaxDestinationWidth];
+
 CAtariVideoOut::CAtariVideoOut (void)
 :	m_pFrameBuffer (0),
 	m_bInitialized (FALSE),
@@ -316,6 +328,24 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 	 * speak of.  That matters: at 960x720 this writes around 690,000 pixels per
 	 * frame, and a division per pixel here was costing real frame time.
 	 */
+	/*
+	 * Scale the picture, one row at a time into a cached staging buffer.
+	 *
+	 * The framebuffer is not cacheable from the ARM, so every store to it is its
+	 * own bus transaction.  Writing the row pixel by pixel straight into it
+	 * measured at ~31 ms per frame -- 95% of the frame budget, against 1.5 ms for
+	 * the emulation itself -- because ~690,000 individual 16-bit stores were each
+	 * paying for a separate transaction.
+	 *
+	 * Building the row in ordinary cached memory and then copying it with one
+	 * memcpy() turns that into a small number of wide, burst stores: Circle's
+	 * memcpy uses 128-bit transfers, so the transaction count drops by roughly an
+	 * order of magnitude while the same bytes are written.
+	 */
+	static u16 s_RowBuffer[MaxDestinationWidth];
+
+	const bool bStage = m_nColumnMapSize <= MaxDestinationWidth;
+
 	for (unsigned nY = 0; nY < m_nRowMapSize; nY++)
 	{
 		const u8 *pSource = pScreen + (uintptr) m_RowMap[nY] * ScreenStride;
@@ -323,10 +353,23 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 			  + (uintptr) (nY + m_nDestTop) * m_nPitchPixels
 			  + m_nDestLeft;
 
+		if (!bStage)
+		{
+			for (unsigned nX = 0; nX < m_nColumnMapSize; nX++)
+			{
+				pRow[nX] = Palette565[pSource[ScreenXOrigin + m_ColumnMap[nX]]];
+			}
+
+			continue;
+		}
+
 		for (unsigned nX = 0; nX < m_nColumnMapSize; nX++)
 		{
-			pRow[nX] = Palette565[pSource[ScreenXOrigin + m_ColumnMap[nX]]];
+			s_RowBuffer[nX] =
+				Palette565[pSource[ScreenXOrigin + m_ColumnMap[nX]]];
 		}
+
+		memcpy (pRow, s_RowBuffer, m_nColumnMapSize * sizeof (u16));
 	}
 
 	/*
@@ -520,20 +563,56 @@ void CAtariVideoOut::DimRect (unsigned nX, unsigned nY, unsigned nWidth, unsigne
 	// Halve each colour component about nPercent/100 of the way towards black.
 	unsigned nKeep = 100 - nPercent;
 
+	/*
+	 * Dim row by row through cached memory.
+	 *
+	 * Dimming is a read-modify-write: every pixel in the panel is read from and
+	 * written to the framebuffer, which is not cacheable from the ARM, so each
+	 * pixel cost two uncached transactions.  With the menu open this measured at
+	 * 44-69 ms per frame -- worse than the whole screen scale before it was
+	 * fixed -- and that is what made the OSD flicker: at that cost the frame
+	 * misses its slot and the panel is shown half-updated.
+	 *
+	 * Copying the row in, dimming it in ordinary memory and copying it back turns
+	 * the per-pixel traffic into bursts.  A row wider than the staging buffer
+	 * falls back to the direct path rather than overrunning it.
+	 */
+	const bool bStage = nWidth <= MaxDestinationWidth;
+
 	for (unsigned nRow = 0; nRow < nHeight; nRow++)
 	{
 		u16 *pRow = m_pBackBuffer + (uintptr) (nY + nRow) * m_nPitchPixels + nX;
 
+		if (!bStage)
+		{
+			for (unsigned nCol = 0; nCol < nWidth; nCol++)
+			{
+				u16 nPixel = pRow[nCol];
+
+				unsigned nR = ((nPixel >> 11) & 0x1f) * nKeep / 100;
+				unsigned nG = ((nPixel >>  5) & 0x3f) * nKeep / 100;
+				unsigned nB = ( nPixel        & 0x1f) * nKeep / 100;
+
+				pRow[nCol] = (u16) ((nR << 11) | (nG << 5) | nB);
+			}
+
+			continue;
+		}
+
+		memcpy (s_DimRow, pRow, nWidth * sizeof (u16));
+
 		for (unsigned nCol = 0; nCol < nWidth; nCol++)
 		{
-			u16 nPixel = pRow[nCol];
+			u16 nPixel = s_DimRow[nCol];
 
 			unsigned nR = ((nPixel >> 11) & 0x1f) * nKeep / 100;
 			unsigned nG = ((nPixel >>  5) & 0x3f) * nKeep / 100;
 			unsigned nB = ( nPixel        & 0x1f) * nKeep / 100;
 
-			pRow[nCol] = (u16) ((nR << 11) | (nG << 5) | nB);
+			s_DimRow[nCol] = (u16) ((nR << 11) | (nG << 5) | nB);
 		}
+
+		memcpy (pRow, s_DimRow, nWidth * sizeof (u16));
 	}
 }
 

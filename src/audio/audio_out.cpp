@@ -118,6 +118,17 @@ CAtariAudioDevice::CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSa
 	 */
 	m_nSilence = 0;
 	m_bSwapChannels = FALSE;
+
+	/*
+	 * Start from silence.
+	 *
+	 * The object is constructed in place in s_DeviceMemory, so the first open
+	 * happens to see zeros, but reopening the sink constructs a new device over
+	 * the same memory -- and m_Ring is not part of the initialiser list above.
+	 * Without this, the first chunks after a reopen play whatever the previous
+	 * session left in the ring.
+	 */
+	memset (m_Ring, 0, sizeof m_Ring);
 }
 
 //

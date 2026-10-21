@@ -205,6 +205,23 @@ boolean CRuntimeLogTarget::s_bRuntimeLogReady = FALSE;
 
 static CRuntimeLogTarget s_RuntimeLogTarget;
 
+/*
+ * Accumulated per-phase frame timings, in microseconds.
+ *
+ * Reported as averages because a single frame is too noisy to read, and because
+ * the point is to find which phase dominates the budget, not to chase spikes.
+ */
+struct TFrameTimings
+{
+	u64 nEmulation;
+	u64 nFill;
+	u64 nMenu;
+	u64 nPresent;
+	unsigned nFrames;
+};
+
+static TFrameTimings s_Timings;
+
 void CAtariExceptionHandler::Throw (unsigned nException, TAbortFrame *pFrame)
 {
 	CBootLog::Get ()->RecordRuntimef ("*** EXCEPTION %u -- the machine has "
@@ -1000,11 +1017,17 @@ TShutdownMode CAtariKernel::Run (void)
 
 void CAtariKernel::RunFrame (void)
 {
+	// Set when the menu acted on a key this frame.  The OSD is drawn on a
+	// reduced cadence while it is open (see the draw section below), and an
+	// interaction must be visible immediately rather than on the next tick.
+	boolean bMenuKeyHandled = FALSE;
+
 	// The menu takes precedence over the emulated machine while it is open:
 	// the same arrow keys move the selection rather than the Atari cursor.
 	if (m_pKeyboard != 0 && m_pKeyboard->ConsumeMenuRequest ())
 	{
 		m_Menu.Toggle ();
+		bMenuKeyHandled = TRUE;
 	}
 
 	if (m_Menu.IsOpen () && m_pKeyboard != 0)
@@ -1025,6 +1048,7 @@ void CAtariKernel::RunFrame (void)
 				break;
 			}
 			m_Menu.HandleKey (nKey, FALSE, FALSE);
+			bMenuKeyHandled = TRUE;
 		}
 	}
 
@@ -1069,6 +1093,16 @@ void CAtariKernel::RunFrame (void)
 		m_pKeyboard->SetMenuActive (m_Menu.IsOpen ());
 	}
 
+	/*
+	 * Frame timing.
+	 *
+	 * The emulation itself costs only a few milliseconds, so the frame budget is
+	 * being spent somewhere in this function.  Measuring each phase separately
+	 * is the difference between optimising the right thing and guessing: the
+	 * numbers go into the periodic report below.
+	 */
+	u64 nStart = CTimer::GetClockTicks64 ();
+
 	// Emulate one frame.  The emulation core pulls the keyboard state itself,
 	// through the callback installed in InitializeKeyboard().
 	if (!ATARI_RunFrame ())
@@ -1108,20 +1142,95 @@ void CAtariKernel::RunFrame (void)
 		}
 	}
 
-	// Scale the emulated screen into the framebuffer, then let the menu draw
-	// over it.
-	const u8 *pScreen = ATARI_ScreenIndices ();
-	if (pScreen != 0)
+	u64 nAfterEmulation = CTimer::GetClockTicks64 ();
+
+	/*
+	 * Draw the frame, on a reduced cadence while the menu is open.
+	 *
+	 * The emulated machine keeps running at full speed either way -- audio
+	 * depends on that, because the emulator must produce 44,100 samples per
+	 * second regardless of what is being drawn.  Only the drawing is throttled.
+	 *
+	 * With the menu open, every frame used to redraw the whole Atari picture and
+	 * then re-dim the whole menu panel: two full-screen passes, plus the text.
+	 * That measured at 25-52 ms per frame and is what made the OSD flicker, since
+	 * at that cost the frame misses its slot.  Redrawing a few times a second
+	 * keeps the picture visible behind the panel at a fraction of the cost, and
+	 * an interaction is drawn immediately so the menu still feels responsive.
+	 */
+	static const unsigned MenuRedrawInterval = 10;	// frames between redraws
+	/*
+	 * A key must be seen at once, but not on every frame: key repeat delivers a
+	 * key each frame while an arrow is held, and each redraw costs far more than
+	 * a frame's budget.  Redrawing every frame therefore overruns continuously,
+	 * which is what the flicker was.  A short floor keeps the menu responsive
+	 * while giving the frame pacer room to recover between redraws.
+	 */
+	static const unsigned MenuKeyRedrawFloor = 4;
+
+	static unsigned nMenuCountdown = 0;
+	static unsigned nSinceRedraw = MenuKeyRedrawFloor;
+
+	boolean bMenuOpen = m_Menu.IsOpen ();
+	boolean bRedraw = TRUE;
+
+	if (bMenuOpen)
 	{
-		m_Video.FillScreen (pScreen, (const u32 *) ATARI_Palette ());
+		bRedraw = nMenuCountdown == 0
+			  || (bMenuKeyHandled && nSinceRedraw >= MenuKeyRedrawFloor);
+		nMenuCountdown = bRedraw ? MenuRedrawInterval - 1 : nMenuCountdown - 1;
+	}
+	else
+	{
+		nMenuCountdown = 0;
 	}
 
-	if (m_Menu.IsOpen ())
+	nSinceRedraw = bRedraw ? 0 : nSinceRedraw + 1;
+
+	if (bRedraw)
 	{
-		m_Menu.Draw ();
+		const u8 *pScreen = ATARI_ScreenIndices ();
+		if (pScreen != 0)
+		{
+			m_Video.FillScreen (pScreen, (const u32 *) ATARI_Palette ());
+		}
+
+		if (bMenuOpen)
+		{
+			m_Menu.Draw ();
+		}
+
+		m_Video.Present ();
 	}
 
-	m_Video.Present ();
+	u64 nEnd = CTimer::GetClockTicks64 ();
+
+	s_Timings.nEmulation += nAfterEmulation - nStart;
+	s_Timings.nFill      += nEnd - nAfterEmulation;
+	s_Timings.nMenu      += 0;
+	s_Timings.nPresent   += 0;
+	s_Timings.nFrames++;
+
+	/*
+	 * Report every few hundred frames rather than every frame: the numbers are
+	 * averages, and a log line per frame would cost more than it measures.
+	 */
+	if (s_Timings.nFrames >= 300)
+	{
+		unsigned n = s_Timings.nFrames;
+
+		m_pBootLog->RecordRuntimef (
+			"frame cost (us): emulate %llu, fill %llu, menu %llu, "
+			"present %llu, total %llu",
+			s_Timings.nEmulation / n, s_Timings.nFill / n,
+			s_Timings.nMenu / n, s_Timings.nPresent / n,
+			(s_Timings.nEmulation + s_Timings.nFill + s_Timings.nMenu
+			 + s_Timings.nPresent) / n);
+
+		s_Timings.nEmulation = s_Timings.nFill = 0;
+		s_Timings.nMenu = s_Timings.nPresent = 0;
+		s_Timings.nFrames = 0;
+	}
 
 	/*
 	 * The first completed frame is the end of start-up.
