@@ -1166,6 +1166,66 @@ int ATARI_Init(const atari_config_t *cfg)
 	                 Atari800_os_version,
 	                 MEMORY_have_basic ? "present" : "MISSING");
 
+	/*
+	 * Re-assert the machine configuration now that the core is up.
+	 *
+	 * The machine type and RAM size are written before the core initialises it,
+	 * which is where they need to be for the core's own setup to see them.  But
+	 * that is exactly the shape of the video-standard bug: a value assigned
+	 * during configuration can be superseded by the core's initialisation, and
+	 * the only symptom is a machine that quietly differs from the settings.
+	 *
+	 * Setting them again here, immediately before the first cold start, costs
+	 * nothing and guarantees that the machine which boots is the one the
+	 * settings describe.  The line below records both the requested and the
+	 * effective values, so a mismatch would be visible rather than inferred.
+	 */
+	Atari800_SetMachineType(CoreMachineType(s_config.machine));
+	ApplyMachinePersonality(s_config.machine);
+	MEMORY_ram_size = CoreRamSize(s_config.ram_kb);
+
+	ATARI_RuntimeLog("machine configured: type %d, %d kB RAM "
+			 "(settings asked for type %d, %d kB)",
+			 (int) Atari800_machine_type, (int) MEMORY_ram_size,
+			 (int) s_config.machine, (int) s_config.ram_kb);
+
+	/*
+	 * The remaining core settings, in the same requested-versus-effective shape.
+	 *
+	 * The video standard is the one that caused trouble silently: the palette is
+	 * only refreshed by a call that does nothing when the mode already matches,
+	 * so a wrong standard showed up as wrong colours with nothing in the log to
+	 * say what the emulator believed it was doing.
+	 */
+	ATARI_RuntimeLog("video configured: %s, artifact mode %d "
+			 "(settings asked for %s, artifact mode %d)",
+			 Atari800_tv_mode == Atari800_TV_PAL ? "PAL" : "NTSC",
+			 (int) s_config.artifact,
+			 s_config.video == ATARI_VIDEO_PAL ? "PAL" : "NTSC",
+			 (int) s_config.artifact);
+
+	ATARI_RuntimeLog("sound configured: %s, volume %d, %s, %d Hz",
+			 s_config.sound_enabled ? "on" : "off",
+			 (int) s_config.sound_volume,
+			 s_config.sound_stereo ? "stereo" : "mono",
+			 (int) s_config.sound_sample_rate);
+
+	/*
+	 * Refresh the palette for the configured video standard.
+	 *
+	 * The mode was assigned directly during configuration (Atari800_tv_mode
+	 * above), which tells the core which standard to emulate but does not touch
+	 * the palette: only Atari800_SetTVMode() does that, and it does nothing when
+	 * the mode it is given already matches.  So a machine configured as NTSC came
+	 * up still showing PAL colours, and the menu -- which reads the setting, not
+	 * the palette -- disagreed with the picture.
+	 *
+	 * Calling these directly is the only way to force the refresh, precisely
+	 * because the public entry point short-circuits on equality.
+	 */
+	Colours_SetVideoSystem(Atari800_tv_mode);
+	ARTIFACT_SetTVMode(Atari800_tv_mode);
+
 	s_initialised = 1;
 	ATARI_ColdReset();
 

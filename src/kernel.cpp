@@ -474,6 +474,29 @@ boolean CAtariKernel::Initialize (void)
 	}
 
 	/*
+	 * Report the settings that are not otherwise visible at startup.
+	 *
+	 * The machine type, RAM size and video standard are logged by the platform
+	 * once the core is up, because those are the ones that can be silently
+	 * overridden.  Everything else only appears in the settings file, which is
+	 * not on the machine when the log is being read -- so a wrong resolution or
+	 * an unexpected keyboard mode costs an experiment to confirm.  These two
+	 * lines make the whole configuration readable from the log alone.
+	 */
+	CBootLog::Get ()->RecordRuntimef (
+		"display configured: %s",
+		m_Settings.nResolution == AtariResolution1080p ? "1080p" : "720p");
+
+	CBootLog::Get ()->RecordRuntimef (
+		"input configured: %s keyboard, numpad as cursor %s, "
+		"USB joysticks %s, GPIO joysticks %s, cassette %s",
+		m_Settings.nKeyboardMode == AtariKeyboardModeUSB ? "USB" : "GPIO",
+		m_Settings.bNumpadAsCursor ? "on" : "off",
+		m_Settings.bUSBJoysticks ? "on" : "off",
+		m_Settings.bGPIOJoysticks ? "on" : "off",
+		m_Settings.bCassetteReadOnly ? "read only" : "read/write");
+
+	/*
 	 * If the previous run died, start from a clean machine.
 	 *
 	 * A disk image that crashes the emulator would otherwise crash it again on
@@ -558,7 +581,19 @@ boolean CAtariKernel::Initialize (void)
 
 	m_pBootLog->Stage (BootStageCore);
 
-	if (!ATARI_Init (&m_EmulatorConfig))
+	/*
+	 * Build the core's configuration from the settings before handing it over.
+	 *
+	 * This was missing: ATARI_Init() was being given m_EmulatorConfig directly,
+	 * which nothing had filled, so the core started with a zeroed configuration
+	 * and ignored every saved setting -- machine type, RAM size and video
+	 * standard alike.  The menu still showed what had been chosen, which made it
+	 * look as though the setting was lost rather than never passed.
+	 */
+	const atari_config_t *pConfig = 0;
+	MakeEmulatorConfig (pConfig);
+
+	if (!ATARI_Init (pConfig))
 	{
 		m_pBootLog->Recordf ("PANIC: the emulation core failed to start: %s",
 				   ATARI_LastError ());
