@@ -15,12 +15,14 @@
 //     zero.  (The PWM path this driver used to take needed mid-scale duty values
 //     instead; that distinction is why this code looks the way it does.)
 //
-//  2. The samples travel through a ring buffer of this driver's own.  GetChunk()
-//     runs in the DMA interrupt handler, where nothing may allocate, log or
-//     wait, and the emulator calls write() from the main thread, so the ring is
-//     the only meeting point between the two.  It holds the stream exactly as
-//     the emulator produces it; GetChunk() left-justifies each sample and, for a
-//     mono stream, feeds the same sample to both output channels.
+//  2. The samples travel through Circle's own queue.  They are written with
+//     Write() from the emulation loop, and the base class drains that queue in
+//     GetChunk(), which runs in the DMA interrupt handler -- a place where
+//     nothing may allocate, log or wait.  The queue is therefore the only
+//     meeting point between the two threads, and it is also what performs the
+//     IEC958 framing.  Left to itself the queue holds the stream exactly as the
+//     emulator produces it; for a mono stream the same sample goes to both
+//     output channels.
 //
 //  3. The sample rate and chunk size are fixed in CHDMISoundBaseDevice's
 //     constructor, and the chunk must be a whole number of IEC958 blocks (384
@@ -40,22 +42,14 @@
 
 #include <assert.h>
 
-// 16 384 samples, that is 32 KB of PCM.  At 48 kHz - the highest rate the
-// platform layer in src/port/sound_bridge.c accepts - the ring holds 170 ms of
-// a stereo stream or 341 ms of a mono one, and it is still more than the 100 ms
-// the stream is sized for at the core's 65 535 Hz ceiling.
+// Bytes of digital silence written at a time when the stream runs dry.
 enum
 {
-	AudioRingSamples	= 16384,
 	AudioChunkWords		= 1920,		// 32-bit words per DMA chunk
-	AudioQueueMsecs		= 100,		// output buffer reported to the emulator
+	AudioQueueMsecs		= 100,		// size of Circle's output queue
 	AudioZeroChunkBytes	= 256,		// silence is fed in chunks of this size
 	AudioCancelTimeout	= CLOCKHZ	// how long close() waits for the DMA
 };
-
-// The ring positions are wrapped by masking, not by comparing, so the size has
-// to be a power of two.
-ASSERT_STATIC ((AudioRingSamples & (AudioRingSamples - 1)) == 0);
 
 namespace
 {
@@ -66,9 +60,6 @@ public:
 	CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSampleRate,
 			   unsigned nChannels);
 
-	/// \return Frames of the emulated stream the ring buffer can hold
-	unsigned GetRingFrames (void) const	{ return AudioRingSamples / m_nChannels; }
-
 	/// \return Stream bytes that write() accepts right now
 	unsigned FreeBytes (void);
 
@@ -78,18 +69,10 @@ public:
 	unsigned WriteStream (const void *pData, unsigned nCount);
 
 	/// \brief Pushes COUNT bytes of digital silence
-	/// \note Stops early when the ring is full; never waits
+	/// \note Stops early when the queue is full; never waits
 	void PadSilence (unsigned nCount);
 
-protected:
-	/// \brief Fills one DMA chunk with samples, or with digital silence if
-
 private:
-
-private:
-	s16		m_Ring[AudioRingSamples];
-	volatile unsigned m_nIn;	// next sample the producer writes
-	volatile unsigned m_nOut;	// next sample GetChunk() consumes
 	unsigned	m_nChannels;	// channels of the emulated stream: 1 or 2
 	u32		m_nSilence;
 	boolean		m_bSwapChannels;
@@ -98,15 +81,14 @@ private:
 CAtariAudioDevice::CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSampleRate,
 				      unsigned nChannels)
 :	CHDMISoundBaseDevice (pInterrupt, nSampleRate, AudioChunkWords),
-	m_nIn (0),
-	m_nOut (0),
 	m_nChannels (nChannels)
 {
 	/*
-	 * CHDMISoundBaseDevice produces SoundFormatIEC958: it takes one signed
-	 * 32-bit sample per channel per word and builds the S/PDIF subframes itself.
-	 * GetChunk() therefore writes each 16-bit sample left-justified in the top
-	 * half of a word.
+	 * This class no longer overrides GetChunk().  CHDMISoundBaseDevice produces
+	 * SoundFormatIEC958, and the base class's own GetChunk builds the S/PDIF
+	 * subframes -- control channel, parity and preamble -- while draining the
+	 * queue that Write() fills.  Overriding it bypassed exactly that encoding,
+	 * which is what made the sound distorted.
 	 *
 	 * Silence is zero here, not a mid-scale duty value.  The PWM's "average the
 	 * duty cycle to 1.5 V" has no analogue in a sample stream: zero is silence,
@@ -114,17 +96,6 @@ CAtariAudioDevice::CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSa
 	 */
 	m_nSilence = 0;
 	m_bSwapChannels = FALSE;
-
-	/*
-	 * Start from silence.
-	 *
-	 * The object is constructed in place in s_DeviceMemory, so the first open
-	 * happens to see zeros, but reopening the sink constructs a new device over
-	 * the same memory -- and m_Ring is not part of the initialiser list above.
-	 * Without this, the first chunks after a reopen play whatever the previous
-	 * session left in the ring.
-	 */
-	memset (m_Ring, 0, sizeof m_Ring);
 }
 
 //
@@ -252,8 +223,8 @@ unsigned SinkOpen (audio_sink_t *pSelf, unsigned nSampleRate,
 	s_pDevice = new (s_DeviceMemory) CAtariAudioDevice (s_pInterrupt, nSampleRate,
 							    nChannels);
 
-	// The queue is what defines the buffer length the emulator is told about;
-	// the samples themselves go through the ring buffer above.
+	// The queue is the buffer the emulator is told about, and the one the
+	// samples themselves travel through.
 	if (!s_pDevice->AllocateQueue (AudioQueueMsecs))
 	{
 		SinkClose (pSelf);
@@ -268,16 +239,9 @@ unsigned SinkOpen (audio_sink_t *pSelf, unsigned nSampleRate,
 		return 0;
 	}
 
-	// Report the shorter of the two buffers: the emulator must not be led to
-	// believe it can hand over more than the ring buffer will hold.
-	unsigned nFrames = s_pDevice->GetQueueSizeFrames ();
-	unsigned nRingFrames = s_pDevice->GetRingFrames ();
-	if (nFrames > nRingFrames)
-	{
-		nFrames = nRingFrames;
-	}
-
-	return nFrames;
+	// Report the queue length: it is the only buffer between the core and the
+	// hardware now that the ring is gone.
+	return s_pDevice->GetQueueSizeFrames ();
 }
 
 unsigned SinkFreeBytes (audio_sink_t *pSelf)
