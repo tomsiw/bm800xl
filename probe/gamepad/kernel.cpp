@@ -22,6 +22,233 @@
 #include <emmc.h>			// addon/SDCard
 #include "ff.h"
 #include <assert.h>
+#include <string.h>
+
+/*
+ * Where each Atari control comes from on this particular controller.
+ *
+ * A bare mask table cannot describe the generic USB pads: on ven79-11 (tested) the
+ * vertical D-pad arrives on an axis, not on a button bit, so "up" has to be looked
+ * for in a different place.  Resolving the mapping from the device ID *and* from
+ * the capabilities the driver reports is therefore the only shape that works for
+ * both kinds.
+ *
+ * Order of preference, each step backed by something observed:
+ *   1. a known vendor/product ID -- Circle's specific driver fills TGamePadButton
+ *      exactly, and pad ven57e-2009 confirmed every value used below
+ *   2. hats present -- directions come from hats[0]
+ *   3. otherwise -- directions come from axes, with a threshold
+ */
+enum TDirectionSource { SourceNone, SourceButton, SourceAxis, SourceHat };
+
+struct TDirection
+{
+	TDirectionSource	Source;
+	unsigned		nBit;		// DirButton
+	int			nAxis;		// DirAxis
+	int			nThreshold;	// DirAxis: value at the active end
+	boolean			bHighActive;	// DirAxis: TRUE = on above the threshold
+	int			nHatValue;	// DirHat
+};
+
+struct TMapping
+{
+	const char	*pName;
+	TDirection	Up, Down, Left, Right, Fire, Fire2;
+};
+
+static TDirection DirBtn (unsigned nBit)
+{
+	TDirection d;
+	d.Source = SourceButton; d.nBit = nBit;
+	d.nAxis = -1; d.nThreshold = 0; d.bHighActive = FALSE; d.nHatValue = 0;
+	return d;
+}
+
+static TDirection DirAx (int nAxis, int nThreshold, boolean bHighActive)
+{
+	TDirection d;
+	d.Source = SourceAxis; d.nBit = 0;
+	d.nAxis = nAxis; d.nThreshold = nThreshold; d.bHighActive = bHighActive;
+	d.nHatValue = 0;
+	return d;
+}
+
+static TDirection DirHat (int nHatValue)
+{
+	TDirection d;
+	d.Source = SourceHat; d.nBit = 0;
+	d.nAxis = -1; d.nThreshold = 0; d.bHighActive = FALSE; d.nHatValue = nHatValue;
+	return d;
+}
+
+static TDirection DirNothing (void)
+{
+	TDirection d;
+	d.Source = SourceNone; d.nBit = 0;
+	d.nAxis = -1; d.nThreshold = 0; d.bHighActive = FALSE; d.nHatValue = 0;
+	return d;
+}
+
+/*
+ * The resolved map is kept per device and consulted on every event, so that a
+ * press is reported as what it means rather than as a bit number:
+ *
+ *     Gamepad 1: ... -> LEFT
+ *     Gamepad 1: ... -> FIRE
+ */
+static TMapping	s_Map[MAX_GAMEPADS];
+static boolean	s_bMapValid[MAX_GAMEPADS];
+
+static boolean IsActive (const TDirection &Dir, const TGamePadState *pState)
+{
+	switch (Dir.Source)
+	{
+	case SourceButton:
+		return (pState->buttons & Dir.nBit) != 0;
+
+	case SourceAxis:
+		if (Dir.nAxis < 0 || Dir.nAxis >= pState->naxes)
+		{
+			return FALSE;
+		}
+		{
+			int v = pState->axes[Dir.nAxis].value;
+			return Dir.bHighActive ? v >= Dir.nThreshold : v <= Dir.nThreshold;
+		}
+
+	case SourceHat:
+		if (pState->nhats < 1)
+		{
+			return FALSE;
+		}
+		return pState->hats[0] == Dir.nHatValue;
+
+	default:
+		return FALSE;
+	}
+}
+
+static void AppendMapped (CString &Msg, const TMapping &Map, const TGamePadState *pState)
+{
+	Msg.Append (" ->");
+
+	boolean bAny = FALSE;
+
+	if (IsActive (Map.Up, pState))    { Msg.Append (" UP");    bAny = TRUE; }
+	if (IsActive (Map.Down, pState))  { Msg.Append (" DOWN");  bAny = TRUE; }
+	if (IsActive (Map.Left, pState))  { Msg.Append (" LEFT");  bAny = TRUE; }
+	if (IsActive (Map.Right, pState)) { Msg.Append (" RIGHT"); bAny = TRUE; }
+	if (IsActive (Map.Fire, pState) || IsActive (Map.Fire2, pState))
+	{
+		Msg.Append (" FIRE");  bAny = TRUE;
+	}
+
+	if (!bAny)
+	{
+		Msg.Append (" (none)");
+	}
+}
+static TMapping ResolveMapping (const char *pId, const TGamePadState *pState)
+{
+	TMapping m;
+
+	m.pName = "generic";
+	m.Up = m.Down = m.Left = m.Right = DirNothing ();
+	m.Fire = DirNothing ();
+	m.Fire2 = DirNothing ();
+
+	const char *p = pId != 0 ? pId : "";
+
+	/* 1. Circle's specific drivers: the enum values are authoritative. */
+	if (   strcmp (p, "ven57e-2009") == 0	/* Switch Pro */
+	    || strcmp (p, "ven45e-28e")  == 0	/* Xbox 360 */
+	    || strcmp (p, "ven45e-2f8")  == 0
+	    || strcmp (p, "ven45e-2d1")  == 0	/* Xbox One */
+	    || strcmp (p, "ven54c-268")  == 0)	/* PS3 */
+	{
+		m.pName = "buttons (Circle driver)";
+		m.Up    = DirBtn (0x08000);
+		m.Down  = DirBtn (0x20000);
+		m.Left  = DirBtn (0x40000);
+		m.Right = DirBtn (0x10000);
+		m.Fire  = DirBtn (0x00200);		/* A */
+		m.Fire2 = DirBtn (0x00100);		/* B */
+
+		return m;
+	}
+
+	/*
+	 * Microntek USB joystick (ven79-6), measured: left/right on axis 1 and
+	 * up/down on axis 2, fire on buttons 2 and 4.  Checked before the hat rule
+	 * because this pad also reports one hat, which it does not use for direction.
+	 */
+	if (strcmp (p, "ven79-6") == 0)
+	{
+		m.pName = "axes (Microntek)";
+		m.Left  = DirAx (0, 64, FALSE);		/* left  -> 0   */
+		m.Right = DirAx (0, 192, TRUE);		/* right -> 255 */
+		m.Up    = DirAx (1, 64, FALSE);		/* up    -> 0   */
+		m.Down  = DirAx (1, 192, TRUE);		/* down  -> 255 */
+		m.Fire  = DirBtn (0x00002);
+		m.Fire2 = DirBtn (0x00004);
+
+		return m;
+	}
+	/* 2. A hat: directions come from hats[0], 0..7 clockwise from up. */
+	if (pState != 0 && pState->nhats > 0)
+	{
+		m.pName = "hat";
+		m.Up    = DirHat (0);
+		m.Right = DirHat (2);
+		m.Down  = DirHat (4);
+		m.Left  = DirHat (6);
+		m.Fire  = DirBtn (0x00002);		/* first button reported */
+
+		return m;
+	}
+
+	/*
+	 * 3. Axes.  Observed on ven79-11: pressing up and down moved axis 3 between 0
+	 * and 255 while no button bit changed, so the vertical pair lives there.  The
+	 * horizontal pair is taken as the axis below it, which is what the descriptor
+	 * order implies; the log prints the raw values so the guess can be checked.
+	 */
+	if (pState != 0 && pState->naxes >= 4)
+	{
+		m.pName = "axes";
+		/*
+		 * Index 3 is the horizontal pair: it moved when left and right were
+		 * pressed, which is how the previous version came to report them as
+		 * up/down.  Up and down changed none of the first four axes, and this pad
+		 * reports five, so the vertical pair is index 4 -- the fifth, which the log
+		 * did not print before.
+		 *
+		 * Each end of an axis is a different direction, so each direction carries
+		 * its own threshold and side.
+		 */
+		m.Left  = DirAx (3, 64, FALSE);		/* left  -> 0   */
+		m.Right = DirAx (3, 192, TRUE);		/* right -> 255 */
+		m.Up    = DirAx (4, 64, FALSE);		/* up    -> 0   */
+		m.Down  = DirAx (4, 192, TRUE);		/* down  -> 255 */
+		m.Fire  = DirBtn (0x00002);
+		m.Fire2 = DirBtn (0x00004);
+
+		return m;
+	}
+
+	/* 4. Unknown: the bits most Circle drivers use, so the pad still partly works. */
+	m.pName = "fallback bits";
+	m.Up    = DirBtn (0x08000);
+	m.Down  = DirBtn (0x20000);
+	m.Left  = DirBtn (0x40000);
+	m.Right = DirBtn (0x10000);
+	m.Fire  = DirBtn (0x00200);
+
+	return m;
+}
+
+
 
 static const char FromKernel[] = "kernel";
 
@@ -191,7 +418,7 @@ TShutdownMode CKernel::Run (void)
 			m_Logger.Write (FromKernel, LogNotice, "Gamepad %u: %d Button(s) %d Hat(s)",
 					nDevice, pState->nbuttons, pState->nhats);
 
-			for (int i = 0; i < pState->naxes; i++)
+			for (int i = 0; i < pState->naxes && i < 8; i++)
 			{
 				m_Logger.Write (FromKernel, LogNotice,
 						"Gamepad %u: Axis %d: Minimum %d Maximum %d",
@@ -201,6 +428,28 @@ TShutdownMode CKernel::Run (void)
 
 			m_pGamePad[nDevice-1]->RegisterRemovedHandler (GamePadRemovedHandler, this);
 			m_pGamePad[nDevice-1]->RegisterStatusHandler (GamePadStatusHandler);
+
+			/*
+			 * What the resolver made of this controller, printed once so that
+			 * every later line can be read in the light of it.
+			 */
+			CUSBDevice *pParent = m_pGamePad[nDevice-1]->GetDevice ();
+			CString *pIdStr = pParent != 0
+					? pParent->GetName (DeviceNameVendor) : 0;
+
+			TMapping Map = ResolveMapping (pIdStr != 0 ? (const char *) *pIdStr : "",
+						       pState);
+
+			m_Logger.Write (FromKernel, LogNotice,
+					"Gamepad %u: id %s map %s",
+					nDevice,
+					pIdStr != 0 ? (const char *) *pIdStr : "?",
+					Map.pName);
+
+			delete pIdStr;
+
+			s_Map[nDevice - 1] = Map;
+			s_bMapValid[nDevice - 1] = TRUE;
 
 			m_Logger.Write (FromKernel, LogNotice, "Use your gamepad controls!");
 		}
@@ -212,6 +461,8 @@ TShutdownMode CKernel::Run (void)
 
 	return ShutdownHalt;
 }
+
+
 
 CString CKernel::m_LastMsg;
 
@@ -226,7 +477,7 @@ void CKernel::GamePadStatusHandler (unsigned nDeviceIndex, const TGamePadState *
 	{
 		Msg.Append (" Axes");
 
-		for (int i = 0; i < pState->naxes; i++)
+		for (int i = 0; i < pState->naxes && i < 8; i++)
 		{
 			Value.Format (" %d", pState->axes[i].value);
 			Msg.Append (Value);
@@ -260,6 +511,18 @@ void CKernel::GamePadStatusHandler (unsigned nDeviceIndex, const TGamePadState *
 	if (nCompare == 0)
 	{
 		return;
+	}
+
+	/*
+	 * Only reached for a line that will actually be printed: resolving the mapped
+	 * directions costs one comparison per direction, and a duplicate report has
+	 * already been discarded above.  m_LastMsg was stored before this point, so
+	 * the comparison stays against the raw state rather than against this
+	 * decorated text.
+	 */
+	if (s_bMapValid[nDeviceIndex] && pState != 0)
+	{
+		AppendMapped (Msg, s_Map[nDeviceIndex], pState);
 	}
 
 	CLogger::Get ()->Write (FromKernel, LogNotice, Msg);
