@@ -8,9 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `1851e23` (probe mapping), with the resolver ported
-and USB enumeration moved into the frame loop, both in the working tree. Built
-and string-checked in the image; the hardware test is the next thing to do.
+**Last updated:** after commit `92d4282`, with the gamepad mapping and USB
+enumeration verified on a Pi 400 and a Pi Zero 2 W.
 
 ---
 
@@ -26,7 +25,7 @@ and string-checked in the image; the hardware test is the next thing to do.
 | Keyboard | USB verified direct; **hub unsupported on Zero 2 W** |
 | OSD menu | opens, navigates, applies settings; no flicker |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
-| USB gamepads | resolver ported, hot plug fixed; **hardware test outstanding** — see section 8 |
+| USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
 | Pi 3 / Pi 5 | images build; never run |
 
 ---
@@ -232,7 +231,8 @@ and a **Pi Zero 2 W** (720p, monitor without audio).
 
 Verified: boot to BASIC; disk, cartridge and cassette mounting; settings applied at
 startup and persisted; crash marker recovery; menu navigation; sound; 49.7/49.8 fps;
-USB keyboard direct.
+USB keyboard direct, and hot-plugged; USB gamepads — both a generic pad and a Switch
+Pro — attached before power-on and while running, with unplug, re-plug and swap.
 
 Not verified: GPIO keyboard, 9-pin GPIO joysticks, the second keyboard mode, 64/256/
 320 kB RAM configurations in use, snapshots, cassette beyond insertion, Pi 3/Pi 5.
@@ -326,8 +326,10 @@ Four things changed with the port:
   buttons that were measured, so an arbitrary descriptor bit cannot fire by
   accident.
 
-**This is built, not yet tested on hardware.** The test is `STICK(0)`/`STRIG(0)`
-on the three controllers above — `15` and `1` at rest.
+**Verified on a Pi 400 and a Pi Zero 2 W** with the generic ven79-11 and the
+Switch Pro ven57e-2009: `STICK(0)`/`STRIG(0)` read `15`/`1` at rest, all four
+directions and the diagonals steer, fire works, and both pads attach, detach and
+swap while the machine runs. Keyboard swapping was confirmed at the same time.
 
 ### Hot plug never worked, and the Switch Pro was never retried
 
@@ -377,7 +379,7 @@ enumerated produced no log line whatsoever.
 
 ## 9. What to do next, in order
 
-### 1. Port the resolver into the emulator  *(ported; hardware test outstanding)*
+### 1. Port the resolver into the emulator  *(done and verified — `aed2e43`)*
 
 1. Move `TDirection` / `TMapping` / `ResolveMapping()` / `IsActive()` from
    `probe/gamepad/kernel.cpp` into `src/input/usb_joystick.cpp`. They are
@@ -393,15 +395,15 @@ enumerated produced no log line whatsoever.
    **hot plug** — attach and detach each pad while the machine runs — and the
    Switch Pro, which is the one that never appeared before.
 
-All five are in the working tree; the image builds, and the log strings were
-checked in the binary. **Step 5 is what remains**, and it needs the three
-controllers, plugged in both before and after power-on.
+All five are done. The resolver is `aed2e43`; hot plug and the Switch Pro needed
+`7b8153a`, which drives `UpdatePlugAndPlay()` from the frame loop — see section 8.
+Verified on hardware with the generic pad and the Switch Pro, plugged in both
+before and during a session.
 
 ### 2. Housekeeping
 
 - Gate the `frame cost` logging behind a build flag.
-- Commit the joystick work once step 5 passes. Nothing is committed without the
-  user's approval.
+- Nothing uncommitted: the gamepad work is `aed2e43`, `7b8153a` and `92d4282`.
 
 ### 3. Verification debt
 
