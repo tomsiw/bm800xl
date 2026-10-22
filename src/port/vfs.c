@@ -92,10 +92,46 @@ static void EnsureFiles(void)
  * layer while a machine boots from it.  Declared up here because the open/close
  * paths near the top of the file use it, and the routine that arms it lives with
  * the read statistics further down.
+ *
+ * Sixteen operations -- not the uncapped trace this used to be.  One sector read
+ * is a read plus a seek, so a boot issues hundreds of them and the log became a
+ * wall of "file seek off" lines that buried everything else.  The first few
+ * still show the pattern, which is what the trace is for; the totals are in the
+ * stats line.
  */
-#define FILE_TRACE_MAX	40
+#define FILE_TRACE_OPS	16
 
 static unsigned s_file_trace_left;
+static unsigned s_file_trace_total;
+
+/* Takes one operation from the trace's budget.  1 = it may be logged. */
+static int FileTraceNext(void)
+{
+	if (s_file_trace_left == 0) {
+		return 0;
+	}
+
+	s_file_trace_left--;
+	s_file_trace_total++;
+
+	return 1;
+}
+
+/*
+ * Says why the trace stopped, once.
+ *
+ * A trace that simply ends looks the same as a file layer that stopped being
+ * used; the read trace prints its reason for the same purpose.
+ */
+static void FileTraceMaybeClosed(void)
+{
+	if (s_file_trace_left == 0 && s_file_trace_total == FILE_TRACE_OPS) {
+		s_file_trace_total++;
+		ATARI_RuntimeLog("file trace: closed after %d operations",
+		                 FILE_TRACE_OPS);
+	}
+}
+
 static struct atari_vfs_dir s_dirs[ATARI_VFS_MAX_DIRS];
 
 /*
@@ -311,9 +347,9 @@ FILE *ATARI_VFS_Open(const char *path, const char *mode)
 	if (f_open(&file->fil, fat_path, fat_mode) != FR_OK) {
 		file->used = 0;
 
-		if (s_file_trace_left > 0) {
-			s_file_trace_left--;
+		if (FileTraceNext()) {
 			ATARI_RuntimeLog("file open %s -> FAILED", path);
+			FileTraceMaybeClosed();
 		}
 
 		return 0;
@@ -333,10 +369,10 @@ FILE *ATARI_VFS_Open(const char *path, const char *mode)
 	 * that was traced never happened.  Opens and seeks are what the mount and
 	 * the boot path actually perform.
 	 */
-	if (s_file_trace_left > 0) {
-		s_file_trace_left--;
+	if (FileTraceNext()) {
 		ATARI_RuntimeLog("file open %s -> ok, size %lu", path,
 				 (unsigned long) f_size(&file->fil));
+		FileTraceMaybeClosed();
 	}
 
 	return HANDLE_OF(file);
@@ -354,9 +390,9 @@ int ATARI_VFS_Close(FILE *handle)
 	result = f_close(&file->fil);
 	file->used = 0;
 
-	if (s_file_trace_left > 0) {
-		s_file_trace_left--;
+	if (FileTraceNext()) {
 		ATARI_RuntimeLog("file close -> %d", (int) result);
+		FileTraceMaybeClosed();
 	}
 
 	return result == FR_OK ? 0 : -1;
@@ -373,19 +409,19 @@ static unsigned long s_read_count;
 static unsigned long long s_read_bytes;
 static unsigned long s_read_errors;
 
+/*
+ * Bounded trace of file opens, closes and seeks.
+ *
+ * Armed when a disk image is mounted, because that is the moment a boot starts
+ * talking to the file layer.  The budget itself and the two helpers that spend
+ * it are at the top of this file, beside the paths that use them.
+ */
 void ATARI_VFS_BeginFileTrace(void)
 {
-	/*
-	 * Effectively uncapped.
-	 *
-	 * The original 40-operation budget was a rate limiter copied from the read
-	 * trace, but file opens, seeks and closes happen a handful of times during a
-	 * boot, not thousands.  Capping them saved nothing and threw away exactly
-	 * the detail being looked for.  Reads keep their own separate limit because
-	 * those really can run into the thousands.
-	 */
-	s_file_trace_left = 1000000;
-	ATARI_RuntimeLog("file trace: armed, file operations from here are logged");
+	s_file_trace_left = FILE_TRACE_OPS;
+	s_file_trace_total = 0;
+	ATARI_RuntimeLog("file trace: armed, first %d operations will be logged",
+	                 FILE_TRACE_OPS);
 }
 
 /*
@@ -396,8 +432,13 @@ void ATARI_VFS_BeginFileTrace(void)
  * one issued.  It is opened by ATARI_VFS_BeginLoadTrace() -- from the cold reset
  * path -- and closes itself after a fixed number of reads, so a program that
  * reads continuously cannot flood the card.
+ *
+ * Sixteen, not more: a boot makes hundreds of reads and the first few dozen say
+ * everything the trace has to say -- which file, at what offsets, in what order.
+ * Every line is a flushed card write, and the rest of the boot's shape is in the
+ * read counter that the stats line reports.
  */
-#define LOAD_TRACE_READS	448
+#define LOAD_TRACE_READS	16
 
 static unsigned s_load_trace_left;
 static unsigned s_load_trace_total;
@@ -523,9 +564,9 @@ size_t ATARI_VFS_Write(const void *buffer, size_t size, size_t count, FILE *hand
 
 int ATARI_VFS_Seek(FILE *handle, long offset, int whence)
 {
-	if (s_file_trace_left > 0) {
-		s_file_trace_left--;
+	if (FileTraceNext()) {
 		ATARI_RuntimeLog("file seek off %ld whence %d", offset, whence);
+		FileTraceMaybeClosed();
 	}
 	struct atari_vfs_file *file = FileFromHandle(handle);
 	FSIZE_t target;

@@ -588,17 +588,20 @@ static unsigned s_rate_start_frames;
  * Boot watchdog.
  *
  * Armed by every cold reset.  For the first minute afterwards it writes a short
- * line every five seconds saying where the emulated machine is and -- the point
+ * line every half minute saying where the emulated machine is and -- the point
  * of it -- how many disk reads have happened in total.  If the count does not
  * move while the frame count does, the machine is running but is not talking to
  * the disk, which is the difference between a boot that is slow and a boot that
  * never started.
  *
- * Bounded to a dozen lines so that a machine left sitting at BASIC for an hour
- * does not fill the card.
+ * Sparse on purpose: the stats line already reports frames, PC and disk reads
+ * every fifteen seconds, so this one only has to catch the case where the log
+ * shows no progress at all, and it adds the two fields the stats line lacks --
+ * PORTB and the error count.  Two lines cover the minute in which a real machine
+ * boots; a program left running for an hour writes nothing more.
  */
-#define BOOT_LOG_INTERVAL_US	5000000ULL
-#define BOOT_LOG_MAX		12
+#define BOOT_LOG_INTERVAL_US	30000000ULL
+#define BOOT_LOG_MAX		2
 
 static int	s_boot_log_armed;
 static uint64_t s_boot_log_start_us;
@@ -1556,7 +1559,7 @@ int ATARI_RunFrame(void)
 		}
 
 		/*
-		 * The emulated machine's health, once every thirty seconds.
+		 * The emulated machine's health, once every fifteen seconds.
 		 *
 		 * The achieved frame rate is the one number that says whether the host
 		 * is keeping up, and it cannot be inferred from anything else in the
@@ -1568,7 +1571,7 @@ int ATARI_RunFrame(void)
 		 * out the card and bury the one line that matters.
 		 */
 		if (s_rate_start_us != 0
-		    && now - s_rate_start_us >= 30000000ULL)
+		    && now - s_rate_start_us >= 15000000ULL)
 		{
 			unsigned frames = (unsigned)(Atari800_nframes - s_rate_start_frames);
 			unsigned long long elapsed_us = now - s_rate_start_us;
@@ -1632,7 +1635,8 @@ int ATARI_RunFrame(void)
 			ATARI_RuntimeLog("boot t=%us: frames %u, PC 0x%04x, "
 					 "DMACTL 0x%02x, dlist 0x%04x, "
 					 "PORTB 0x%02x, reads %lu, errors %lu",
-					 s_boot_log_count * 5,
+					 s_boot_log_count
+					 * (unsigned) (BOOT_LOG_INTERVAL_US / 1000000ULL),
 					 (unsigned) Atari800_nframes,
 					 (unsigned) CPU_regPC,
 					 (unsigned) ANTIC_DMACTL,

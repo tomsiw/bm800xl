@@ -341,15 +341,16 @@ The first means USB noticed the device. If it appears without the second, Circle
 found a device but could not make a gamepad of it — that is the failure the attach
 line distinguishes from a pad that was never seen at all.
 
-Once a controller is attached, every change of direction or fire is logged, so
-"attached but nothing happens" and "attached and the mapping is wrong" are
-different log entries rather than the same silence:
+Once a controller is attached, nothing more is written until it is removed:
 
 ```
-usbjoy: USB gamepad 1: up
-usbjoy: USB gamepad 1: fire pressed (buttons 0x200)
 usbjoy: USB gamepad 1 removed
 ```
+
+Presses are not logged: one line per press would be a card write per press in the
+frame loop. If the mapping itself is in doubt — the attach line named a rule, but
+the wrong direction moves — `probe/gamepad` is the tool for it: it prints every
+change of buttons, axes and hats with the directions they resolve to.
 
 **A 9-pin joystick.** Check the log for this line, once per port:
 
@@ -483,3 +484,16 @@ The log tells you, in order:
 - whether a keyboard was found, and which kind
 
 Most problems can be identified from that list alone.
+
+Once the machine is running, the log keeps a heartbeat so that a hang is
+distinguishable from a healthy machine:
+
+- `stats: …` every **fifteen seconds** — achieved frame rate, frame count, PC,
+  ANTIC state and the disk read counters. If the file stops growing, the machine
+  stopped there.
+- `boot t=30s` / `boot t=60s` after a cold reset — the same idea for a machine
+  that is running but never boots, with `PORTB` (the RAM bank the OS has selected)
+  and the error count added.
+
+Both are deliberately sparse: every line is written and flushed to the card, and
+the machine's frame budget is the thing being measured.

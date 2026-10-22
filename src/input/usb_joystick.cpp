@@ -79,17 +79,6 @@ static const char FromJoystick[] = "usbjoy";
  */
 #define USB_JOYSTICK_AXIS_DIVISOR 4
 
-/*
- * The shortest interval between two action lines in the log.
- *
- * Every line of the runtime log is written and flushed to the card, so an
- * unthrottled log would turn a fast-moving stick into a stream of card writes
- * in the middle of the frame loop -- the very cost being measured.  A tenth of
- * a second is slow enough to be cheap and fast enough to follow a player's
- * hands.
- */
-#define USB_JOYSTICK_LOG_INTERVAL_US 100000
-
 /* ---------------------------------------------------------------------------
  * The mapping
  *
@@ -427,68 +416,6 @@ static int AxisDirection (int nValue, int nMin, int nMax)
 	return 0;
 }
 
-/*
- * Names a direction mask for the log: "up", "up+left", or "centred" for none.
- */
-static void FormatDirections (unsigned nDirections, char *pBuffer, unsigned nSize)
-{
-	static const struct
-	{
-		unsigned	nBit;
-		const char	*pName;
-	} Names[] =
-	{
-		{ ATARI_JOY_UP,    "up" },
-		{ ATARI_JOY_DOWN,  "down" },
-		{ ATARI_JOY_LEFT,  "left" },
-		{ ATARI_JOY_RIGHT, "right" },
-	};
-
-	unsigned nUsed = 0;
-	pBuffer[0] = '\0';
-
-	for (unsigned i = 0; i < sizeof Names / sizeof Names[0]; i++)
-	{
-		if ((nDirections & Names[i].nBit) == 0)
-		{
-			continue;
-		}
-
-		int n = snprintf (pBuffer + nUsed, nSize - nUsed, "%s%s",
-				  nUsed > 0 ? "+" : "", Names[i].pName);
-		if (n <= 0 || (unsigned) n >= nSize - nUsed)
-		{
-			break;			/* truncated; the names still say something */
-		}
-		nUsed += (unsigned) n;
-	}
-
-	if (pBuffer[0] == '\0')
-	{
-		snprintf (pBuffer, nSize, "centred");
-	}
-}
-
-/*
- * Whether enough time has passed to write another action line.
- *
- * The timestamp of the last line is passed in and updated when the answer is
- * yes, so a caller that is throttled simply tries again on a later frame.
- */
-static boolean MayLogNow (unsigned &nLastTicks)
-{
-	unsigned nNow = CTimer::GetClockTicks ();
-
-	if (nLastTicks != 0 && nNow - nLastTicks < USB_JOYSTICK_LOG_INTERVAL_US)
-	{
-		return FALSE;
-	}
-
-	nLastTicks = nNow;
-
-	return TRUE;
-}
-
 class CUSBAtariJoystick : public CAtariJoystick
 {
 public:
@@ -555,22 +482,6 @@ private:
 	 */
 	volatile boolean m_bWasRemoved;
 
-	/*
-	 * What the log has already been told.
-	 *
-	 * The comparison is against the *logged* state, not against the previous
-	 * frame, so a change that a throttle step skipped is still reported on one
-	 * of the following frames rather than being lost.
-	 */
-	unsigned m_nLoggedDirections;
-	unsigned m_nDirectionsLogTicks;
-	boolean m_bLoggedFire;
-	unsigned m_nFireLogTicks;
-
-	/* Writes the state to the log if it differs from what was last logged. */
-	void ReportDirections (unsigned nDirections);
-	void ReportFire (boolean bFired, unsigned nButtons);
-
 	/* Reports are delivered per device index, so the handler needs to find the
 	 * object that owns this index.  The index is 0-based: Circle passes
 	 * m_nDeviceNumber - 1. */
@@ -589,11 +500,7 @@ CUSBAtariJoystick::CUSBAtariJoystick (CUSBHCIDevice *pUSBHCI, unsigned nIndex)
 	m_nNaxes (0),
 	m_nSequence (0),
 	m_nLastSeen (0),
-	m_bWasRemoved (FALSE),
-	m_nLoggedDirections (0),
-	m_nDirectionsLogTicks (0),
-	m_bLoggedFire (FALSE),
-	m_nFireLogTicks (0)
+	m_bWasRemoved (FALSE)
 {
 	/* Nothing is mapped until a controller is found. */
 	m_Map = EmptyMapping ();
@@ -764,10 +671,6 @@ void CUSBAtariJoystick::RemovedHandler (CDevice *pDevice, void *pContext)
 		 */
 		pThis->m_Map = EmptyMapping ();
 
-		/* What the log was told belongs to the controller that has just left. */
-		pThis->m_nLoggedDirections = 0;
-		pThis->m_bLoggedFire = FALSE;
-
 		/* Reported from IsPresent(), which is known to run in the main loop. */
 		pThis->m_bWasRemoved = TRUE;
 	}
@@ -788,8 +691,6 @@ unsigned CUSBAtariJoystick::GetDirections (void)
 
 	if (!m_bHaveState || m_pDevice == 0)
 	{
-		ReportDirections (0);
-
 		return 0;
 	}
 
@@ -799,8 +700,6 @@ unsigned CUSBAtariJoystick::GetDirections (void)
 	 */
 	if (CTimer::Get ()->GetTicks () - m_nLastSeen > USB_JOYSTICK_TIMEOUT_MS)
 	{
-		ReportDirections (0);
-
 		return 0;
 	}
 
@@ -860,65 +759,18 @@ unsigned CUSBAtariJoystick::GetDirections (void)
 		if (nY > 0)	nDirections |= ATARI_JOY_DOWN;
 	}
 
-	ReportDirections (nDirections);
-
 	return nDirections;
-}
-
-/*
- * Writes a direction change to the log.
- *
- * Only changes are written, and at most one line per interval: the log is a
- * file on the card, flushed line by line, and this runs in the frame loop.  A
- * change that the interval suppresses is not lost -- the comparison is against
- * what was logged, so the next frame that is allowed to write reports the
- * current state.
- */
-void CUSBAtariJoystick::ReportDirections (unsigned nDirections)
-{
-	if (nDirections == m_nLoggedDirections || !MayLogNow (m_nDirectionsLogTicks))
-	{
-		return;
-	}
-
-	m_nLoggedDirections = nDirections;
-
-	char Text[32];
-	FormatDirections (nDirections, Text, sizeof Text);
-
-	CLogger::Get ()->Write (FromJoystick, LogWarning, "%s: %s", GetName (), Text);
-}
-
-/*
- * Writes a fire change to the log, with the buttons that produced it -- the
- * only way to tell "the pad reports nothing" from "the mapping is wrong".
- */
-void CUSBAtariJoystick::ReportFire (boolean bFired, unsigned nButtons)
-{
-	if (bFired == m_bLoggedFire || !MayLogNow (m_nFireLogTicks))
-	{
-		return;
-	}
-
-	m_bLoggedFire = bFired;
-
-	CLogger::Get ()->Write (FromJoystick, LogWarning, "%s: fire %s (buttons 0x%X)",
-				GetName (), bFired ? "pressed" : "released", nButtons);
 }
 
 int CUSBAtariJoystick::GetTrigger (void)
 {
 	if (!m_bHaveState || m_pDevice == 0)
 	{
-		ReportFire (FALSE, 0);
-
 		return ATARI_JOY_TRIG_OPEN;
 	}
 
 	if (CTimer::Get ()->GetTicks () - m_nLastSeen > USB_JOYSTICK_TIMEOUT_MS)
 	{
-		ReportFire (FALSE, 0);
-
 		return ATARI_JOY_TRIG_OPEN;
 	}
 
@@ -951,8 +803,6 @@ int CUSBAtariJoystick::GetTrigger (void)
 	{
 		bFired = (State.buttons & m_Map.nMoreFire) != 0;
 	}
-
-	ReportFire (bFired, State.buttons);
 
 	return bFired ? ATARI_JOY_TRIG_FIRED : ATARI_JOY_TRIG_OPEN;
 }

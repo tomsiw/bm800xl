@@ -356,24 +356,23 @@ the USB or the GPIO keyboard is selected.
 
 ### What the log says about a controller
 
-A line per report would mean a card write per report in the frame loop, so the
-driver logs state **changes**, at most one line per 100 ms per kind. It compares
-against what was *logged*, not against the previous frame, so a change that the
-throttle skipped still appears on the next allowed frame:
+A controller is named when it is attached and when it is removed, and nothing is
+written while it is being used:
 
 ```
 usbjoy: USB gamepad 1 attached (ven57e-2009): 21 buttons, 0 hats, 4 axes, map buttons (Circle driver)
-usbjoy: USB gamepad 1: up
-usbjoy: USB gamepad 1: fire pressed (buttons 0x200)
-usbjoy: USB gamepad 1: centred
 usbjoy: USB gamepad 1 removed
 ```
 
-This is what separates "the pad is not attached" from "it is attached and nothing
-happens" from "it is attached and the mapping is wrong": the attach line names the
-ID and the rule that was chosen, the action lines carry the raw button mask, and
-a removal is reported at all. Until this existed, a controller that never
-enumerated produced no log line whatsoever.
+This is what separates "the pad is not attached" from "it is attached and the
+mapping is wrong": the attach line names the ID, what the pad reports and the rule
+that was chosen. Until it existed, a controller that never enumerated produced no
+log line whatsoever.
+
+Per-press direction and fire lines — with the raw button mask, throttled to one
+line per 100 ms — existed while the mapping was being brought up and were removed
+once every pad had been measured. One line per press is a card write per press in
+the frame loop, and the probe remains the tool for that kind of detail.
 
 ---
 

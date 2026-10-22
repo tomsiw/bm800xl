@@ -78,22 +78,21 @@ The log says which mapping a controller was given, once, when it is attached:
 usbjoy: USB gamepad 1 attached (ven57e-2009): 21 buttons, 0 hats, 4 axes, map buttons (Circle driver)
 ```
 
-### What the log says while you use it
+### What the log says
 
-Each change of direction or fire is written to the log once, at most one line per
-tenth of a second, so a controller that is attached but does nothing can be told
-from one that is not attached at all:
+A controller is named when it is attached and when it is removed — not while it
+is being used:
 
 ```
-usbjoy: USB gamepad 1: up
-usbjoy: USB gamepad 1: fire pressed (buttons 0x200)
-usbjoy: USB gamepad 1: centred
+usbjoy: USB gamepad 1 attached (ven57e-2009): 21 buttons, 0 hats, 4 axes, map buttons (Circle driver)
 usbjoy: USB gamepad 1 removed
 ```
 
-The attachment line names the controller's USB ID and the rule that was chosen
-for it. The button mask on the fire line is what the pad actually sent, which is
-the quickest way to tell a mapping mistake from a dead controller.
+The attachment line names the controller's USB ID, what it reports, and the rule
+that was chosen for it, which is enough to tell "not attached" from "attached but
+the wrong buttons". Per-press direction and fire lines existed while the mapping
+was being brought up; they were removed once every pad had been measured, because
+one line per press is a card write per press in the middle of the frame loop.
 
 ---
 
