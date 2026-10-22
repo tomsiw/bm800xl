@@ -8,8 +8,9 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `92d4282`, with the gamepad mapping and USB
-enumeration verified on a Pi 400 and a Pi Zero 2 W.
+**Last updated:** after commit `9e582ac` (log cleanup), with the specification for
+the USB keyboard remapping added in the working tree. That feature is specified
+but not implemented; the gamepad work is committed and verified.
 
 ---
 
@@ -404,13 +405,26 @@ before and during a session.
 - Gate the `frame cost` logging behind a build flag.
 - Nothing uncommitted: the gamepad work is `aed2e43`, `7b8153a` and `92d4282`.
 
-### 3. Verification debt
+### 3. USB keyboard remapping  *(specified, not implemented)*
+
+`docs/usbkeys.md` specifies the configuration file — `SD:/ATARI/usbkeys.cfg`,
+`U([Shift+][Ctrl+]<usb key>) = A(<atari function>)`. The unit of the mapping is
+the **function**, not the key: the Atari's `*` key has three of them (`*`, `^`
+with Shift, cursor right with Control), and each has its own binding, so moving
+one leaves the other two where they are. The document has the naming convention
+for both sides, the default binding of every function as the suggested starting
+point, and the resolution order. Implementing it means turning the driver's
+`switch` in `AtariKeyForUsage()` into a table of per-stroke bindings that the
+file can override, and reading the file once at start-up, after the SD card is
+mounted.
+
+### 4. Verification debt
 
 - Pi 3 and Pi 5 (the Pi 5 page-flip branch has never run).
 - GPIO keyboard and 9-pin joysticks.
 - Snapshots and the larger RAM configurations.
 
-### 4. Longer term
+### 5. Longer term
 
 - **circle-stdlib migration** (requested early, not started). Worth doing only with
   a specific motivation, since the current `_sbrk` approach works.

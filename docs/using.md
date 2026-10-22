@@ -253,8 +253,10 @@ With a USB keyboard (Mode 1):
 |---|---|
 | F5 | Help |
 | F6 | Start |
-| F7 | Option |
-| F8 | Reset (warm) |
+| F7 | Select |
+| F8 | Option |
+| F9 | Break |
+| F10 | Reset (warm) |
 | F12 | **OSD menu** |
 | Arrows | Atari cursor keys |
 | Left Ctrl | CONTROL |
@@ -263,7 +265,8 @@ With a USB keyboard (Mode 1):
 | Num Lock | INVERSE |
 
 Full tables, including every letter, digit and punctuation key, are in
-[Keyboard: USB](keyboard-usb.md).
+[Keyboard: USB](keyboard-usb.md). Any of them can be moved to another USB key
+with [`usbkeys.cfg`](usbkeys.md).
 
 With an Atari keyboard on GPIO (Mode 2), every key behaves as it does on the
 real machine, and **Shift+Help** opens the menu. See

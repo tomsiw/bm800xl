@@ -27,6 +27,7 @@ SD card root
 │   └── atari5200.rom
 └── ATARI/
     ├── settings.cfg         <- created automatically on first run
+    ├── usbkeys.cfg          <- optional: USB keyboard remapping
     └── *.sav                <- snapshots you save
 ```
 

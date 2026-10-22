@@ -8,6 +8,9 @@ characters a normal OS would give you. That is what makes it possible to map
 every key position exactly, and to notice Shift and Control as separate states
 rather than as part of the character produced.
 
+The mapping below is the built-in one. Any key can be moved with
+[`usbkeys.cfg`](usbkeys.md), which also lists every Atari key that may be named.
+
 ## Special keys
 
 | USB key | Atari key |
@@ -59,7 +62,7 @@ than being a different key code.
 | `]` `}` | BRACKET RIGHT |
 | `\` `\|` | BACKSLASH |
 | `;` `:` | SEMICOLON |
-| `'` `"` | Atari `'` / `^` (one key on the Atari) |
+| `'` | ASTERISK; Shift gives **`^`** — the Atari's `*` key has no PC position |
 | `,` | COMMA; Shift gives **`<`** |
 | `.` | FULL STOP; Shift gives **`>`** |
 | `/` `?` | SLASH |

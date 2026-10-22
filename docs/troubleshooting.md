@@ -291,9 +291,13 @@ cannot be detected automatically.
    limit of Circle's USB stack on BCM2837. Connect the keyboard directly.
 3. **Is the keyboard source set to USB?** F12 → the keyboard mode setting. If it
    is set to GPIO, the emulator is looking at the GPIO header, not at USB.
-4. **Does the Pi supply enough power?** A keyboard plus a USB drive on a Pi Zero
+4. **Is a key typing the wrong Atari character?** The built-in mapping is by key
+   position, not by the legend on the cap, and a few keys deliberately trade one
+   character for another (`'` types the Atari `*`). If that does not suit your
+   keyboard, remap it: see [Remapping the USB keyboard](usbkeys.md).
+5. **Does the Pi supply enough power?** A keyboard plus a USB drive on a Pi Zero
    2 W can brown out the board. Use a powered hub.
-5. **On the Pi 5**, USB is provided by two xHCI controllers behind PCIe; both are
+6. **On the Pi 5**, USB is provided by two xHCI controllers behind PCIe; both are
    initialised, so any port should work. If it does not, try another port — this
    is one of the areas flagged as needing real-hardware verification.
 
