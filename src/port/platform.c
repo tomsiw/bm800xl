@@ -1837,6 +1837,19 @@ void ATARI_SetSoundEnabled(int enabled)
 	}
 }
 
+/*
+ * Whether BRK runs as an instruction or stops the frame for the log.
+ *
+ * The switch lives inside the core's LIBATARI800 build, where a BRK is treated
+ * as "the program ended" unless told otherwise.  That is the wrong default for
+ * an emulator: BRK is how a debugger takes control.  See the declaration in
+ * atari_port.h and docs/using.md.
+ */
+void ATARI_SetContinueOnBrk(int bContinue)
+{
+	libatari800_continue_emulation_on_brk(bContinue ? TRUE : FALSE);
+}
+
 void ATARI_SetStereo(int enabled)
 {
 	int wanted = enabled ? 1 : 0;

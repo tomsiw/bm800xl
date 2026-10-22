@@ -193,6 +193,7 @@ STEREO=0
 RESOLUTION=0
 KEYBOARD=0
 NUMPAD_CURSOR=1
+CONTINUE_ON_BRK=1
 DISK1_PATH=USB:/disks/BOUNTYBOB.ATR
 DISK1_READONLY=0
 DISK2_PATH=
@@ -216,6 +217,7 @@ SYSTEM_DIR=SD:/ATARI
 | `RESOLUTION` | 0 = 1280x720, 1 = 1920x1080 |
 | `KEYBOARD` | 0 = USB, 1 = GPIO |
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
+| `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
 | `USB_JOYSTICKS` | 0 or 1 — read USB gamepads |
 | `GPIO_JOYSTICKS` | 0 or 1 — read the two 9-pin ports on the header |
 | `DISK1_PATH` … `DISK4_PATH` | a path, or empty for "no disk in this drive" |
@@ -230,6 +232,26 @@ A missing or damaged file is not fatal: the defaults are used, unknown lines are
 ignored, and a value that cannot be parsed leaves the default in place. This
 means you can leave comments in the file, and a half-written file still yields
 everything that was intact.
+
+### `CONTINUE_ON_BRK`
+
+`CONTINUE_ON_BRK=1`, the default, is what the machine does: BRK pushes the return
+address, sets the I flag and jumps through the vector at `$FFFE`. Programs that
+use BRK deliberately depend on that — MAC/65's **DDT** is the classic example,
+where BRK is how the debugger regains control at a breakpoint.
+
+`CONTINUE_ON_BRK=0` is a diagnostic. The emulation core is a library that can be
+built to treat BRK as "the program has ended", and in that mode a frame that
+executes one is abandoned and the log says:
+
+```
+Frame error: the emulated machine executed a BRK instruction
+```
+
+Use it when a crashing program ends somewhere you cannot explain and you want
+the first BRK reported. It is not in the OSD menu, because it is a diagnostic
+rather than something to change while playing. Like every setting in this file,
+it is read at start-up.
 
 Paths use a volume prefix: `SD:` for the SD card, `USB:` for the USB drive.
 

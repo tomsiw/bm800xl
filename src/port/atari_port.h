@@ -340,6 +340,21 @@ void ATARI_SetStereo(int enabled);
  */
 void ATARI_SetSoundEnabled(int enabled);
 
+/*
+ * What happens when the emulated CPU executes BRK.
+ *
+ * BRK is a normal 6502 instruction: it pushes the return address, sets the I
+ * flag and jumps through the IRQ vector at $FFFE.  A program that installs its
+ * own vector there uses BRK deliberately -- MAC/65's DDT is the classic example,
+ * where BRK is how the debugger gets control.
+ *
+ * The library the core can be built as treats BRK as the end of the program
+ * instead, which is useful for automated runs but breaks those programs.  This
+ * project follows the machine by default and lets the settings file ask for the
+ * diagnostic behaviour.  See CONTINUE_ON_BRK in docs/using.md.
+ */
+void ATARI_SetContinueOnBrk(int bContinue);
+
 /* ---------------------------------------------------------------------------
  * Controllers
  *

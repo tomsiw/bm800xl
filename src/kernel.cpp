@@ -810,6 +810,19 @@ boolean CAtariKernel::Initialize (void)
 	}
 	m_pBootLog->Recordf ("Emulation core started: %s", ATARI_CoreVersion ());
 
+	/*
+	 * BRK follows the machine unless the settings file asks for the diagnostic.
+	 * Applied here, after the core is up, and again whenever the menu applies
+	 * settings -- so that "restore defaults" puts it back to following the
+	 * machine.
+	 */
+	ATARI_SetContinueOnBrk (m_Settings.bContinueOnBrk);
+
+	if (!m_Settings.bContinueOnBrk)
+	{
+		m_pBootLog->Record ("BRK: stopping on BRK (CONTINUE_ON_BRK=0)");
+	}
+
 	// -----------------------------------------------------------------------
 	// Keyboard and controllers
 	// -----------------------------------------------------------------------
@@ -1686,6 +1699,13 @@ boolean CAtariKernel::ApplySettings (const TAtariSettings &Settings)
 	{
 		m_pKeyboard->SetNumpadAsCursor (Settings.bNumpadAsCursor);
 	}
+
+	/*
+	 * Not a menu item: this one is set in the settings file, because it is a
+	 * diagnostic rather than something to switch while playing.
+	 */
+	ATARI_SetContinueOnBrk (Settings.bContinueOnBrk);
+
 	CBootLog::Get ()->RecordRuntime ("apply: complete");
 
 	return TRUE;

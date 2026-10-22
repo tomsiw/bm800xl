@@ -438,14 +438,26 @@ the upstream bug.
 
 ## The emulator resets itself, or a game crashes
 
-If the emulated CPU hits an instruction it cannot execute, the core abandons the
-frame and the kernel performs a warm reset. This is deliberate containment: the
-alternative is that the jump lands nowhere and takes the Raspberry Pi down with
-it.
+If the emulated CPU executes one of the illegal "crash" opcodes, the core
+abandons the frame and the kernel performs a warm reset. This is deliberate
+containment: the alternative is that the jump lands nowhere and takes the
+Raspberry Pi down with it.
 
 The log records `Frame error: ...` with the core's description. A single reset is
 usually a game doing something the emulator cannot handle; a loop of resets means
 the image is broken or the wrong machine type (XL versus XE) is selected.
+
+**BRK is not in that class by default.** It is a normal 6502 instruction and the
+emulator runs it as the machine does, because that is how a debugger takes
+control — MAC/65's DDT, for instance. If the log instead says
+
+```
+Frame error: the emulated machine executed a BRK instruction
+```
+
+then `CONTINUE_ON_BRK=0` has been set in the settings file on purpose, and the
+machine is still running: the frame was abandoned, not the emulator. Set it back
+to `1` to stop reporting BRKs. See [the settings file](using.md#the-settings-file).
 
 ---
 

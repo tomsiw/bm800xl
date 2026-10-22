@@ -137,8 +137,9 @@ here so they are not rediscovered.
 | `1ed3886` | volume changes did nothing until sound was toggled | `POKEYSND_SetVolume()` only sets a variable; the mixer copies it into gain tables at init (`mzpokeysnd.c`). Fixed by calling `POKEYSND_DoInit()` — no device reopen, which matters because reopening the HDMI sink hangs. |
 | `dc94dd0` | Zero 2 W: black screen, no log | `CTimer::GetClockTicks()` used as a clock *frequency* in the keyboard wait, so the wait never expired. Masked on the Pi 400 because its keyboard is built in. |
 | `dc94dd0` | Zero 2 W: black screen with a USB hub | USB enumeration was driven during start-up; a device failing its descriptor read was retried forever. Start-up now only scans; enumeration is left to the frame loop. |
-| `(working tree)` | a controller plugged in later was never seen; the Switch Pro never appeared at all | `UpdatePlugAndPlay()` was **unreachable**: the only call was in `CUSBAtariKeyboard::Update()`, and nothing ever called `Update()`. So port-status events were never drained, and a failed enumeration was never retried. |
-| `(working tree)` | generic pads reported a constant wrong `STICK`; every hat direction read as "up" | the resolver was still only in the probe: the adapter used fixed bits 15–18 and axis trim, and read the hat as degrees when Circle reports the raw HID value 0–7. |
+| `7b8153a` | a controller plugged in later was never seen; the Switch Pro never appeared at all | `UpdatePlugAndPlay()` was **unreachable**: the only call was in `CUSBAtariKeyboard::Update()`, and nothing ever called `Update()`. So port-status events were never drained, and a failed enumeration was never retried. |
+| `aed2e43` | generic pads reported a constant wrong `STICK`; every hat direction read as "up" | the resolver was still only in the probe: the adapter used fixed bits 15–18 and axis trim, and read the hat as degrees when Circle reports the raw HID value 0–7. |
+| `(working tree)` | MAC/65's DDT could not take control: the emulator stopped at its BRK | the core's `LIBATARI800` build treats BRK as "the program ended" and longjmps out of the frame unless `libatari800_continue_on_brk` is set. The instruction is abandoned after its opcode fetch, so the push and the vector never happen. Now `CONTINUE_ON_BRK` in the settings file, default 1, which runs BRK as the machine does. |
 
 ---
 
@@ -205,6 +206,17 @@ failures. They are listed because they are invisible until they bite.
     *unreachable*: `CUSBAtariKeyboard::Update()` made it, and nothing ever called
     `Update()`. A dead method looks like a wired one until a device that needs it
     fails to appear, silently.
+
+12. **`libatari800` treats BRK as the end of the program, not as an instruction.**
+    In a `LIBATARI800` build with `HAVE_SETJMP`, the core's 6502 longjmps out of
+    the frame on BRK unless `libatari800_continue_on_brk` is set (`cpu.c:904-908`),
+    and the jump happens *after* the opcode fetch: the return address is never
+    pushed, the I flag is not set, and the vector at `$FFFE` is not taken. A
+    program that installs a BRK handler — a debugger is the usual one — is
+    therefore broken by the default, silently apart from a frame error in the log.
+    The flag is `CONTINUE_ON_BRK` in this project's settings file, default 1.
+    The other two `longjmp`s in the core (illegal CIM opcodes, invalid ESC)
+    remain unconditional and are what the crash containment still catches.
 
 ---
 

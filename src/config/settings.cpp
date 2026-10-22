@@ -63,6 +63,12 @@ void Settings_SetDefaults (TAtariSettings *pSettings)
 	pSettings->bNumpadAsCursor = TRUE;
 
 	/*
+	 * BRK follows the machine until asked otherwise: it is a normal
+	 * instruction, and the one a debugger uses to take control.
+	 */
+	pSettings->bContinueOnBrk = TRUE;
+
+	/*
 	 * Both kinds of controller are on by default.
 	 *
 	 * They share no hardware, so there is nothing to choose between them: a USB
@@ -332,6 +338,13 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 			pSettings->bNumpadAsCursor = bValue;
 		}
 	}
+	else if (strcmp (pKey, "CONTINUE_ON_BRK") == 0)
+	{
+		if (ParseBool (pValue, &bValue))
+		{
+			pSettings->bContinueOnBrk = bValue;
+		}
+	}
 	else if (strcmp (pKey, "USB_JOYSTICKS") == 0)
 	{
 		if (ParseBool (pValue, &bValue))
@@ -536,6 +549,8 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "KEYBOARD=%d\n", Settings.nKeyboardMode);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "NUMPAD_CURSOR=%d\n",
 		    Settings.bNumpadAsCursor ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "CONTINUE_ON_BRK=%d\n",
+		    Settings.bContinueOnBrk ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "USB_JOYSTICKS=%d\n",
 		    Settings.bUSBJoysticks ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "GPIO_JOYSTICKS=%d\n",

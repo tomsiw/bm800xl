@@ -30,6 +30,7 @@
 #include "platform.h"
 #include "screen.h"
 #include "ui.h"
+#include "libatari800/libatari800.h"
 
 /* ---------------------------------------------------------------------------
  * Globals the core expects the UI to provide
@@ -228,11 +229,26 @@ void Atari800_Sync(void)
 
 /*
  * Whether a BRK instruction should resume emulation rather than abandon the
- * frame.  Zero means "abandon", which is the safer default: a 6502 program that
- * executes BRK unexpectedly has usually gone wrong, and the kernel's frame loop
- * reports it and resets the machine.
+ * frame.
+ *
+ * One -- the value here, and the emulator's default -- runs BRK as the 6502
+ * does: push the return address, set I, and vector through $FFFE, which is how
+ * a debugger such as DDT takes control.  The settings file asks for the other
+ * behaviour with CONTINUE_ON_BRK=0, applied through ATARI_SetContinueOnBrk().
  */
-int libatari800_continue_on_brk = 0;
+int libatari800_continue_on_brk = 1;
+
+/*
+ * The core's public setter for the flag above.
+ *
+ * Upstream defines this in src/libatari800/api.c, which is not compiled here --
+ * this project drives the core directly -- so the definition belongs with the
+ * variable.  It is declared in libatari800/libatari800.h.
+ */
+void libatari800_continue_emulation_on_brk(int cont)
+{
+	libatari800_continue_on_brk = cont ? 1 : 0;
+}
 
 /*
  * The result of the last frame, and a human readable description of it.

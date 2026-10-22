@@ -67,6 +67,16 @@ struct TAtariSettings
 	boolean		bNumpadAsCursor;
 
 	/*
+	 * Whether BRK runs as the 6502 instruction it is, or stops the frame so
+	 * that the log can report it.
+	 *
+	 * BRK is how a debugger takes control -- MAC/65's DDT, for example --
+	 * so following the machine is the default.  The other behaviour is a
+	 * diagnostic for a program that has crashed into a BRK.
+	 */
+	boolean		bContinueOnBrk;
+
+	/*
 	 * Controllers.
 	 *
 	 * The two kinds are independent rather than one setting with three values,
