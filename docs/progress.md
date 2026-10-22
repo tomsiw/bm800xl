@@ -8,9 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `936a8ae` (the remapping specification), with the
-USB keyboard remapping implemented in the working tree — built, checked against
-the specification by a host test, and awaiting a run on hardware.
+**Last updated:** after commit `5498dc7`, with the USB keyboard remapping
+implemented and verified on hardware.
 
 ---
 
@@ -23,7 +22,7 @@ the specification by a host test, and awaiting a run on hardware.
 | Frame rate, Pi Zero 2 W | **49.7 fps** — the primary target, verified |
 | Sound | correct over HDMI; volume applies live; stereo needs a restart |
 | Disk / cartridge / cassette | loading verified; eMMC faults fixed |
-| Keyboard | USB verified direct; `usbkeys.cfg` remapping implemented; **hub unsupported on Zero 2 W** |
+| Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
 | OSD menu | opens, navigates, applies settings; no flicker |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
@@ -40,7 +39,7 @@ src/
   main.cpp             entry point
   audio/audio_out.cpp  CAtariAudioDevice over CHDMISoundBaseDevice
   video/video_out.cpp  framebuffer, scaler, OSD drawing primitives
-  input/               usb_keyboard, gpio_keyboard, usb_joystick, gpio_joystick
+  input/               usb_keyboard, usb_keymap, gpio_keyboard, usb_joystick, gpio_joystick
   osd/osd_menu.cpp     the F12 menu
   port/                the C seam: platform.c, sound_bridge.c, vfs.c, atari_port.h
   storage/             FatFs volumes ("SD:", "USB:")
@@ -405,7 +404,7 @@ before and during a session.
 - Gate the `frame cost` logging behind a build flag.
 - Nothing uncommitted: the gamepad work is `aed2e43`, `7b8153a` and `92d4282`.
 
-### 3. USB keyboard remapping  *(implemented, not yet tested on hardware)*
+### 3. USB keyboard remapping  *(implemented and verified — `5498dc7`)*
 
 `SD:/ATARI/usbkeys.cfg` remaps the USB keyboard; [docs/usbkeys.md](usbkeys.md) is
 the description and the contract. The unit of a mapping is the **function**, not
@@ -425,13 +424,11 @@ built-in mapping.
 The parser and rule 4 were checked against the document's examples with a host
 test (`build/keymap_test.cpp`, not committed) covering the letters swap, the
 three functions of `*`, `A(None)`, combination selectors, comments containing
-`#`, duplicate lines, and every rejection message. What remains is a run on a
-Pi with a real keyboard and a crafted `usbkeys.cfg`.
+`#`, duplicate lines, and every rejection message. It was then run on hardware
+with a crafted `usbkeys.cfg`, and behaved as specified.
 
 ### 4. Verification debt
 
-- `usbkeys.cfg` on hardware: a crafted file on a card, and the log checked for
-  the mappings it reports.
 - Pi 3 and Pi 5 (the Pi 5 page-flip branch has never run).
 - GPIO keyboard and 9-pin joysticks.
 - Snapshots and the larger RAM configurations.
