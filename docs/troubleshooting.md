@@ -312,20 +312,44 @@ First, which kind is it?
 
 **A USB gamepad.** Check the log for `Watching 4 USB gamepad inputs`. That line
 appears at start-up and means the driver is running; it does not mean a pad is
-attached, because one can be plugged in later.
+attached, because one can be plugged in later. If nothing is attached at start-up
+the next line says so:
+
+```
+[    7720 ms] kernel: Watching 4 USB gamepad inputs; plug one in at any time
+[    7721 ms] kernel: No USB gamepad is attached yet; one plugged in later is noticed without restarting
+```
 
 If a controller is attached and nothing happens, the likely cause is that it is
 not being recognised as a gamepad. Circle identifies controllers by their USB
 class and their report descriptor; a device that identifies as a keyboard, a
-mouse or a vendor-specific device is not read here. The log names what was found
-when a controller is recognised:
+mouse or a vendor-specific device is not read here. When a controller **is**
+recognised, the log names it, what it reports and which mapping it was given:
 
 ```
-USB gamepad 1 attached: 11 buttons, 1 hats, 4 axes
+usbjoy: USB gamepad 1 attached (ven57e-2009): 21 buttons, 0 hats, 4 axes, map buttons (Circle driver)
 ```
 
-If that line never appears, plug the controller in and check the log again — the
-driver notices a controller attached later without a restart.
+If that line never appears, plug the controller in and watch for two things:
+
+```
+kernel: USB device tree changed: something was attached, removed, or enumeration was retried
+usbjoy: USB gamepad 1 attached (ven79-11): 10 buttons, 0 hats, 5 axes, map axes
+```
+
+The first means USB noticed the device. If it appears without the second, Circle
+found a device but could not make a gamepad of it — that is the failure the attach
+line distinguishes from a pad that was never seen at all.
+
+Once a controller is attached, every change of direction or fire is logged, so
+"attached but nothing happens" and "attached and the mapping is wrong" are
+different log entries rather than the same silence:
+
+```
+usbjoy: USB gamepad 1: up
+usbjoy: USB gamepad 1: fire pressed (buttons 0x200)
+usbjoy: USB gamepad 1 removed
+```
 
 **A 9-pin joystick.** Check the log for this line, once per port:
 

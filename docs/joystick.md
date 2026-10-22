@@ -16,13 +16,15 @@ works with two 9-pin joysticks in the two physical ports.
 ## USB gamepads
 
 Plug one in at any time, before or after power-on. Up to four are watched, and a
-controller attached later is noticed without restarting.
+controller attached later is noticed without restarting. Unplugging one releases
+whatever it was holding, and a different controller plugged into the same slot is
+mapped afresh — the two are not assumed to be the same device.
 
 ### What gets mapped
 
 | Controller | Atari |
 |---|---|
-| D-pad, or the left stick if there is no D-pad | The four directions |
+| D-pad, and the left stick if it has one | The four directions |
 | **A** / Cross, **B** / Circle | Fire |
 | **X** / Square, **Y** / Triangle | Fire |
 | **L1** / LB, **R1** / RB | Fire |
@@ -33,9 +35,20 @@ Every button that could reasonably mean "fire" is accepted, because the Atari ha
 exactly one button and there is nothing else to map them to. A player should not
 have to discover which of four buttons the emulator happens to want.
 
-The D-pad is preferred over the stick when a controller has both: a game that
-wants four directions is played with the D-pad, so preferring it matches what the
-player is doing.
+That table is what a **controller Circle has a driver for** gets. There the button
+numbers are the ones Circle's own enum defines, so they mean specific physical
+buttons. A controller Circle does *not* recognise — a generic "USB joystick"
+adapter, for instance — reports its buttons in whatever order its HID descriptor
+lists them, and then a number says nothing about which button it is. Those are
+matched one at a time, from the measurements recorded in
+[project progress](progress.md#8-usb-gamepads--where-this-stands): on such a pad
+the four directions and the two buttons that were measured work, and an
+unidentified button does nothing rather than firing by accident.
+
+On such a controller the D-pad and the left stick are read **together**: either
+one steers, so a player can move between them without lifting off. A hat also
+reports its diagonals, and a diagonal pushes both of the directions it lies
+between.
 
 ### Analog sticks and the dead zone
 
@@ -54,9 +67,33 @@ in that direction, which is a state the player cannot correct without a reset.
 ### Unrecognised controllers
 
 Circle understands the common controller families and normalises them. For a
-controller it does not recognise, the raw buttons and hat are still reported and
-this driver reads those directly, so an unusual pad usually works even though its
-name is unknown.
+controller it does not recognise, the raw buttons, axes and hat are still
+reported, and this driver reads whichever of them the pad's own mapping says
+carries each direction — which is why an unusual pad usually works even though
+its name is unknown.
+
+The log says which mapping a controller was given, once, when it is attached:
+
+```
+usbjoy: USB gamepad 1 attached (ven57e-2009): 21 buttons, 0 hats, 4 axes, map buttons (Circle driver)
+```
+
+### What the log says while you use it
+
+Each change of direction or fire is written to the log once, at most one line per
+tenth of a second, so a controller that is attached but does nothing can be told
+from one that is not attached at all:
+
+```
+usbjoy: USB gamepad 1: up
+usbjoy: USB gamepad 1: fire pressed (buttons 0x200)
+usbjoy: USB gamepad 1: centred
+usbjoy: USB gamepad 1 removed
+```
+
+The attachment line names the controller's USB ID and the rule that was chosen
+for it. The button mask on the fire line is what the pad actually sent, which is
+the quickest way to tell a mapping mistake from a dead controller.
 
 ---
 
