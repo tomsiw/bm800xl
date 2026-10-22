@@ -87,6 +87,16 @@ public:
 	 */
 	virtual int ConsumeMenuKey (void) = 0;
 
+	/*
+	 * Polls for a keyboard that has appeared since the last call.
+	 *
+	 * Called once per frame from the kernel.  A source whose keyboards cannot
+	 * be attached later has nothing to do.  This is not where USB enumeration
+	 * is driven -- the kernel owns that -- it only notices what enumeration
+	 * has produced.
+	 */
+	virtual void Update (void) { }
+
 	/* \return Is this keyboard attached and able to produce input? */
 	virtual boolean IsPresent (void) = 0;
 

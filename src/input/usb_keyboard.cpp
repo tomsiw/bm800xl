@@ -868,12 +868,11 @@ void CUSBAtariKeyboard::Update (void)
 	}
 
 	/*
-	 * Plug-and-play has to be driven from TASK_LEVEL, and this is that
-	 * call.  With plug-and-play switched off the controller enumerated
-	 * everything at start-up and this does nothing at all.
+	 * Only the scan happens here.  USB enumeration is driven once per frame by
+	 * the kernel, so that it happens whether or not a USB keyboard is the
+	 * selected keyboard -- with a GPIO keyboard selected, a joystick plugged in
+	 * later still has to be noticed.
 	 */
-	m_pUSBHCI->UpdatePlugAndPlay ();
-
 	ScanDevices ();
 }
 

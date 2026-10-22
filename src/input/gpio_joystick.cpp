@@ -139,7 +139,7 @@ boolean CGPIOAtariJoystick::Initialize (void)
 
 	m_bInitialised = TRUE;
 
-	CLogger::Get ()->Write (FromJoystick, LogNotice,
+	CLogger::Get ()->Write (FromJoystick, LogWarning,
 				"%s ready on GPIO %u, %u, %u, %u and %u",
 				GetName (),
 				s_PortPins[nPortIndex][PIN_UP],

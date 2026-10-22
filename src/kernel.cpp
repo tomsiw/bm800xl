@@ -389,6 +389,7 @@ CAtariKernel::CAtariKernel (void)
 	m_pAudioSink (0),
 	m_bInitialized (FALSE),
 	m_bAudioOpen (FALSE),
+	m_bUSBReady (FALSE),
 	m_bFirstFrameDrawn (FALSE),
 	m_bFrameErrorReported (FALSE),
 	m_bKeyboardSeen (FALSE),
@@ -555,6 +556,7 @@ boolean CAtariKernel::Initialize (void)
 	if (bOK)
 	{
 		bUSBOK = m_USBHCI.Initialize ();
+		m_bUSBReady = bUSBOK;
 		if (!bUSBOK)
 		{
 			m_pBootLog->Record ("USB could not be started; "
@@ -983,6 +985,16 @@ void CAtariKernel::InitializeJoysticks (void)
 {
 	boolean bGPIOKeyboard = m_Settings.nKeyboardMode == AtariKeyboardModeGPIO;
 
+	/*
+	 * A start-up record of the controller configuration.  The driver's own log
+	 * says nothing unless a controller is attached, so this line is what tells a
+	 * log without controller lines apart from a log written by a build in which
+	 * joysticks were never created.
+	 */
+	CBootLog::Get ()->RecordRuntimef ("joysticks: initialising, usb %s, gpio %s",
+					 m_Settings.bUSBJoysticks ? "on" : "off",
+					 bGPIOKeyboard ? "on" : "off");
+
 	// --- USB gamepads -------------------------------------------------------
 	//
 	// Four are supported, matching the core's four controller inputs.  Each is
@@ -991,6 +1003,7 @@ void CAtariKernel::InitializeJoysticks (void)
 	if (m_Settings.bUSBJoysticks)
 	{
 		unsigned nUSBFound = 0;
+		unsigned nUSBAttached = 0;
 		for (unsigned n = 1; n <= ATARI_JOYSTICK_COUNT; n++)
 		{
 			CAtariJoystick *pJoystick = ATARI_CreateUSBJoystick (&m_USBHCI, n);
@@ -1001,6 +1014,11 @@ void CAtariKernel::InitializeJoysticks (void)
 
 			pJoystick->Initialize ();
 
+			if (pJoystick->IsPresent ())
+			{
+				nUSBAttached++;
+			}
+
 			/*
 			 * The slot is filled even when nothing is attached: a USB gamepad
 			 * plugged in later is then noticed by the driver's own IsPresent(),
@@ -1010,11 +1028,24 @@ void CAtariKernel::InitializeJoysticks (void)
 			nUSBFound++;
 		}
 
+		/*
+		 * LogWarning, because this kernel's logger discards LogNotice -- this
+		 * line was written for years without ever reaching the log.  It says the
+		 * driver is running, which is not the same thing as a controller being
+		 * attached, so the two are reported separately.
+		 */
 		if (nUSBFound > 0)
 		{
-			m_Logger.Write (FromKernel, LogNotice,
+			m_Logger.Write (FromKernel, LogWarning,
 					"Watching %u USB gamepad input%s; plug one in at any time",
 					nUSBFound, nUSBFound == 1 ? "" : "s");
+		}
+
+		if (nUSBAttached == 0)
+		{
+			m_Logger.Write (FromKernel, LogWarning,
+					"No USB gamepad is attached yet; one plugged in later "
+					"is noticed without restarting");
 		}
 	}
 
@@ -1026,7 +1057,7 @@ void CAtariKernel::InitializeJoysticks (void)
 
 	if (bGPIOKeyboard)
 	{
-		m_Logger.Write (FromKernel, LogNotice,
+		m_Logger.Write (FromKernel, LogWarning,
 				"GPIO joysticks are off while the GPIO keyboard is selected: "
 				"they need the same header pins");
 		return;
@@ -1163,7 +1194,7 @@ void CAtariKernel::UpdateKeyboardStatus (void)
 			if (m_nKeyboardFrames > 0)
 			{
 				// It was not there when the machine started, and now it is.
-				m_Logger.Write (FromKernel, LogNotice, "Keyboard connected");
+				m_Logger.Write (FromKernel, LogWarning, "Keyboard connected");
 			}
 
 			if (!m_bKeyboardWarned)
@@ -1191,6 +1222,49 @@ void CAtariKernel::UpdateKeyboardStatus (void)
 
 void CAtariKernel::RunFrame (void)
 {
+	/*
+	 * USB enumeration is driven here, from the frame loop, and nowhere else.
+	 *
+	 * This call is what makes a device plugged in after start-up appear at all:
+	 * Circle queues a port-status event in its interrupt and enumerates the
+	 * device only when the event is taken at task level.  Until this call
+	 * existed, a controller plugged in later was never even seen, and -- worse
+	 * -- a device whose first configuration attempt failed was never retried,
+	 * because the same call is what runs the root port's recovery retry.  The
+	 * Switch Pro controller is exactly that case: its driver exchanges a
+	 * handshake with the pad while configuring, and a failed handshake at
+	 * power-on left the port disabled for the whole session.
+	 *
+	 * It happens after the machine is running rather than during start-up, so a
+	 * device being configured costs frames but never the boot -- the trade
+	 * recorded in docs/progress.md.  When nothing has happened it takes the
+	 * empty event queue and returns.
+	 */
+	if (m_bUSBReady)
+	{
+		if (m_USBHCI.UpdatePlugAndPlay ())
+		{
+			/*
+			 * Worth one line: it means something was attached, removed, or
+			 * that a failed enumeration is being retried.  Without it a
+			 * controller that never appears leaves no trace at all, which is
+			 * exactly how the Switch Pro failure stayed unexplained.
+			 */
+			m_Logger.Write (FromKernel, LogWarning,
+					"USB device tree changed: something was attached, "
+					"removed, or enumeration was retried");
+		}
+	}
+
+	/*
+	 * The keyboard driver re-scans as well, so a keyboard plugged in later is
+	 * picked up.  Scanning is its own job; enumeration above is not.
+	 */
+	if (m_pKeyboard != 0)
+	{
+		m_pKeyboard->Update ();
+	}
+
 	UpdateKeyboardStatus ();
 
 	// Set when the menu acted on a key this frame.  The OSD is drawn on a

@@ -199,6 +199,13 @@ private:
 	boolean			m_bInitialized;
 	boolean			m_bAudioOpen;
 
+	/*
+	 * Whether the USB host controller started.  Enumeration is driven from the
+	 * frame loop, and asking a controller that failed to start would only
+	 * assert.
+	 */
+	boolean			m_bUSBReady;
+
 	// Set once the first frame has been drawn, so that a hang during start-up
 	// can be told from a hang after the emulator was running.
 	boolean			m_bFirstFrameDrawn;
