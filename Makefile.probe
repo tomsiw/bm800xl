@@ -1,0 +1,54 @@
+#
+# Makefile.probe -- builds the standalone USB gamepad probe.
+#
+# It links Circle and the two addons it needs (SD card and FatFs, so the probe can
+# write GAMEPAD.LOG) and nothing from the emulator.  It exists rather than using
+# Circle's own sample rules because those cannot resolve dependency names for
+# headers reached through an addon include path; -MP below tells make not to
+# require a rule for every header in the generated dependency files.
+#
+# Usage (the profile supplies AARCH, RASPPI and PREFIX):
+#
+#   make -f Makefile.probe AARCH=64 RASPPI=4 PREFIX=aarch64-none-elf- \
+#        CIRCLEHOME=/abs/path/to/external/circle OUT=build/probe
+#
+
+MAKEFILE_ROOT	:= $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
+CIRCLEHOME	?= $(MAKEFILE_ROOT)/external/circle
+CIRCLEHOME	:= $(abspath $(CIRCLEHOME))
+
+OUT		?= $(MAKEFILE_ROOT)/build/probe
+OUT		:= $(abspath $(OUT))
+
+OBJDIR		:= $(OUT)/obj
+
+TARGET		:= gamepad-probe
+
+OBJS		:= $(OBJDIR)/kernel.o $(OBJDIR)/main.o
+DEPS		:= $(OBJS:.o=.d)
+
+LIBS		:= $(CIRCLEHOME)/addon/SDCard/libsdcard.a \
+		   $(CIRCLEHOME)/addon/fatfs/libfatfs.a \
+		   $(CIRCLEHOME)/lib/usb/libusb.a \
+		   $(CIRCLEHOME)/lib/input/libinput.a \
+		   $(CIRCLEHOME)/lib/fs/libfs.a \
+		   $(CIRCLEHOME)/lib/libcircle.a
+
+INCLUDE		+= -I$(CIRCLEHOME)/include \
+		   -I$(CIRCLEHOME)/addon/SDCard \
+		   -I$(CIRCLEHOME)/addon/fatfs
+
+# -MP: emit a phony target for every prerequisite, so a header that only exists
+#      under an addon include path does not stop make with "No rule to make
+#      target".  Without it the probe cannot be built at all.
+DEPFLAGS	+= -MMD -MP
+
+include $(CIRCLEHOME)/Rules.mk
+
+$(OBJDIR)/%.o: $(MAKEFILE_ROOT)/probe/gamepad/%.cpp
+	@mkdir -p $(OBJDIR)
+	@echo "  CPP   $<"
+	@$(CPP) $(CPPFLAGS) $(DEPFLAGS) -c -o $@ $<
+
+-include $(DEPS)
