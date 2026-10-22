@@ -152,6 +152,9 @@ private:
 	 */
 	void InitializeJoysticks (void);
 
+	/* Reads usbkeys.cfg and hands it to the USB keyboard driver. */
+	void LoadKeyboardMap (void);
+
 	// Runs one frame: keyboard, emulation, screen, sound, menu.
 	void RunFrame (void);
 

@@ -73,6 +73,7 @@ MODULE_SRCS := \
 	src/video/video_out.cpp \
 	src/storage/storage.cpp \
 	src/input/usb_keyboard.cpp \
+	src/input/usb_keymap.cpp \
 	src/input/gpio_keyboard.cpp \
 	src/input/joystick.cpp \
 	src/input/usb_joystick.cpp \

@@ -208,6 +208,7 @@ unsigned ATARI_SoundChannels(void);
 /* Key codes, taken from the core's akey.h.  Letters are the Atari KBCODE
  * values, which are NOT sequential -- see ATARI_KEY_LETTER. */
 #define ATARI_KEY_NONE             (-1)
+#define ATARI_KEY_WARMSTART        (-2)	/* the Reset line; see usb_keyboard.h */
 #define ATARI_KEY_BREAK            (-5)
 #define ATARI_KEY_START            (-10)
 #define ATARI_KEY_SELECT           (-11)
@@ -257,6 +258,23 @@ unsigned ATARI_SoundChannels(void);
 #define ATARI_KEY_BAR              0x4f
 #define ATARI_KEY_UNDERSCORE       0x4e
 #define ATARI_KEY_CIRCUMFLEX       0x47
+/*
+ * The shifted symbols that have no position of their own on the matrix.  Their
+ * values come from akey.h; each is a base key with the Shift bit (0x40) already
+ * set, which is what A(^) and friends name.
+ */
+#define ATARI_KEY_EXCLAMATION      0x5f	/* Shift+1 */
+#define ATARI_KEY_DBLQUOTE         0x5e	/* Shift+2 */
+#define ATARI_KEY_HASH             0x5a	/* Shift+3 */
+#define ATARI_KEY_DOLLAR           0x58	/* Shift+4 */
+#define ATARI_KEY_PERCENT          0x5d	/* Shift+5 */
+#define ATARI_KEY_AMPERSAND        0x5b	/* Shift+6 */
+#define ATARI_KEY_QUOTE            0x73	/* Shift+7 */
+#define ATARI_KEY_PARENLEFT        0x70	/* Shift+9 */
+#define ATARI_KEY_PARENRIGHT       0x72	/* Shift+0 */
+#define ATARI_KEY_QUESTION         0x66	/* Shift+/ */
+#define ATARI_KEY_SETTAB           0x6c	/* Shift+Tab */
+#define ATARI_KEY_CLRTAB           0xac	/* Ctrl+Tab */
 #define ATARI_KEY_F1               0x03
 #define ATARI_KEY_F2               0x04
 #define ATARI_KEY_F3               0x13

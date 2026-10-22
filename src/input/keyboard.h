@@ -104,6 +104,20 @@ public:
 	 * Settings applied from the OSD menu.
 	 */
 
+	/*
+	 * Hands the driver its remapping file.
+	 *
+	 * P_PATH is where the file came from, for the log; P_TEXT is its
+	 * contents, or 0 when there is no file and the built-in mapping applies.
+	 * Called once, before Initialize(), so that nothing has to be locked
+	 * afterwards: the map is read-only while reports are arriving.
+	 */
+	virtual void SetKeyMap (const char *pPath, const char *pText)
+	{
+		(void) pPath;
+		(void) pText;
+	}
+
 	/* Makes the numeric keypad's arrows act as cursor keys. */
 	virtual void SetNumpadAsCursor (boolean bEnabled)	{ (void) bEnabled; }
 

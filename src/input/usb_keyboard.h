@@ -32,6 +32,7 @@
 #include <circle/usb/usbhid.h>
 
 #include "keyboard.h"
+#include "usb_keymap.h"
 
 /*
  * "Reset" is not a key of the Atari keyboard matrix.  A real machine resets
@@ -39,14 +40,12 @@
  * (negative) AKEY codes that can never collide with a real KBCODE.
  *
  * The core acts on both of them when it sees one in INPUT_key_code -- see the
- * switch at the top of Atari800_Frame() in atari800/src/atari.c.  F8 produces a
+ * switch at the top of Atari800_Frame() in atari800/src/atari.c.  F10 produces a
  * *warm* start, the Reset key of a real machine; a cold start is left to the
  * kernel, which can call ATARI_ColdReset() directly.
  *
- * ATARI_KEY_WARMSTART is the core's AKEY_WARMSTART.  The port's atari_port.h
- * publishes only AKEY_BREAK of the special codes, so it is repeated here.
+ * The code itself is ATARI_KEY_WARMSTART, published by atari_port.h.
  */
-#define ATARI_KEY_WARMSTART	(-2)
 
 /*
  * How many USB keyboards are tracked at once.
@@ -123,6 +122,9 @@ public:
 	int ConsumeMenuKey (void) override;
 
 	boolean IsPresent (void) override;
+
+	/* Installs usbkeys.cfg; see keyboard.h.  Call before Initialize(). */
+	void SetKeyMap (const char *pPath, const char *pText) override;
 
 	/* Makes the keypad's 2/4/6/8 arrows act as the Atari cursor keys. */
 	void SetNumpadAsCursor (boolean bEnabled) override;
@@ -241,6 +243,15 @@ private:
 	static int		s_MenuQueue[USB_KEYBOARD_MAX_DEVICES][MenuQueueSize];
 	static unsigned		s_nMenuHead[USB_KEYBOARD_MAX_DEVICES];
 	static unsigned		s_nMenuTail[USB_KEYBOARD_MAX_DEVICES];
+
+	/*
+	 * The remapping table.
+	 *
+	 * Static for the same reason as the state above: HandleReport() is called
+	 * from the interrupt handler, which has no object.  It is written once by
+	 * SetKeyMap() before any keyboard is registered, and only read afterwards.
+	 */
+	static CUSBKeyMap	s_KeyMap;
 
 	/* Latched by the interrupt handler, taken by ConsumeMenuRequest(). */
 	static boolean		s_bMenuRequest;

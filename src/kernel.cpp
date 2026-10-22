@@ -85,6 +85,9 @@ extern "C" void *_sbrk (ptrdiff_t nBytes)
 
 #include "input/joystick.h"
 #include "input/gpio_joystick.h"
+#include "input/usb_keymap.h"
+
+#include "vfs.h"
 
 #include <string.h>
 
@@ -903,6 +906,43 @@ boolean CAtariKernel::InitializeAudio (void)
 	return TRUE;
 }
 
+/*
+ * Reads usbkeys.cfg into the keyboard driver.
+ *
+ * Small and read once, so it is read whole rather than streamed.  A missing
+ * file is not an error: the driver is told there is none and keeps the built-in
+ * mapping, which is also what happens on a machine whose card has no ATARI
+ * directory yet.
+ */
+void CAtariKernel::LoadKeyboardMap (void)
+{
+	char Path[SETTINGS_PATH_MAX];
+	m_Storage.MakeSystemPath (Path, sizeof Path, "usbkeys.cfg");
+
+	FILE *pFile = ATARI_VFS_Open (Path, "rb");
+	if (pFile == 0)
+	{
+		m_pKeyboard->SetKeyMap (Path, 0);
+
+		return;
+	}
+
+	static char Buffer[USB_KEYMAP_MAX_FILE + 1];
+	size_t nRead = ATARI_VFS_Read (Buffer, 1, USB_KEYMAP_MAX_FILE, pFile);
+	ATARI_VFS_Close (pFile);
+
+	Buffer[nRead] = '\0';
+
+	if (nRead == USB_KEYMAP_MAX_FILE)
+	{
+		m_Logger.Write (FromKernel, LogWarning,
+				"%s is larger than %u bytes; the rest is ignored",
+				Path, (unsigned) USB_KEYMAP_MAX_FILE);
+	}
+
+	m_pKeyboard->SetKeyMap (Path, Buffer);
+}
+
 boolean CAtariKernel::InitializeKeyboard (void)
 {
 	// The two keyboards are created by the platform-specific factories.  Only
@@ -935,6 +975,14 @@ boolean CAtariKernel::InitializeKeyboard (void)
 					"The USB keyboard could not be created");
 			return FALSE;
 		}
+
+		/*
+		 * The remapping file, read here rather than in the driver: the
+		 * system directory and the file system are the kernel's business.
+		 * It has to be installed before Initialize(), which is what
+		 * registers the drivers that reports arrive through.
+		 */
+		LoadKeyboardMap ();
 
 		if (!m_pKeyboard->Initialize ())
 		{

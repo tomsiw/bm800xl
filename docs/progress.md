@@ -8,9 +8,9 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `9e582ac` (log cleanup), with the specification for
-the USB keyboard remapping added in the working tree. That feature is specified
-but not implemented; the gamepad work is committed and verified.
+**Last updated:** after commit `936a8ae` (the remapping specification), with the
+USB keyboard remapping implemented in the working tree — built, checked against
+the specification by a host test, and awaiting a run on hardware.
 
 ---
 
@@ -23,7 +23,7 @@ but not implemented; the gamepad work is committed and verified.
 | Frame rate, Pi Zero 2 W | **49.7 fps** — the primary target, verified |
 | Sound | correct over HDMI; volume applies live; stereo needs a restart |
 | Disk / cartridge / cassette | loading verified; eMMC faults fixed |
-| Keyboard | USB verified direct; **hub unsupported on Zero 2 W** |
+| Keyboard | USB verified direct; `usbkeys.cfg` remapping implemented; **hub unsupported on Zero 2 W** |
 | OSD menu | opens, navigates, applies settings; no flicker |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
@@ -405,21 +405,33 @@ before and during a session.
 - Gate the `frame cost` logging behind a build flag.
 - Nothing uncommitted: the gamepad work is `aed2e43`, `7b8153a` and `92d4282`.
 
-### 3. USB keyboard remapping  *(specified, not implemented)*
+### 3. USB keyboard remapping  *(implemented, not yet tested on hardware)*
 
-`docs/usbkeys.md` specifies the configuration file — `SD:/ATARI/usbkeys.cfg`,
-`U([Shift+][Ctrl+]<usb key>) = A(<atari function>)`. The unit of the mapping is
-the **function**, not the key: the Atari's `*` key has three of them (`*`, `^`
-with Shift, cursor right with Control), and each has its own binding, so moving
-one leaves the other two where they are. The document has the naming convention
-for both sides, the default binding of every function as the suggested starting
-point, and the resolution order. Implementing it means turning the driver's
-`switch` in `AtariKeyForUsage()` into a table of per-stroke bindings that the
-file can override, and reading the file once at start-up, after the SD card is
-mounted.
+`SD:/ATARI/usbkeys.cfg` remaps the USB keyboard; [docs/usbkeys.md](usbkeys.md) is
+the description and the contract. The unit of a mapping is the **function**, not
+the key: the Atari's `*` key has three (`*`, `^` with Shift, cursor right with
+Control), and each has its own binding, so moving one leaves the other two where
+they are. A stroke may name Shift and Ctrl, so the three can be given to the
+three strokes of a single USB key.
+
+The implementation is `src/input/usb_keymap.cpp`, a fixed-size table of bindings
+and of removed strokes, parsed once at start-up by the kernel (which owns the
+system directory) and installed in `CUSBAtariKeyboard` before it registers any
+report handler — so the interrupt handler only ever reads it. The driver resolves
+each stroke in the order the document lays down: an exact binding, a plain-key
+binding with the held modifiers added, a stroke rule 4 removed, then the
+built-in mapping.
+
+The parser and rule 4 were checked against the document's examples with a host
+test (`build/keymap_test.cpp`, not committed) covering the letters swap, the
+three functions of `*`, `A(None)`, combination selectors, comments containing
+`#`, duplicate lines, and every rejection message. What remains is a run on a
+Pi with a real keyboard and a crafted `usbkeys.cfg`.
 
 ### 4. Verification debt
 
+- `usbkeys.cfg` on hardware: a crafted file on a card, and the log checked for
+  the mappings it reports.
 - Pi 3 and Pi 5 (the Pi 5 page-flip branch has never run).
 - GPIO keyboard and 9-pin joysticks.
 - Snapshots and the larger RAM configurations.

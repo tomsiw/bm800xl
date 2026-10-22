@@ -3,10 +3,10 @@
 This document describes how the emulator's USB keyboard (Mode 1) can be
 re-mapped, which keys may be named, and what the default mapping is.
 
-> **Status:** this is the specification. The file is not read by the emulator
-> yet; until it is, the mapping in [section 7](#7-the-default-mapping) is what
-> the emulator does. Once implemented, removing the file restores exactly that
-> behaviour.
+> **Status:** implemented. The file is read once at start-up, before the first
+> frame; without it the emulator uses the built-in mapping in
+> [section 7](#7-the-default-mapping), which is also what a removed file
+> restores.
 
 ---
 
@@ -22,9 +22,9 @@ The system directory is `SYSTEM_DIR` from `settings.cfg`, normally:
 SD:/ATARI/usbkeys.cfg
 ```
 
-It is read **once, at start-up**, by the USB keyboard driver, after the SD card
-is mounted and before the first frame. A mapping cannot be changed while the
-machine runs: edit the file on a PC and restart the Pi.
+It is read **once, at start-up**, after the SD card is mounted and before the
+first frame. A mapping cannot be changed while the machine runs: edit the file on
+a PC and restart the Pi.
 
 The file affects every USB keyboard attached at any time, including one plugged
 in later. It does **not** affect the GPIO keyboard (Mode 2), which is a scan
@@ -662,6 +662,7 @@ usbkeys: line 15: unknown Atari function "A(Clr)" -- line ignored
 usbkeys: line 18: U(F5) was already bound on line 9 -- the later line wins
 usbkeys: line 21: U(F12) is the menu key and cannot be remapped -- line ignored
 usbkeys: line 24: Alt is not a combination modifier -- line ignored
+usbkeys: line 25: a modifier key cannot be part of a combination -- line ignored
 ```
 
 A line with an unknown name is skipped; everything else in the file still

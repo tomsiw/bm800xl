@@ -29,6 +29,7 @@
 
 #include "usb_keyboard.h"
 
+#include <circle/logger.h>
 #include <circle/timer.h>
 #include <circle/devicenameservice.h>
 #include <circle/device.h>
@@ -104,6 +105,12 @@ boolean CUSBAtariKeyboard::s_bMenuRequest = FALSE;
 boolean CUSBAtariKeyboard::s_bNumpadAsCursor = FALSE;
 
 boolean CUSBAtariKeyboard::s_bMenuActive = FALSE;
+
+/*
+ * The remapping table.  Written once by SetKeyMap() before any keyboard is
+ * registered, read-only afterwards, so the interrupt handler needs no lock.
+ */
+CUSBKeyMap CUSBAtariKeyboard::s_KeyMap;
 
 /* ---------------------------------------------------------------------------
  * Bit maps over HID usage codes
@@ -607,6 +614,18 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 	}
 
 	/*
+	 * The modifier bits.  They are both the state of the Atari's Shift and
+	 * Control lines and the modifier mask of a stroke, which is what lets
+	 * usbkeys.cfg name a combination.
+	 */
+	boolean bShiftDown = ((ucModifiers & (LSHIFT | RSHIFT)) != 0) ? TRUE : FALSE;
+	boolean bCtrlDown = ((ucModifiers & (LCTRL | RCTRL)) != 0) ? TRUE : FALSE;
+	boolean bAltDown = ((ucModifiers & (ALT | ALTGR)) != 0) ? TRUE : FALSE;
+
+	unsigned nMods = (bShiftDown ? USB_KEYMAP_SHIFT : 0)
+		       | (bCtrlDown ? USB_KEYMAP_CTRL : 0);
+
+	/*
 	 * F12 is edge triggered.  A keyboard repeats its whole report while a
 	 * key is held, so only the report in which F12 first appears may ask
 	 * for the menu.
@@ -618,12 +637,25 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 	}
 	rReport.bF12Down = bF12Down;
 
-	/* Queue a menu press for every key that just went down. */
+	/*
+	 * Queue a menu press for every key that just went down.
+	 *
+	 * With the menu closed, a stroke the file binds explicitly is not a
+	 * menu key: that is what lets U(NUM_8) take the keypad 8 away from the
+	 * cursor setting.  With the menu open its keys belong to it whatever the
+	 * file says, as before.
+	 */
 	int nUsage;
 	while ((nUsage = FirstSetBit (Newly)) != (int) ATARI_KEY_NONE)
 	{
 		/* Take this key out of the set so the loop makes progress. */
 		Newly.Words[nUsage >> 6] &= ~((u64) 1 << (nUsage & 63));
+
+		TUsbKeyResult Bound;
+		if (!bMenuActive && s_KeyMap.Resolve ((unsigned) nUsage, nMods, &Bound))
+		{
+			continue;		/* bound: the file decides */
+		}
 
 		int nMenuKey = MenuKeyForUsage ((unsigned) nUsage, bNumpadAsCursor,
 						bMenuActive);
@@ -645,87 +677,227 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 	}
 
 	/*
-	 * The modifiers are lines of their own, not matrix keys, so they are
-	 * read from the modifier byte, exactly as a real keyboard's shift and
-	 * control lines would be.  Alt and the GUI keys have no Atari meaning.
+	 * The Shift and Control lines.
+	 *
+	 * By default they follow the modifier byte, as a real keyboard's shift
+	 * and control lines would.  A remapped modifier key replaces that -- so
+	 * U(Shift) = A(A) makes the shift key type 'a' instead of shifting --
+	 * and a key bound to A(Shift) or A(Ctrl) can hold a line down itself.
 	 */
-	rEvent.bActive = TRUE;
-	rEvent.bShift = ((ucModifiers & (LSHIFT | RSHIFT)) != 0) ? TRUE : FALSE;
-	rEvent.bControl = ((ucModifiers & (LCTRL | RCTRL)) != 0) ? TRUE : FALSE;
+	boolean bShiftLine = bShiftDown;
+	boolean bCtrlLine = bCtrlDown;
 
-	/* The console keys have their own lines on an XL/XE as well. */
-	rEvent.bStart = FALSE;
-	rEvent.bSelect = FALSE;
-	rEvent.bOption = FALSE;
+	/* A remapped Shift, Ctrl or Alt that produced a key code of its own. */
+	TUsbKeyResult ModKey = { UsbKeyActionNone, ATARI_KEY_NONE, TRUE };
+	boolean bHaveModKey = FALSE;
 
-	/*
-	 * Only the keys that can be console keys are tested, so this stays a
-	 * couple of tests in interrupt context rather than a scan of the map.
-	 */
-	static const unsigned ConsoleUsage[] = {
-		USB_HID_START, USB_HID_SELECT, USB_HID_OPTION
-	};
-	for (unsigned i = 0; i < sizeof ConsoleUsage / sizeof ConsoleUsage[0]; i++)
+	struct TModifierStroke
 	{
-		if (Now.IsSet (ConsoleUsage[i]))
+		unsigned	Usage;
+		boolean		Down;
+	};
+
+	const TModifierStroke Modifier[] =
+	{
+		{ USB_KEYMAP_KEY_SHIFT,	bShiftDown },
+		{ USB_KEYMAP_KEY_CTRL,	bCtrlDown  },
+		{ USB_KEYMAP_KEY_ALT,	bAltDown   }
+	};
+
+	for (unsigned i = 0; i < sizeof Modifier / sizeof Modifier[0]; i++)
+	{
+		if (!Modifier[i].Down)
 		{
-			ConsoleKeysForUsage (ConsoleUsage[i], &rEvent.bStart,
-					     &rEvent.bSelect, &rEvent.bOption);
+			continue;
+		}
+
+		TUsbKeyResult R;
+		boolean bHandled = s_KeyMap.Resolve (Modifier[i].Usage, 0, &R);
+
+		if (Modifier[i].Usage == USB_KEYMAP_KEY_SHIFT)
+		{
+			bShiftLine = !bHandled;
+		}
+		else if (Modifier[i].Usage == USB_KEYMAP_KEY_CTRL)
+		{
+			bCtrlLine = !bHandled;
+		}
+
+		if (!bHandled)
+		{
+			continue;
+		}
+
+		switch (R.Action)
+		{
+		case UsbKeyActionShiftLine:
+			bShiftLine = TRUE;
+			break;
+
+		case UsbKeyActionCtrlLine:
+			bCtrlLine = TRUE;
+			break;
+
+		case UsbKeyActionKey:
+			if (!bHaveModKey)
+			{
+				ModKey = R;
+				bHaveModKey = TRUE;
+			}
+			break;
+
+		default:
+			break;
 		}
 	}
+
+	/* The console keys have their own lines on an XL/XE as well. */
+	boolean bStart = FALSE;
+	boolean bSelect = FALSE;
+	boolean bOption = FALSE;
 
 	/*
 	 * One key code at a time, like the real matrix.  Which key wins when
 	 * several are down follows the usage code order because the bit map is
 	 * scanned from bit 0 upwards, so it does not depend on the order in
 	 * which the keyboard happened to list the six slots of its report.
+	 *
+	 * The scan runs to the end rather than stopping at the first code,
+	 * because a console key or a line can be held down beside it.
 	 */
-	rEvent.nKeyCode = ATARI_KEY_NONE;
+	int nKeyCode = ATARI_KEY_NONE;
+	boolean bKeyExact = FALSE;
+	boolean bHaveKey = FALSE;
 
 	int nScan = FirstSetBit (Now);
 	while (nScan != (int) ATARI_KEY_NONE)
 	{
+		unsigned nScanUsage = (unsigned) nScan;
+
 		/* Drop this key so the next iteration looks at the next one. */
 		Now.Words[nScan >> 6] &= ~((u64) 1 << (nScan & 63));
+		nScan = FirstSetBit (Now);
 
-		if (MenuKeyForUsage ((unsigned) nScan, bNumpadAsCursor, bMenuActive)
-		    != ATARI_KEY_NONE)
+		TUsbKeyResult R;
+		boolean bBound = s_KeyMap.Resolve (nScanUsage, nMods, &R);
+
+		/*
+		 * The menu's own keys.  While it is open they go to it whatever
+		 * the file says; while it is closed only the keypad-arrow setting
+		 * can claim a key, and an explicit binding overrides that.
+		 */
+		boolean bMenuTakes = FALSE;
+		if (bMenuActive)
 		{
-			/* The menu has this one, so the machine must not. */
-			nScan = FirstSetBit (Now);
+			bMenuTakes = MenuKeyForUsage (nScanUsage, bNumpadAsCursor, TRUE)
+				     != ATARI_KEY_NONE;
+		}
+		else if (!bBound)
+		{
+			bMenuTakes = MenuKeyForUsage (nScanUsage, bNumpadAsCursor, FALSE)
+				     != ATARI_KEY_NONE;
+		}
 
+		if (bMenuTakes)
+		{
 			continue;
 		}
 
-		ConsoleKeysForUsage ((unsigned) nScan, &rEvent.bStart,
-				     &rEvent.bSelect, &rEvent.bOption);
-
-		int nKeyCode = AtariKeyForUsage ((unsigned) nScan);
-		if (nKeyCode == ATARI_KEY_NONE)
+		if (bBound)
 		{
-			nScan = FirstSetBit (Now);
+			switch (R.Action)
+			{
+			case UsbKeyActionKey:
+				if (!bHaveKey)
+				{
+					nKeyCode = R.Code;
+					bKeyExact = R.bExact;
+					bHaveKey = TRUE;
+				}
+				break;
+
+			case UsbKeyActionStart:
+				bStart = TRUE;
+				break;
+
+			case UsbKeyActionSelect:
+				bSelect = TRUE;
+				break;
+
+			case UsbKeyActionOption:
+				bOption = TRUE;
+				break;
+
+			case UsbKeyActionShiftLine:
+				bShiftLine = TRUE;
+				break;
+
+			case UsbKeyActionCtrlLine:
+				bCtrlLine = TRUE;
+				break;
+
+			default:			/* UsbKeyActionNone */
+				break;
+			}
 
 			continue;
 		}
 
 		/*
-		 * Start, Select and Option are console keys, not key codes: they
-		 * are already in their own fields, and must not also be reported
-		 * as the key that is down.
+		 * The built-in mapping.  Start, Select and Option are console
+		 * keys rather than key codes: they are already in their own
+		 * fields, and must not also be reported as the key that is down.
 		 */
-		if (   nKeyCode == ATARI_KEY_START
-		    || nKeyCode == ATARI_KEY_OPTION
-		    || nKeyCode == ATARI_KEY_SELECT)
+		if (   nScanUsage == USB_HID_START
+		    || nScanUsage == USB_HID_SELECT
+		    || nScanUsage == USB_HID_OPTION)
 		{
-			nScan = FirstSetBit (Now);
+			ConsoleKeysForUsage (nScanUsage, &bStart, &bSelect, &bOption);
 
 			continue;
 		}
 
-		rEvent.nKeyCode = nKeyCode;
+		int nDefault = AtariKeyForUsage (nScanUsage);
+		if (nDefault == ATARI_KEY_NONE)
+		{
+			continue;
+		}
 
-		break;
+		if (!bHaveKey)
+		{
+			nKeyCode = nDefault;
+			bKeyExact = FALSE;
+			bHaveKey = TRUE;
+		}
 	}
+
+	/* A remapped modifier key is a key of last resort. */
+	if (!bHaveKey && bHaveModKey)
+	{
+		nKeyCode = ModKey.Code;
+		bKeyExact = TRUE;
+		bHaveKey = TRUE;
+	}
+
+	/*
+	 * A binding that names its modifiers produces its function exactly:
+	 * those modifiers chose the line, so they are not folded in again.  The
+	 * lines are dropped for this report because the code already carries
+	 * what it needs.
+	 */
+	if (bHaveKey && bKeyExact)
+	{
+		bShiftLine = FALSE;
+		bCtrlLine = FALSE;
+	}
+
+	rEvent.bActive = TRUE;
+	rEvent.bShift = bShiftLine;
+	rEvent.bControl = bCtrlLine;
+	rEvent.bStart = bStart;
+	rEvent.bSelect = bSelect;
+	rEvent.bOption = bOption;
+	rEvent.nKeyCode = bHaveKey ? nKeyCode : ATARI_KEY_NONE;
 
 	rReport.Held = Now;
 
@@ -784,6 +956,30 @@ CUSBAtariKeyboard::~CUSBAtariKeyboard (void)
 	}
 
 	s_SpinLock.Release ();
+}
+
+void CUSBAtariKeyboard::SetKeyMap (const char *pPath, const char *pText)
+{
+	/*
+	 * Called before Initialize(), so no keyboard is registered yet and the
+	 * table can be written without a lock.  The interrupt handler only ever
+	 * reads it.
+	 */
+	if (pText == 0)
+	{
+		s_KeyMap.Reset ();
+
+		if (pPath != 0)
+		{
+			CLogger::Get ()->Write ("usbkeys", LogWarning,
+						"no %s; using the built-in mapping",
+						pPath);
+		}
+
+		return;
+	}
+
+	s_KeyMap.Load (pPath, pText);		/* logs its own summary */
 }
 
 boolean CUSBAtariKeyboard::Initialize (void)
