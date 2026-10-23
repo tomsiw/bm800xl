@@ -31,6 +31,13 @@ SD card root
     └── *.sav                <- snapshots you save
 ```
 
+If you want to keep disk, cartridge and cassette images on the SD card instead
+of a USB drive, put them in a directory called `USERDATA` at the root of the
+card and set `USER_DIR=SD:/USERDATA` in `settings.cfg`. The directory is created
+automatically when that setting is used, and the menu's file browser then shows
+nothing outside it. See
+[Keeping media on the SD card instead](using.md#keeping-media-on-the-sd-card-instead).
+
 The two kernel images are alternatives, not additions: the firmware picks one by
 name and ignores the other. Copy both and the card works in every supported
 model without further thought. See

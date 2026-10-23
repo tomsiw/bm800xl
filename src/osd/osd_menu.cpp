@@ -275,6 +275,66 @@ void CAtariMenu::Truncate (char *pText, unsigned nMaxChars)
 	}
 }
 
+boolean CAtariMenu::SamePath (const char *pA, const char *pB)
+{
+	if (pA == 0 || pB == 0)
+	{
+		return FALSE;
+	}
+
+	for (unsigned i = 0; ; i++)
+	{
+		char a = pA[i];
+		char b = pB[i];
+
+		if (a >= 'a' && a <= 'z')
+		{
+			a = (char) (a - 'a' + 'A');
+		}
+		if (b >= 'a' && b <= 'z')
+		{
+			b = (char) (b - 'a' + 'A');
+		}
+
+		if (a != b)
+		{
+			return FALSE;
+		}
+		if (a == '\0')
+		{
+			return TRUE;
+		}
+	}
+}
+
+boolean CAtariMenu::IsWithinUserBase (const char *pPath) const
+{
+	if (m_pStorage == 0 || pPath == 0)
+	{
+		return FALSE;
+	}
+
+	const char *pBase = m_pStorage->GetUserBase ();
+	unsigned nBase = strlen (pBase);
+
+	if (strlen (pPath) < nBase)
+	{
+		return FALSE;
+	}
+
+	char Prefix[SETTINGS_PATH_MAX];
+	CopyText (Prefix, pPath, nBase + 1);
+
+	if (!SamePath (Prefix, pBase))
+	{
+		return FALSE;
+	}
+
+	// The base itself, or something below it -- not a sibling whose name merely
+	// begins with the same characters, such as "SD:/USERDATA2".
+	return pPath[nBase] == '\0' || pPath[nBase] == '/';
+}
+
 const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 {
 	switch (m_Screen)
@@ -1044,10 +1104,20 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
 	}
 	else
 	{
-		CopyText (m_BrowseDirectory,
-			  m_pSettings->UserDirectory[0] != '\0'
-			  ? m_pSettings->UserDirectory : STORAGE_VOLUME_USER,
-			  sizeof m_BrowseDirectory);
+		/*
+		 * Media: reopen where the user was last time, but only inside the user
+		 * volume.  A path left in the settings from the other volume -- the
+		 * usual thing after switching between USB and SD by hand -- is outside
+		 * it, and the browser starts at the base instead.
+		 */
+		const char *pStart = m_pSettings->UserDirectory;
+
+		if (!IsWithinUserBase (pStart))
+		{
+			pStart = m_pStorage->GetUserBase ();
+		}
+
+		CopyText (m_BrowseDirectory, pStart, sizeof m_BrowseDirectory);
 	}
 
 	m_pStorage->RefreshUserVolume ();
@@ -1128,6 +1198,24 @@ boolean CAtariMenu::BrowserGoUp (void)
 	if (m_pStorage == 0)
 	{
 		return FALSE;
+	}
+
+	/*
+	 * The browser never leaves the user volume.  With the SD card chosen the
+	 * tree starts at SD:/USERDATA, and one step above it is the emulator's own
+	 * part of the card -- settings, snapshots, ROMs -- so "up" from there has
+	 * nowhere to go and Escape leaves the browser, exactly as it does from a
+	 * volume root.
+	 */
+	if (   m_BrowseTarget == BrowseDisk1 || m_BrowseTarget == BrowseDisk2
+	    || m_BrowseTarget == BrowseDisk3 || m_BrowseTarget == BrowseDisk4
+	    || m_BrowseTarget == BrowseCartridge
+	    || m_BrowseTarget == BrowseCassette)
+	{
+		if (SamePath (m_BrowseDirectory, m_pStorage->GetUserBase ()))
+		{
+			return FALSE;
+		}
 	}
 
 	if (!CAtariStorage::TruncateToParent (m_BrowseDirectory))
@@ -1657,11 +1745,20 @@ void CAtariMenu::DrawBrowser (void)
 
 	if (nCount == 0)
 	{
+		// Two different explanations: an empty directory, or a volume that is
+		// not there at all.  Which volume the user expects depends on the
+		// setting, so the message does too.
+		const char *pMessage = "No matching files here";
+
+		if (m_pStorage == 0 || !m_pStorage->IsUserVolumeAvailable ())
+		{
+			pMessage = m_pStorage != 0 && m_pStorage->IsUserVolumeSD ()
+				 ? "The SD card is not available"
+				 : "No USB drive detected";
+		}
+
 		m_pVideo->DrawText (MenuMarginX + MenuIndent, MenuMarginY + m_nItemTop,
-				    ATARI_COLOR_TITLE,
-				    m_pStorage != 0 && m_pStorage->IsUserVolumeAvailable ()
-				    ? "No matching files here"
-				    : "No USB drive detected");
+				    ATARI_COLOR_TITLE, pMessage);
 	}
 	else
 	{

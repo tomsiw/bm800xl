@@ -92,8 +92,8 @@ and is meant to be readable and editable; see [the settings file](#the-settings-
 
 ## Loading media
 
-Media images live on the **USB drive**, not the SD card. Disk, cartridge and
-cassette images are all loaded through the menu:
+Media images live on the **USB drive** by default. Disk, cartridge and cassette
+images are all loaded through the menu:
 
 1. Open the menu with F12.
 2. Choose **Disk drives**, then the drive you want.
@@ -102,6 +102,31 @@ cassette images are all loaded through the menu:
 4. Directories are shown with a trailing `/`; press Return to enter one, and
    Escape to go back up.
 5. Press Return on a file to load it.
+
+### Keeping media on the SD card instead
+
+The volume is a setting, not a build option. `USER_DIR` in `settings.cfg` names
+it, and the volume part is what matters:
+
+| `USER_DIR` | Where media live | What the browser can reach |
+|---|---|---|
+| `USB:` or `USB:/disks` | the USB drive | the whole USB drive |
+| `SD:` or `SD:/USERDATA` | the SD card | **`SD:/USERDATA` only** |
+| `SD:/USERDATA/GAMES` | the SD card | `SD:/USERDATA/GAMES` downward |
+
+With `SD:`, the directory `SD:/USERDATA` is created if it is missing, the browser
+opens inside it, and Escape from it leaves the browser rather than climbing into
+the rest of the card — the settings file, snapshots and ROM images there are the
+emulator's, not the collection. Editing the setting is what switches volumes: set
+it back to `USB:` to return to the USB drive. It is remembered across restarts,
+because the emulator writes the directory it was browsing into the same key, and
+that directory is always on the volume in use.
+
+Switching volumes does not move any files, and the paths of the images that were
+loaded last time are kept as they were. An image on the volume that is no longer
+there cannot be mounted at start-up: the log says `Cannot mount <path> in drive
+<n>`, and the machine comes up with that drive empty while the menu still shows
+the path it was given. Load an image from the current volume to replace it.
 
 ### Which formats are supported
 
@@ -252,7 +277,7 @@ SYSTEM_DIR=SD:/ATARI
 | `CARTRIDGE` | a path, or empty |
 | `CASSETTE` | a path, or empty |
 | `CASSETTE_READONLY` | 0 or 1 |
-| `USER_DIR` | where the media browser last was, e.g. `USB:/disks` |
+| `USER_DIR` | the volume media live on, and where the browser last was: `USB:/disks`, or `SD:/USERDATA` for the SD card |
 | `SYSTEM_DIR` | where the emulator's own files are, e.g. `SD:/ATARI` |
 
 A missing or damaged file is not fatal: the defaults are used, unknown lines are

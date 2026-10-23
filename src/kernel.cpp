@@ -677,6 +677,23 @@ boolean CAtariKernel::Initialize (void)
 	}
 
 	/*
+	 * Where the user's media live is a setting, not a build option: the volume
+	 * named by USER_DIR is the one the file browser shows.  "USB:" (the default)
+	 * is the USB drive; "SD:" puts them in SD:/USERDATA and keeps the browser
+	 * from wandering into the rest of the card, which holds the emulator's own
+	 * files.
+	 */
+	{
+		boolean bUserOnSD = CAtariStorage::OnSystemVolume (m_Settings.UserDirectory);
+
+		m_Storage.SetUserVolume (bUserOnSD);
+
+		m_pBootLog->Recordf ("Media: user files on %s (%s)",
+				     bUserOnSD ? "the SD card" : "the USB drive",
+				     m_Storage.GetUserBase ());
+	}
+
+	/*
 	 * Report the settings that are not otherwise visible at startup.
 	 *
 	 * The machine type, RAM size and video standard are logged by the platform

@@ -29,6 +29,7 @@ CAtariStorage::CAtariStorage (void)
 	m_pUserFileSystem (new FATFS),
 	m_bSystemVolume (FALSE),
 	m_bUserVolume (FALSE),
+	m_bUserOnSD (FALSE),
 	m_nEntryCount (0)
 {
 	m_SystemDirectory[0] = '\0';
@@ -124,9 +125,33 @@ boolean CAtariStorage::RefreshUserVolume (void)
 	return m_bUserVolume != bWasAvailable;
 }
 
-const char *CAtariStorage::GetUserDirectory (void) const
+/* Compares the first N characters of two strings, ignoring case. */
+static boolean EqualsIgnoreCase (const char *pA, const char *pB, unsigned nLength);
+
+void CAtariStorage::SetUserVolume (boolean bOnSD)
 {
-	return m_bUserVolume ? STORAGE_VOLUME_USER : 0;
+	m_bUserOnSD = bOnSD;
+
+	if (bOnSD)
+	{
+		// Created on demand: an empty card, or one prepared on a PC, has no
+		// USERDATA yet, and an empty browser with no explanation is worse than
+		// a directory that exists.
+		EnsureDirectory (STORAGE_SD_USER_DIR);
+	}
+}
+
+boolean CAtariStorage::OnSystemVolume (const char *pPath)
+{
+	if (pPath == 0)
+	{
+		return FALSE;
+	}
+
+	unsigned nVolume = strlen (STORAGE_VOLUME_SYSTEM);
+
+	return strlen (pPath) >= nVolume
+	    && EqualsIgnoreCase (pPath, STORAGE_VOLUME_SYSTEM, nVolume);
 }
 
 void CAtariStorage::MakePath (char *pPath, unsigned nSize, const char *pDirectory,

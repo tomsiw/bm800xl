@@ -33,11 +33,20 @@
  * The volume names the rest of the emulator uses.
  *
  * STORAGE_VOLUME_SYSTEM is where settings, snapshots and the ROM images live;
- * STORAGE_VOLUME_USER is where media images live, and is the first USB mass
- * storage device that has a usable file system.
+ * STORAGE_VOLUME_USER is where media images live by default, and is the first
+ * USB mass storage device that has a usable file system.
  */
 #define STORAGE_VOLUME_SYSTEM	"SD:"
 #define STORAGE_VOLUME_USER	"USB:"
+
+/*
+ * Where media images live when the SD card is chosen instead of the USB drive.
+ *
+ * Only this directory and what is below it is offered to the OSD: the rest of
+ * the card holds this emulator's own files, which are not the user's to browse.
+ * Created on demand.
+ */
+#define STORAGE_SD_USER_DIR	"SD:/USERDATA"
 
 /*
  * Longest volume prefix, including the colon and the terminating NUL.
@@ -81,8 +90,37 @@ public:
 	 */
 	boolean Initialize (const char *pSystemDirectory = "/ATARI");
 
-	/* \return TRUE if a USB drive with a usable file system is mounted. */
-	boolean IsUserVolumeAvailable (void) const	{ return m_bUserVolume; }
+	/*
+	 * Chooses where user media live: the USB drive (the default) or the SD
+	 * card.
+	 *
+	 * With the SD card, GetUserBase() is STORAGE_SD_USER_DIR, and the OSD is
+	 * kept inside it: the rest of the card belongs to the emulator, not to the
+	 * user's collection.  The directory is created if it is missing.  Call this
+	 * once, after the settings are known and before the menu is used.
+	 */
+	void SetUserVolume (boolean bOnSD);
+
+	/// \return TRUE if user media live on the SD card rather than the USB drive
+	boolean IsUserVolumeSD (void) const		{ return m_bUserOnSD; }
+
+	/*
+	 * The directory user media are browsed from, as a full path: "USB:" or
+	 * STORAGE_SD_USER_DIR.
+	 */
+	const char *GetUserBase (void) const
+	{
+		return m_bUserOnSD ? STORAGE_SD_USER_DIR : STORAGE_VOLUME_USER;
+	}
+
+	/* \return TRUE if the chosen user volume is usable right now. */
+	boolean IsUserVolumeAvailable (void) const
+	{
+		return m_bUserOnSD ? m_bSystemVolume : m_bUserVolume;
+	}
+
+	/* \return TRUE if PATH names something on the SD card. */
+	static boolean OnSystemVolume (const char *pPath);
 
 	/* \return TRUE if the SD card is mounted. */
 	boolean IsSystemVolumeAvailable (void) const	{ return m_bSystemVolume; }
@@ -98,9 +136,6 @@ public:
 
 	/* The directory settings and save states are kept in, e.g. "SD:/ATARI". */
 	const char *GetSystemDirectory (void) const	{ return m_SystemDirectory; }
-
-	/* The directory media images are read from, e.g. "USB:". */
-	const char *GetUserDirectory (void) const;
 
 	/*
 	 * Builds a path in PATH.  NAME may be absolute (it already contains a
@@ -217,6 +252,9 @@ private:
 
 	boolean m_bSystemVolume;
 	boolean m_bUserVolume;
+
+	/* Whether user media live on the SD card rather than the USB drive. */
+	boolean m_bUserOnSD;
 
 	char m_SystemDirectory[STORAGE_PATH_MAX];
 

@@ -236,6 +236,19 @@ private:
 	unsigned TextColumns (unsigned nPixels) const;
 	static void Truncate (char *pText, unsigned nMaxChars);
 
+	/*
+	 * Is PATH inside the user volume's tree?
+	 *
+	 * The file browser is confined to it: with the SD card chosen the tree
+	 * starts at SD:/USERDATA, and the rest of the card -- settings, snapshots,
+	 * ROMs -- belongs to the emulator, not to the user's collection.  A path
+	 * left in the settings from the other volume is outside it.
+	 */
+	boolean IsWithinUserBase (const char *pPath) const;
+
+	/* Case-insensitive comparison of two paths. */
+	static boolean SamePath (const char *pA, const char *pB);
+
 	// Names shown for enumerated settings
 	static const char *MachineName (int nMachine);
 	static const char *RamName (int nRamKB);
