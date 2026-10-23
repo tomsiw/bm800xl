@@ -8,11 +8,13 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `6712e7b`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `fa2d9ef`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
-does not fit in Circle's 2 MB region; the OSD font is selectable and its layout
-follows it.
+does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
+at twice its size, compiled in as data, and its layout follows the font. That
+build was checked on a Pi 400 and a Zero 2 W with no flicker and no change in
+frame rate.
 
 ---
 
@@ -27,7 +29,7 @@ follows it.
 | Disk / cartridge / cassette | loading verified; eMMC faults fixed |
 | Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
 | Snapshots | save, save-as-new, load and erase **verified on hardware** |
-| OSD menu | opens, navigates, applies settings; no flicker |
+| OSD menu | opens, navigates, applies settings; Atari character set at 2x; no flicker |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
 | Pi 3 / Pi 5 | images build; never run |
@@ -245,6 +247,15 @@ failures. They are listed because they are invisible until they bite.
     `_end` from the ELF and refuse an image that does not fit; large buffers
     belong on the heap. Current headroom is about 450 KB, which is not a lot —
     check before adding another buffer.
+
+15. **The Atari character set is indexed by internal codes, not ASCII, and its
+    glyphs start blank.** At `$E000` the ROM holds space at `$00`, digits at
+    `$10`-`$19`, `A`-`Z` at `$21`-`$3A` and lower case at `$61`-`$7A`: the OS
+    subtracts `$20` from ATASCII below `$60` and leaves the rest alone. Reading
+    the set with ASCII indices gives graphics, not letters. And the first row of
+    nearly every glyph is empty, so "the first byte is zero" is not a way to test
+    whether a ROM contains a character set — that check rejected a perfectly good
+    ATARIXL.ROM twice before it was found.
 
 ---
 
