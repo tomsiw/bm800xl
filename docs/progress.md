@@ -8,13 +8,13 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `fa2d9ef`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `e8c1562`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
-at twice its size, compiled in as data, and its layout follows the font. That
-build was checked on a Pi 400 and a Zero 2 W with no flicker and no change in
-frame rate.
+at twice its size, compiled in as data, and its layout follows the font; and user
+media can live on the USB drive or in `SD:/USERDATA`, chosen by the settings file.
+Checked on a Pi 400 and a Zero 2 W.
 
 ---
 
@@ -26,7 +26,7 @@ frame rate.
 | Frame rate, Pi 400 | **49.8 fps** against a 50 fps target |
 | Frame rate, Pi Zero 2 W | **49.7 fps** — the primary target, verified |
 | Sound | correct over HDMI; volume applies live; stereo needs a restart |
-| Disk / cartridge / cassette | loading verified; eMMC faults fixed |
+| Disk / cartridge / cassette | loading verified; eMMC faults fixed; media from the USB drive or `SD:/USERDATA`, chosen in the settings file |
 | Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
 | Snapshots | save, save-as-new, load and erase **verified on hardware** |
 | OSD menu | opens, navigates, applies settings; Atari character set at 2x; no flicker |
