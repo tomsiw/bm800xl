@@ -1405,6 +1405,17 @@ void CAtariKernel::RunFrame (void)
 	}
 
 	/*
+	 * While the menu is open the output is silenced, but nothing else changes:
+	 * the emulated machine keeps producing samples and the sink keeps accepting
+	 * them, so the sound returns at the moment the menu closes rather than
+	 * stuttering back to life from an empty queue.
+	 */
+	if (m_pAudioSink != 0)
+	{
+		ATARI_AudioSinkSetMuted (m_pAudioSink, m_Menu.IsOpen ());
+	}
+
+	/*
 	 * Frame timing.
 	 *
 	 * The emulation itself costs only a few milliseconds, so the frame budget is

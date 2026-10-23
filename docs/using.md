@@ -36,6 +36,11 @@ screen, to close it.
 The picture keeps running behind the menu, dimmed, so you can see what you are
 changing.
 
+While the menu is open the sound is silenced. Only the output is muted: the
+emulated machine keeps running and keeps producing samples, so a tune or a
+sound effect comes back in step when the menu closes rather than stuttering
+back to life.
+
 ### What is in the menu
 
 **Disk drives** — Load an image into each of the four drives, and into the

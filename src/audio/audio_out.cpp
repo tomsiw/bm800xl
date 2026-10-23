@@ -72,10 +72,24 @@ public:
 	/// \note Stops early when the queue is full; never waits
 	void PadSilence (unsigned nCount);
 
+	/*
+	 * Silences the output while still consuming the emulator's samples.
+	 *
+	 * Used while the OSD menu is open.  The samples are still taken at the rate
+	 * the emulated machine produces them -- the queue must not run dry, or the
+	 * sound that comes back is late and broken -- but what goes into it is
+	 * silence instead of the Atari's output.
+	 */
+	void SetMuted (boolean bMuted)	{ m_bMuted = bMuted; }
+
 private:
+	/// \return Bytes of silence accepted, at most COUNT
+	unsigned WriteSilence (unsigned nCount);
+
 	unsigned	m_nChannels;	// channels of the emulated stream: 1 or 2
 	u32		m_nSilence;
 	boolean		m_bSwapChannels;
+	boolean		m_bMuted;
 };
 
 CAtariAudioDevice::CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSampleRate,
@@ -96,6 +110,7 @@ CAtariAudioDevice::CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSa
 	 */
 	m_nSilence = 0;
 	m_bSwapChannels = FALSE;
+	m_bMuted = FALSE;
 }
 
 //
@@ -128,9 +143,50 @@ unsigned CAtariAudioDevice::FreeBytes (void)
 }
 unsigned CAtariAudioDevice::WriteStream (const void *pData, unsigned nCount)
 {
+	if (m_bMuted)
+	{
+		/*
+		 * Silence of the same length, not a dropped write.
+		 *
+		 * The queue is what the emulator is paced against: a write that never
+		 * arrived would leave the queue empty, the DMA would underrun, and the
+		 * first second after the menu closes would stutter.  So the bytes are
+		 * still taken, and only their contents are replaced.
+		 */
+		return WriteSilence (nCount);
+	}
+
 	int nResult = Write (pData, nCount);
 
 	return nResult > 0 ? (unsigned) nResult : 0;
+}
+
+unsigned CAtariAudioDevice::WriteSilence (unsigned nCount)
+{
+	// Bounded chunks, like PadSilence(), so a caller offering more than fits is
+	// not held up; the size is a whole number of frames for both channel counts.
+	static const u8 ZeroPCM[AudioZeroChunkBytes] = { };
+
+	unsigned nDone = 0;
+
+	while (nDone < nCount)
+	{
+		unsigned nChunk = nCount - nDone;
+		if (nChunk > sizeof ZeroPCM)
+		{
+			nChunk = (unsigned) sizeof ZeroPCM;
+		}
+
+		int nResult = Write (ZeroPCM, nChunk);
+		if (nResult <= 0)
+		{
+			break;
+		}
+
+		nDone += (unsigned) nResult;
+	}
+
+	return nDone;
 }
 
 void CAtariAudioDevice::PadSilence (unsigned nCount)
@@ -296,4 +352,16 @@ extern "C" audio_sink_t *ATARI_CreateAudioSink (CInterruptSystem *pInterrupt)
 	s_pInterrupt = pInterrupt;
 
 	return &s_Sink;
+}
+
+extern "C" void ATARI_AudioSinkSetMuted (audio_sink_t *pSink, int bMuted)
+{
+	// Safe when nothing is open: the kernel calls this every frame from the
+	// first one, which may be before the sound device exists.
+	if (s_pDevice == 0 || pSink == 0)
+	{
+		return;
+	}
+
+	DeviceOf (pSink)->SetMuted (bMuted != 0);
 }

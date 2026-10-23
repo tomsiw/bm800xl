@@ -93,6 +93,21 @@ struct audio_sink {
  */
 audio_sink_t *ATARI_CreateAudioSink (CInterruptSystem *pInterrupt);
 
+/*
+ * Silences the output, or lets it speak again.
+ *
+ * Muted, the sink still accepts every byte the emulator offers and puts it in
+ * the hardware queue as silence instead of as sound.  That is deliberate: the
+ * emulated machine has to keep producing samples at the same rate or the DMA
+ * runs dry, and a queue that emptied would make the sound stutter for a second
+ * after it came back.  Nothing above this call changes -- the emulator, the
+ * sound bridge and the pacing all behave as if the output were audible.
+ *
+ * Called from the main thread, once per frame; safe to call when the sink is
+ * closed or not yet created.
+ */
+void ATARI_AudioSinkSetMuted (audio_sink_t *sink, int muted);
+
 #ifdef __cplusplus
 }
 #endif
