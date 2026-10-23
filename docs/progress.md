@@ -8,8 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `7713607`, with the USB keyboard remapping and the
-BRK handling both implemented and verified on hardware.
+**Last updated:** after commit `9981c01`, with the USB keyboard remapping, the BRK
+handling and snapshot erasing all implemented and verified on hardware.
 
 ---
 
@@ -23,7 +23,7 @@ BRK handling both implemented and verified on hardware.
 | Sound | correct over HDMI; volume applies live; stereo needs a restart |
 | Disk / cartridge / cassette | loading verified; eMMC faults fixed |
 | Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
-| Snapshots | save, save-as-new, load and delete **verified on hardware** |
+| Snapshots | save, save-as-new, load and erase **verified on hardware** |
 | OSD menu | opens, navigates, applies settings; no flicker |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
@@ -141,8 +141,8 @@ here so they are not rediscovered.
 | `7b8153a` | a controller plugged in later was never seen; the Switch Pro never appeared at all | `UpdatePlugAndPlay()` was **unreachable**: the only call was in `CUSBAtariKeyboard::Update()`, and nothing ever called `Update()`. So port-status events were never drained, and a failed enumeration was never retried. |
 | `aed2e43` | generic pads reported a constant wrong `STICK`; every hat direction read as "up" | the resolver was still only in the probe: the adapter used fixed bits 15–18 and axis trim, and read the hat as degrees when Circle reports the raw HID value 0–7. |
 | `7713607` | MAC/65's DDT could not take control: the emulator stopped at its BRK | the core's `LIBATARI800` build treats BRK as "the program ended" and longjmps out of the frame unless `libatari800_continue_on_brk` is set. The instruction is abandoned after its opcode fetch, so the push and the vector never happen. Now `CONTINUE_ON_BRK` in the settings file, default 1, which runs BRK as the machine does. |
-| `(working tree)` | the docs say Delete ejects an image, and it never did | the menu only receives the keys the keyboard drivers classify as menu keys, and neither list contained Delete: `MenuKeyForUsage()` on USB and `MenuKeyForPosition()` on GPIO both stopped at the arrows, Return, Escape and Space. The menu's handler for it was unreachable, in the same way `UpdatePlugAndPlay()` was. Delete is now classified on USB, and the GPIO driver maps BACK SPACE to it, because the Atari's Delete is CTRL+BACK SPACE and the menu cannot see modifiers. |
-| `(working tree)` | no way to remove an old snapshot | the Snapshots screen could write and read files but never erase one. Erasing now has a screen of its own, *Erase snapshot*, reached like the others: the save and load browsers were the wrong place to put it, because a file could then be lost in a screen opened for another purpose. Return or Delete asks, a second press erases, and any other key cancels **and takes the question off the screen** — leaving it there made a cancelled action look pending. |
+| `9981c01` | the docs say Delete ejects an image, and it never did | the menu only receives the keys the keyboard drivers classify as menu keys, and neither list contained Delete: `MenuKeyForUsage()` on USB and `MenuKeyForPosition()` on GPIO both stopped at the arrows, Return, Escape and Space. The menu's handler for it was unreachable, in the same way `UpdatePlugAndPlay()` was. Delete is now classified on USB, and the GPIO driver maps BACK SPACE to it, because the Atari's Delete is CTRL+BACK SPACE and the menu cannot see modifiers. |
+| `9981c01` | no way to remove an old snapshot | the Snapshots screen could write and read files but never erase one. Erasing now has a screen of its own, *Erase snapshot*, reached like the others: the save and load browsers were the wrong place to put it, because a file could then be lost in a screen opened for another purpose. Return or Delete asks, a second press erases, and any other key cancels **and takes the question off the screen** — leaving it there made a cancelled action look pending. |
 
 ---
 
@@ -256,7 +256,7 @@ Verified: boot to BASIC; disk, cartridge and cassette mounting; settings applied
 startup and persisted; crash marker recovery; menu navigation; sound; 49.7/49.8 fps;
 USB keyboard direct, and hot-plugged; USB gamepads — both a generic pad and a Switch
 Pro — attached before power-on and while running, with unplug, re-plug and swap;
-snapshots — save, save as new, load, and delete from the browser.
+snapshots — save, save as new, load, and erase from the Erase snapshot screen.
 
 Not verified: GPIO keyboard, 9-pin GPIO joysticks, the second keyboard mode, the
 128/192/320/321 kB RAM configurations in use, cassette beyond insertion, Pi 3/Pi 5.
