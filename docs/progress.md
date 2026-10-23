@@ -8,15 +8,17 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `fabd27b`, with the OSD panel-centring fix that
-follows it. USB keyboard remapping, BRK handling and snapshot erasing are
-implemented and verified on hardware; the output is muted while the OSD is open;
-the build and verification scripts refuse a kernel that does not fit in Circle's
-2 MB region; the OSD is drawn in the Atari character set at twice its size,
-compiled in as data, its layout follows the font, and the panel is centred in the
-picture; user media can live on the USB drive or in `SD:/USERDATA`, chosen by the
-settings file; and a disk mounted read/write is genuinely writable, with its mode
-changeable while it stays inserted. Checked on a Pi 400 and a Zero 2 W.
+**Last updated:** after commit `1c48244`. USB keyboard remapping, BRK handling and
+snapshot erasing are implemented and verified on hardware; the output is muted
+while the OSD is open; the build and verification scripts refuse a kernel that
+does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
+at twice its size, compiled in as data, its layout follows the font, and the panel
+is centred in the picture; the menu can warm-reset, cold-reset and power-cycle the
+machine, the last of which is the only way out of a cold reset that inherited a
+console-key mask from the software that ran before it; user media can live on the
+USB drive or in `SD:/USERDATA`, chosen by the settings file; and a disk mounted
+read/write is genuinely writable, with its mode changeable while it stays
+inserted. Checked on a Pi 400 and a Zero 2 W.
 
 ---
 
@@ -31,7 +33,7 @@ changeable while it stays inserted. Checked on a Pi 400 and a Zero 2 W.
 | Disk / cartridge / cassette | loading verified; eMMC faults fixed; media from the USB drive or `SD:/USERDATA`, chosen in the settings file |
 | Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
 | Snapshots | save, save-as-new, load and erase **verified on hardware** |
-| OSD menu | opens, navigates, applies settings; Atari character set at 2x; no flicker |
+| OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
 | Pi 3 / Pi 5 | images build; never run |
@@ -153,6 +155,7 @@ here so they are not rediscovered.
 | `6712e7b` | a long directory listing ran past the bottom of the menu panel | the browser drew a fixed 20 rows, but the panel holds about 14 at the font the menu used: the last rows were drawn over the status line and the footer, and a transient message was drawn on top of them. The row count is derived from the panel and the font now, and limited by the message line. |
 | `fabd27b` | a disk mounted read/write was still write-protected, and one mounted read-only could not be made writable | three faults, each enough on its own. The ATR header's write-protect byte forced the drive read-only whatever mode the file was opened in, and the menu's `[ro]` setting was never consulted. `ATARI_VFS_Open` decoded `"rb+"` as read-only, so even a read/write mount dropped every sector the machine wrote while `SIO_WriteSector` reported success. And the mode is fixed when the file is opened, so toggling `[ro]` changed only the setting — while ejecting reset it to read-only, so re-inserting the same image always came back protected. All three are fixed, the mount log now reports the mode the drive actually has, and the cassette had the same shape of bug in its toggle. |
 | (this commit) | the OSD panel sat against the left edge of the picture at 720p, so it looked like it leaned left | the centring code clamped the computed margin against `MenuMarginX`, which is an absolute position and starts at 40, not a margin. At 720p the picture is 960 wide and a 900-wide panel needs a 30-pixel margin, so `30 > 40` was false and the margin was dropped: flush left, 30 pixels short on the right. The panel is centred whenever it fits now, and falls back to the picture's edge otherwise; the vertical expression had the same shape and was fixed with it. Only 720p showed the fault, because the 1080p margin (270) is larger than 40. |
+| `1c48244` | a cold reset left some software in charge: BOOT ERROR instead of BASIC, as though OPTION were still held | a cold start is the CPU's RESET line, and POKEY and GTIA have no reset pin, so GTIA's console-key mask survived — and software can set it by writing `$D01F`, where a masked key reads back as pressed. RAM survived as well. There was no way out of that state, because no reset clears what the OS was misreading. *Power cycle* on the main menu now builds the machine again: RAM zeroed, every chip at power-up, ROMs reloaded, media mounted again. The audio device is deliberately left open across the rebuild, since reopening the HDMI sink hangs this hardware. |
 
 ---
 
@@ -272,6 +275,19 @@ failures. They are listed because they are invisible until they bite.
     without it the open succeeds, every write is refused, and `SIO_WriteSector`
     reports success anyway. Read-only is also fixed at open time, so changing it
     means re-opening the drive — an open image cannot be switched.
+
+17. **A cold reset is not a power cycle, because two chips have no reset pin.**
+    `Atari800_Coldstart()` resets PIA, ANTIC and the CPU, and the core's own
+    comment says POKEY and GTIA are not reset: both keep their registers, and RAM
+    is only marked cold — it keeps its contents. GTIA's console-key mask is the
+    one that bites: software that writes `$D01F` can mask a key out, and a masked
+    key reads back as pressed, so after a cold reset the OS boots as though Option
+    were held, skips BASIC and ends in BOOT ERROR with an empty drive. Nothing
+    short of building the machine again clears that, which is what the menu's
+    *Power cycle* does. Rebuilding also means `Atari800_Exit()` without
+    `ATARI_Exit()`, so the audio device stays open — and `PLATFORM_SoundSetup()`
+    reuses an open device whose stream shape has not changed, because reopening
+    the HDMI sink hangs this hardware.
 
 ---
 
