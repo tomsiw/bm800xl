@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `1c48244`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `7a410b4`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -16,9 +16,11 @@ at twice its size, compiled in as data, its layout follows the font, and the pan
 is centred in the picture; the menu can warm-reset, cold-reset and power-cycle the
 machine, the last of which is the only way out of a cold reset that inherited a
 console-key mask from the software that ran before it; user media can live on the
-USB drive or in `SD:/USERDATA`, chosen by the settings file; and a disk mounted
-read/write is genuinely writable, with its mode changeable while it stays
-inserted. Checked on a Pi 400 and a Zero 2 W.
+USB drive or in `SD:/USERDATA`, chosen by the settings file; a disk mounted
+read/write is genuinely writable, with its mode changeable while it stays inserted;
+and a cassette image is classified when it is inserted, so a standard tape loads
+fast and a turbo tape gets the real-timing mode a power cycle away. Checked on a
+Pi 400 and a Zero 2 W.
 
 ---
 
@@ -30,7 +32,7 @@ inserted. Checked on a Pi 400 and a Zero 2 W.
 | Frame rate, Pi 400 | **49.8 fps** against a 50 fps target |
 | Frame rate, Pi Zero 2 W | **49.7 fps** — the primary target, verified |
 | Sound | correct over HDMI; volume applies live; stereo needs a restart |
-| Disk / cartridge / cassette | loading verified; eMMC faults fixed; media from the USB drive or `SD:/USERDATA`, chosen in the settings file |
+| Disk / cartridge / cassette | loading verified; eMMC faults fixed; media from the USB drive or `SD:/USERDATA`, chosen in the settings file; standard tapes load fast, turbo tapes after the automatic power cycle |
 | Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
 | Snapshots | save, save-as-new, load and erase **verified on hardware** |
 | OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker |
@@ -288,6 +290,21 @@ failures. They are listed because they are invisible until they bite.
     `ATARI_Exit()`, so the audio device stays open — and `PLATFORM_SoundSetup()`
     reuses an open device whose stream shape has not changed, because reopening
     the HDMI sink hangs this hardware.
+
+18. **The SIO patch and the timed cassette path are mutually exclusive, and the
+    choice is baked in at build time.** `ESC_enable_sio_patch` is on by default;
+    with it on, `POKEY_Scanline()` skips `CASSETTE_AddScanLine()` and the patched
+    SIO copies tape records straight out of the image — which refuses `fsk `
+    blocks outright (`IMG_TAPE_ReadToMemory`, and `SkipToData` skips them whole).
+    So a standard tape loads instantly and a **turbo tape cannot load at all**.
+    Turning the patch off gives the timed path, which reads anything but runs at
+    tape speed. The switch cannot be flipped in a running machine: the patches are
+    written into the OS ROM image in memory, and `ESC_Remove()` only clears the
+    dispatcher, leaving the ESC opcode behind. It must be set before
+    `Atari800_InitialiseMachine()` — i.e. at a build, which is why changing it
+    takes a power cycle. A tape is turbo when it has fsk *payload*: fsk blocks
+    with no data blocks, or fsk blocks after the data has begun. A standard tape
+    whose leader is an fsk block stays standard.
 
 ---
 
