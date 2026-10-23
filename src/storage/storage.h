@@ -183,6 +183,16 @@ public:
 	/* \return Size of PATH in bytes, or -1 if it cannot be read. */
 	static long FileSize (const char *pPath);
 
+	/*
+	 * Deletes the file at PATH.
+	 *
+	 * Directories are refused: the one caller removes snapshots, and a
+	 * directory in the listing must not be removed by a key meant for a file.
+	 *
+	 * \return TRUE if the file is gone afterwards.
+	 */
+	static boolean Remove (const char *pPath);
+
 	/* Creates DIRECTORY (one level) if it does not already exist. */
 	static boolean EnsureDirectory (const char *pDirectory);
 

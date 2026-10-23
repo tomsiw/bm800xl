@@ -157,6 +157,11 @@ nothing to the emulated machine.** This is deliberate — without it, the arrow
 keys used to move around the menu would also move the emulated cursor. Keys
 pressed while the menu is open are therefore not seen by the Atari.
 
+Only the keys the menu acts on are handed to it: the arrows, Return, Escape,
+Space, and **Delete**, which ejects the selected image and answers the question
+on the *Erase snapshot* screen. Everything else is ignored while the menu is
+open.
+
 ## If it does not work
 
 See [Troubleshooting](troubleshooting.md#the-usb-keyboard-does-not-work).

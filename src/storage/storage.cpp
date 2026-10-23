@@ -332,6 +332,34 @@ boolean CAtariStorage::FileExists (const char *pPath)
 	return f_stat (pPath, &Info) == FR_OK;
 }
 
+/*
+ * Deletes a file.
+ *
+ * Directories are refused even though f_unlink() would remove an empty one: the
+ * only caller removes snapshots, and a listing entry that happened to be a
+ * directory would then delete it (or fail confusingly on a non-empty one)
+ * instead of doing nothing.
+ */
+boolean CAtariStorage::Remove (const char *pPath)
+{
+	FILINFO Info;
+
+	if (pPath == 0 || pPath[0] == '\0')
+	{
+		return FALSE;
+	}
+	if (f_stat (pPath, &Info) != FR_OK)
+	{
+		return FALSE;
+	}
+	if (Info.fattrib & AM_DIR)
+	{
+		return FALSE;
+	}
+
+	return f_unlink (pPath) == FR_OK;
+}
+
 long CAtariStorage::FileSize (const char *pPath)
 {
 	FILINFO Info;

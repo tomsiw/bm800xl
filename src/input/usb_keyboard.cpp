@@ -464,6 +464,12 @@ int CUSBAtariKeyboard::MenuKeyForUsage (unsigned nUsage, boolean bNumpadAsCursor
 	case ATARI_KEY_RETURN:
 	case ATARI_KEY_ESCAPE:
 	case ATARI_KEY_SPACE:
+	/*
+	 * Delete is the menu's "remove": it ejects a mounted image, and removes a
+	 * snapshot in the snapshot browser.  It was missing from this list, so the
+	 * key never arrived and both actions were unreachable.
+	 */
+	case ATARI_KEY_DELETE_CHAR:
 		return nKeyCode;
 
 	default:

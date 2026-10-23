@@ -129,6 +129,7 @@ private:
 		BrowseCassette,
 		BrowseSnapshotLoad,
 		BrowseSnapshotSave,
+		BrowseSnapshotErase,
 	};
 
 	void OpenScreen (TMenuScreen Screen);
@@ -174,14 +175,42 @@ private:
 	 * The directory and its volume are passed to the storage layer separately,
 	 * because that is how FatFs takes them; handing over the whole path as both
 	 * builds "USB:USB:/disks" and lists nothing.
+	 *
+	 * The extension filter is the one the browser was opened with, kept in
+	 * m_BrowseFilter, so that walking into a directory or deleting a file does
+	 * not change what the browser shows.
 	 */
-	void ListBrowserDirectory (const char *pExtensions);
+	void ListBrowserDirectory (void);
 
 	void BrowserEnterDirectory (void);
 
 	/* \return TRUE if the listing now shows the parent directory */
 	boolean BrowserGoUp (void);
 	void BrowserChoose (void);
+
+	/*
+	 * Erases the highlighted snapshot, on the second press.
+	 *
+	 * Reached from the "Erase snapshot" screen only: the save and load
+	 * browsers mount nothing and remove nothing, so that a file cannot be lost
+	 * by a key pressed in a screen the user opened for another purpose.
+	 *
+	 * The first press only asks, and the question expires with the message: a
+	 * confirmation that could be answered minutes later is not a safeguard,
+	 * because a second press in the same place would then remove a file the
+	 * user had forgotten choosing.  See m_nEraseFrames.
+	 */
+	void BrowserErase (void);
+
+	/*
+	 * Forgets a pending erasure.
+	 *
+	 * When BHIDEMESSAGE is TRUE the question goes with it.  The question is the
+	 * only thing the message can be while an erasure is pending, and leaving it
+	 * on screen after the key that cancelled it would say the opposite of what
+	 * the menu is now waiting for.
+	 */
+	void ClearPendingErase (boolean bHideMessage);
 
 	void SaveSettings (void);
 
@@ -222,8 +251,16 @@ private:
 	// File browser state
 	TBrowseTarget m_BrowseTarget;
 	char m_BrowseDirectory[SETTINGS_PATH_MAX];
+	char m_BrowseFilter[STORAGE_MAX_FILTER];
 	unsigned m_nBrowseTop;		// first visible entry
 	unsigned m_nBrowserSelected;
+
+	/*
+	 * An erasure waiting for its second press: the file, and how many drawn
+	 * frames the question is still open for.  Empty when nothing is pending.
+	 */
+	char m_ErasePath[SETTINGS_PATH_MAX];
+	unsigned m_nEraseFrames;
 
 	// Transient message shown at the bottom, and how many frames are left
 	char m_Message[80];

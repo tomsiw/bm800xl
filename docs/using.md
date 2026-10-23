@@ -15,7 +15,7 @@ screen, to close it.
 │ Machine and memory   Atari XL, 64 kB         │
 │ Display              PAL, 1280x720           │
 │ Sound                80%                     │
-│ Snapshots            Save / load / reset     │
+│ Snapshots            Save / load / erase     │
 │ Close menu                                   │
 ├──────────────────────────────────────────────┤
 │ Atari XL  64 kB  PAL  49.9 fps               │
@@ -53,7 +53,8 @@ settings without losing your mounted media.
 
 **Sound** — On or off, volume in 5% steps, and stereo (two POKEYs).
 
-**Snapshots** — Save or load a machine snapshot, and cold or warm reset.
+**Snapshots** — Save, load or erase a machine snapshot. Cold and warm reset are
+separate items on the main screen.
 
 ### Changing something takes effect immediately
 
@@ -140,6 +141,21 @@ done once per session, and a generated name is one the user can rename later on
 a PC.
 
 **Load snapshot** lists the same directory.
+
+**Erase snapshot** is a screen of its own, and the only place a snapshot can be
+removed: the Save and Load browsers never delete anything, so a file cannot be
+lost from a screen you opened to load it. Pick *Erase snapshot*, highlight the
+file, and press **Return** (or **Delete** — both mean "this one" here). The first
+press asks (`Erase SNAPSHOT3.SAV? Press again to confirm`); the second removes
+it. Anything else cancels, and the question disappears with the key that
+cancelled it: moving the selection, going up a directory, choosing another file,
+or letting the question time out. A press much later in the same place therefore
+starts the question again rather than removing something you had forgotten
+choosing.
+
+Erasing removes the file from the card, so it cannot be undone from the menu.
+Snapshot names are `SNAPSHOTn.SAV` in the system directory (`SD:/ATARI`), which
+is one thing to check on a PC if space runs short.
 
 What a snapshot does **not** include is the mounted media. Disk, cartridge and
 cassette images are re-mounted from the settings when the emulator starts, so

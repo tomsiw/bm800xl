@@ -46,7 +46,7 @@ static const unsigned CassetteItemCount		= 2;	// insert, eject
 static const unsigned MachineItemCount		= 3;	// machine, RAM, restore defaults
 static const unsigned VideoItemCount		= 2;	// standard, artifacting
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
-static const unsigned SnapshotItemCount		= 3;	// save, save new, load
+static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
 
 static const char FromMenu[] = "menu";
 
@@ -88,10 +88,13 @@ CAtariMenu::CAtariMenu (void)
 	m_BrowseTarget (BrowseNone),
 	m_nBrowseTop (0),
 	m_nBrowserSelected (0),
+	m_nEraseFrames (0),
 	m_nMessageFrames (0)
 {
 	m_SettingsPath[0] = '\0';
 	m_BrowseDirectory[0] = '\0';
+	m_BrowseFilter[0] = '\0';
+	m_ErasePath[0] = '\0';
 	m_Message[0] = '\0';
 }
 
@@ -163,6 +166,7 @@ void CAtariMenu::Close (void)
 	m_Screen = ScreenMain;
 	m_nSelected = 0;
 	m_BrowseTarget = BrowseNone;
+	ClearPendingErase (FALSE);
 }
 
 void CAtariMenu::OpenScreen (TMenuScreen Screen)
@@ -289,6 +293,7 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 0: return "Save snapshot";
 		case 1: return "Save as new snapshot";
 		case 2: return "Load snapshot";
+		case 3: return "Erase snapshot";
 		}
 		break;
 
@@ -421,7 +426,7 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 				  S.bSoundStereo ? ", stereo" : "");
 			return Text;
 		case 6:
-			return "Save / load";
+			return "Save / load / erase";
 		}
 		break;
 
@@ -888,6 +893,7 @@ void CAtariMenu::ActivateSelection (void)
 		case 0: OpenBrowser (BrowseSnapshotSave); break;
 		case 1: SaveNewSnapshot (); break;
 		case 2: OpenBrowser (BrowseSnapshotLoad); break;
+		case 3: OpenBrowser (BrowseSnapshotErase); break;
 		}
 		break;
 
@@ -910,6 +916,7 @@ CAtariMenu::TMenuScreen CAtariMenu::BrowseOrigin (TBrowseTarget Target) const
 		return ScreenCassette;
 	case BrowseSnapshotLoad:
 	case BrowseSnapshotSave:
+	case BrowseSnapshotErase:
 		return ScreenSnapshots;
 	case BrowseDisk1:
 	case BrowseDisk2:
@@ -942,11 +949,15 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
 		break;
 	case BrowseSnapshotLoad:
 	case BrowseSnapshotSave:
+	case BrowseSnapshotErase:
 		pExtensions = "SAV";
 		break;
 	default:
 		break;
 	}
+
+	CopyText (m_BrowseFilter, pExtensions != 0 ? pExtensions : "",
+		  sizeof m_BrowseFilter);
 
 	if (m_pStorage == 0)
 	{
@@ -955,7 +966,9 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
 
 	// Reopen where the user was last time, if that is where this kind of file
 	// lives; otherwise start at the volume root.
-	if (Target == BrowseSnapshotLoad || Target == BrowseSnapshotSave)
+	if (   Target == BrowseSnapshotLoad
+	    || Target == BrowseSnapshotSave
+	    || Target == BrowseSnapshotErase)
 	{
 		CopyText (m_BrowseDirectory, m_pStorage->GetSystemDirectory (),
 			  sizeof m_BrowseDirectory);
@@ -970,7 +983,9 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
 
 	m_pStorage->RefreshUserVolume ();
 
-	ListBrowserDirectory (pExtensions);
+	ListBrowserDirectory ();
+
+	ClearPendingErase (FALSE);
 
 	m_nBrowseTop = 0;
 	m_nBrowserSelected = 0;
@@ -986,7 +1001,7 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
  * path as both builds "USB:USB:/disks" and opens nothing, which presents itself
  * as an empty browser rather than as an error.
  */
-void CAtariMenu::ListBrowserDirectory (const char *pExtensions)
+void CAtariMenu::ListBrowserDirectory (void)
 {
 	char Volume[STORAGE_VOLUME_MAX];
 	char Directory[SETTINGS_PATH_MAX];
@@ -996,7 +1011,7 @@ void CAtariMenu::ListBrowserDirectory (const char *pExtensions)
 
 	// The listing shows names, not paths, so a volume root needs no leading
 	// separator; everywhere else the directory is passed as-is.
-	m_pStorage->ListWithDirectories (Volume, Directory, pExtensions);
+	m_pStorage->ListWithDirectories (Volume, Directory, m_BrowseFilter);
 }
 
 void CAtariMenu::BrowserEnterDirectory (void)
@@ -1024,7 +1039,8 @@ void CAtariMenu::BrowserEnterDirectory (void)
 
 	CopyText (m_BrowseDirectory, NewDirectory, sizeof m_BrowseDirectory);
 
-	ListBrowserDirectory (0);
+	ListBrowserDirectory ();
+	ClearPendingErase (TRUE);
 	m_nBrowseTop = 0;
 	m_nBrowserSelected = 0;
 }
@@ -1058,7 +1074,7 @@ boolean CAtariMenu::BrowserGoUp (void)
 	 */
 	for (unsigned nAttempt = 0; nAttempt < 16; nAttempt++)
 	{
-		ListBrowserDirectory (0);
+		ListBrowserDirectory ();
 		if (m_pStorage->GetEntryCount () > 0)
 		{
 			break;
@@ -1069,6 +1085,7 @@ boolean CAtariMenu::BrowserGoUp (void)
 		}
 	}
 
+	ClearPendingErase (TRUE);
 	m_nBrowseTop = 0;
 	m_nBrowserSelected = 0;
 
@@ -1077,7 +1094,7 @@ boolean CAtariMenu::BrowserGoUp (void)
 
 void CAtariMenu::BrowserChoose (void)
 {
-	if (m_pStorage == 0 || m_pHost == 0)
+	if (m_pStorage == 0)
 	{
 		return;
 	}
@@ -1087,6 +1104,26 @@ void CAtariMenu::BrowserChoose (void)
 	{
 		return;
 	}
+
+	/*
+	 * The erase screen is the one place where choosing a file does not mount or
+	 * load it, so it is handled before the rest: the confirmation it needs is
+	 * the same state the Delete key uses, and BrowserErase() owns it.
+	 */
+	if (   m_BrowseTarget == BrowseSnapshotErase
+	    && pEntry[0] != '/')
+	{
+		BrowserErase ();
+
+		return;
+	}
+
+	if (m_pHost == 0)
+	{
+		return;
+	}
+
+	ClearPendingErase (TRUE);
 
 	if (pEntry[0] == '/')
 	{
@@ -1145,7 +1182,9 @@ void CAtariMenu::BrowserChoose (void)
 	}
 
 	// Remember where the user was browsing, for next time.
-	if (m_BrowseTarget != BrowseSnapshotLoad && m_BrowseTarget != BrowseSnapshotSave)
+	if (   m_BrowseTarget != BrowseSnapshotLoad
+	    && m_BrowseTarget != BrowseSnapshotSave
+	    && m_BrowseTarget != BrowseSnapshotErase)
 	{
 		CopyText (m_pSettings->UserDirectory, m_BrowseDirectory, SETTINGS_PATH_MAX);
 	}
@@ -1163,6 +1202,107 @@ void CAtariMenu::BrowserChoose (void)
 			  m_pHost->GetLastError ());
 		m_nMessageFrames = MESSAGE_FRAMES;
 	}
+}
+
+void CAtariMenu::ClearPendingErase (boolean bHideMessage)
+{
+	if (m_ErasePath[0] == '\0' && m_nEraseFrames == 0)
+	{
+		return;
+	}
+
+	m_ErasePath[0] = '\0';
+	m_nEraseFrames = 0;
+
+	/*
+	 * While an erasure is pending the message is the question, so hiding it is
+	 * what "cancelled" has to look like: leaving it on screen after the key
+	 * that cancelled it would leave the user staring at a prompt whose action
+	 * has already been abandoned.
+	 */
+	if (bHideMessage)
+	{
+		m_Message[0] = '\0';
+		m_nMessageFrames = 0;
+	}
+}
+
+/*
+ * Erases the highlighted snapshot.
+ *
+ * The first press only asks; the second removes the file.  Return and Delete
+ * both mean "this one" on this screen, so either can answer the question, and
+ * the wording does not name a key.  The question is kept open for one message
+ * lifetime, so a press much later in the same place starts again rather than
+ * removing something the user no longer has in mind.
+ */
+void CAtariMenu::BrowserErase (void)
+{
+	if (m_pStorage == 0)
+	{
+		return;
+	}
+
+	const char *pEntry = m_pStorage->GetEntry (m_nBrowserSelected);
+	if (pEntry == 0 || pEntry[0] == '/')
+	{
+		/* Nothing to remove, or a directory: leave the question closed. */
+		ClearPendingErase (TRUE);
+
+		return;
+	}
+
+	/*
+	 * Copied because the listing is rebuilt below, which overwrites the name
+	 * the entry pointer points into.
+	 */
+	char Name[STORAGE_NAME_MAX];
+	CopyText (Name, pEntry, sizeof Name);
+
+	char Path[SETTINGS_PATH_MAX];
+	CAtariStorage::MakePath (Path, sizeof Path, m_BrowseDirectory, Name);
+
+	if (strcmp (Path, m_ErasePath) != 0)
+	{
+		CopyText (m_ErasePath, Path, sizeof m_ErasePath);
+		m_nEraseFrames = MESSAGE_FRAMES;
+
+		snprintf (m_Message, sizeof m_Message,
+			  "Erase %s? Press again to confirm", Name);
+		m_nMessageFrames = MESSAGE_FRAMES;
+
+		return;
+	}
+
+	ClearPendingErase (FALSE);
+
+	if (!CAtariStorage::Remove (Path))
+	{
+		snprintf (m_Message, sizeof m_Message, "Could not erase %s", Name);
+		m_nMessageFrames = MESSAGE_FRAMES;
+
+		return;
+	}
+
+	ListBrowserDirectory ();
+
+	/*
+	 * The listing shrank by one, so the highlight may now be past the end.
+	 * Leaving it where it is puts it on the row that followed the erased file,
+	 * which is where the user is looking.
+	 */
+	unsigned nCount = m_pStorage->GetEntryCount ();
+	if (m_nBrowserSelected >= nCount)
+	{
+		m_nBrowserSelected = nCount > 0 ? nCount - 1 : 0;
+	}
+	if (m_nBrowseTop > m_nBrowserSelected)
+	{
+		m_nBrowseTop = m_nBrowserSelected;
+	}
+
+	snprintf (m_Message, sizeof m_Message, "Erased %s", Name);
+	m_nMessageFrames = MESSAGE_FRAMES;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1214,6 +1354,7 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 		switch (nKey)
 		{
 		case ATARI_KEY_UP:
+			ClearPendingErase (TRUE);
 			if (nCount > 0)
 			{
 				if (m_nBrowserSelected > 0)
@@ -1228,6 +1369,7 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 			return TRUE;
 
 		case ATARI_KEY_DOWN:
+			ClearPendingErase (TRUE);
 			if (nCount > 0 && m_nBrowserSelected + 1 < nCount)
 			{
 				m_nBrowserSelected++;
@@ -1242,6 +1384,21 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 			BrowserChoose ();
 			return TRUE;
 
+		case ATARI_KEY_DELETE_CHAR:
+			/*
+			 * A second way to answer the erase screen's question.
+			 *
+			 * The key does nothing in the other browsers: the save and load
+			 * screens have no business removing files, and neither do the
+			 * media browsers, so a file can only be erased from the screen
+			 * that exists for it.
+			 */
+			if (m_BrowseTarget == BrowseSnapshotErase)
+			{
+				BrowserErase ();
+			}
+			return TRUE;
+
 		case ATARI_KEY_ESCAPE:
 			/*
 			 * Escape goes up a directory, and leaves the browser only from a
@@ -1249,6 +1406,7 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 			 * to go to, so the key always does something visible rather than
 			 * appearing to be ignored.
 			 */
+			ClearPendingErase (TRUE);
 			if (!BrowserGoUp ())
 			{
 				OpenScreen (BrowseOrigin (m_BrowseTarget));
@@ -1451,7 +1609,9 @@ void CAtariMenu::DrawBrowser (void)
 		}
 	}
 
-	DrawFooter ("Up/Down move   Return choose   Esc back");
+	DrawFooter (   m_BrowseTarget == BrowseSnapshotErase
+		    ? "Up/Down move   Return or Del erase   Esc back"
+		    : "Up/Down move   Return choose   Esc back");
 }
 
 void CAtariMenu::Draw (void)
@@ -1487,5 +1647,16 @@ void CAtariMenu::Draw (void)
 		m_pVideo->DrawText (MenuMarginX + 4, MenuMarginY + MenuPanelHeight - 78,
 				    ATARI_COLOR_WHITE, m_Message);
 		m_nMessageFrames--;
+	}
+
+	/*
+	 * An erasure is only confirmed while its question is still on screen; after
+	 * that the next press asks again rather than removing a file the user has
+	 * stopped thinking about.  The message is not touched: it is about to be
+	 * zero, which hides it in the same frame.
+	 */
+	if (m_nEraseFrames > 0 && --m_nEraseFrames == 0)
+	{
+		m_ErasePath[0] = '\0';
 	}
 }

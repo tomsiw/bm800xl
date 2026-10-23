@@ -142,6 +142,7 @@ Inside the menu, the cursor keys are the Atari keys the emulator is watching:
 | RETURN | ROW1/COL4 | Select |
 | BREAK | R7C3 (reserved) | Escape / back |
 | SPACE | ROW4/COL1 | Select |
+| BACK SPACE | ROW6/COL4 | Delete: eject an image, or erase a snapshot |
 
 That strange-looking set is not arbitrary. On an Atari XL keyboard the cursor
 arrows are wired in parallel with exactly those four intersections, which is why
@@ -149,6 +150,10 @@ the Atari's own cursor key codes are `CTRL` combined with them: `AKEY_UP` is
 CTRL+MINUS, `AKEY_DOWN` is CTRL+EQUAL, `AKEY_LEFT` is CTRL+PLUS and `AKEY_RIGHT`
 is CTRL+ASTERISK. The emulator asks for the cursor keys, so those are the keys
 that produce them.
+
+The Delete function is CTRL+BACK SPACE on an Atari, and the menu cannot see
+modifiers, so the plain BACK SPACE key stands in while the menu is open. With the
+menu closed it still types a back space into the machine.
 
 Unlike the USB driver, this one withholds **only** the keys the menu uses, so
 you can still type on the emulated machine while the menu is on screen.

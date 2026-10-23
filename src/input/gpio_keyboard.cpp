@@ -353,6 +353,15 @@ static int MenuKeyForPosition (unsigned nRow, unsigned nCol)
 	case ATARI_KEY_EQUAL:
 		return ATARI_KEY_DOWN;
 
+	/*
+	 * The Atari keyboard's DELETE function is Control+Back Space, and the menu
+	 * cannot see modifiers here, so the plain key stands in for it: while the
+	 * menu is open it is the menu's "remove", and while it is closed the key
+	 * still types a back space into the machine.
+	 */
+	case ATARI_KEY_BACKSPACE:
+		return ATARI_KEY_DELETE_CHAR;
+
 	default:
 		return ATARI_KEY_NONE;
 	}
