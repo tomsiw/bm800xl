@@ -8,14 +8,15 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `fabd27b`. USB keyboard remapping, BRK handling and
-snapshot erasing are implemented and verified on hardware; the output is muted
-while the OSD is open; the build and verification scripts refuse a kernel that
-does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
-at twice its size, compiled in as data, and its layout follows the font; user
-media can live on the USB drive or in `SD:/USERDATA`, chosen by the settings file;
-and a disk mounted read/write is genuinely writable, with its mode changeable
-while it stays inserted. Checked on a Pi 400 and a Zero 2 W.
+**Last updated:** after commit `fabd27b`, with the OSD panel-centring fix that
+follows it. USB keyboard remapping, BRK handling and snapshot erasing are
+implemented and verified on hardware; the output is muted while the OSD is open;
+the build and verification scripts refuse a kernel that does not fit in Circle's
+2 MB region; the OSD is drawn in the Atari character set at twice its size,
+compiled in as data, its layout follows the font, and the panel is centred in the
+picture; user media can live on the USB drive or in `SD:/USERDATA`, chosen by the
+settings file; and a disk mounted read/write is genuinely writable, with its mode
+changeable while it stays inserted. Checked on a Pi 400 and a Zero 2 W.
 
 ---
 
@@ -151,6 +152,7 @@ here so they are not rediscovered.
 | `9981c01` | no way to remove an old snapshot | the Snapshots screen could write and read files but never erase one. Erasing now has a screen of its own, *Erase snapshot*, reached like the others: the save and load browsers were the wrong place to put it, because a file could then be lost in a screen opened for another purpose. Return or Delete asks, a second press erases, and any other key cancels **and takes the question off the screen** — leaving it there made a cancelled action look pending. |
 | `6712e7b` | a long directory listing ran past the bottom of the menu panel | the browser drew a fixed 20 rows, but the panel holds about 14 at the font the menu used: the last rows were drawn over the status line and the footer, and a transient message was drawn on top of them. The row count is derived from the panel and the font now, and limited by the message line. |
 | `fabd27b` | a disk mounted read/write was still write-protected, and one mounted read-only could not be made writable | three faults, each enough on its own. The ATR header's write-protect byte forced the drive read-only whatever mode the file was opened in, and the menu's `[ro]` setting was never consulted. `ATARI_VFS_Open` decoded `"rb+"` as read-only, so even a read/write mount dropped every sector the machine wrote while `SIO_WriteSector` reported success. And the mode is fixed when the file is opened, so toggling `[ro]` changed only the setting — while ejecting reset it to read-only, so re-inserting the same image always came back protected. All three are fixed, the mount log now reports the mode the drive actually has, and the cassette had the same shape of bug in its toggle. |
+| (this commit) | the OSD panel sat against the left edge of the picture at 720p, so it looked like it leaned left | the centring code clamped the computed margin against `MenuMarginX`, which is an absolute position and starts at 40, not a margin. At 720p the picture is 960 wide and a 900-wide panel needs a 30-pixel margin, so `30 > 40` was false and the margin was dropped: flush left, 30 pixels short on the right. The panel is centred whenever it fits now, and falls back to the picture's edge otherwise; the vertical expression had the same shape and was fixed with it. Only 720p showed the fault, because the 1080p margin (270) is larger than 40. |
 
 ---
 

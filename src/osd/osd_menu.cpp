@@ -176,16 +176,37 @@ void CAtariMenu::Initialize (CAtariVideoOut *pVideo, CAtariStorage *pStorage,
 		unsigned nPictureTop = pVideo->GetPictureTop ();
 		unsigned nPictureHeight = pVideo->GetPictureHeight ();
 
+		/*
+		 * Centre the panel in the picture, and put it against the picture's
+		 * edge when it is too big to be centred.
+		 *
+		 * The margin used to be compared against MenuMarginX, which is an
+		 * absolute position rather than a margin: at 720p the picture is 960
+		 * wide, a 900-wide panel needs a 30-pixel margin, 30 is less than the
+		 * default 40, and the comparison fell through to "no margin at all" --
+		 * leaving the panel flush with the left edge of the picture and 30
+		 * pixels short on the right.  That is the offset that looked like a
+		 * panel leaning left.  1080p has a wide enough margin that the fault
+		 * never showed there.
+		 */
 		if (nPictureWidth > MenuPanelWidth)
 		{
-			unsigned nMargin = (nPictureWidth - MenuPanelWidth) / 2;
-			MenuMarginX = nPictureLeft + (nMargin > MenuMarginX ? nMargin : 0);
+			MenuMarginX = nPictureLeft
+				    + (nPictureWidth - MenuPanelWidth) / 2;
+		}
+		else
+		{
+			MenuMarginX = nPictureLeft;
 		}
 
 		if (nPictureHeight > MenuPanelHeight)
 		{
-			unsigned nMargin = (nPictureHeight - MenuPanelHeight) / 2;
-			MenuMarginY = nPictureTop + (nMargin > MenuMarginY ? nMargin : 0);
+			MenuMarginY = nPictureTop
+				    + (nPictureHeight - MenuPanelHeight) / 2;
+		}
+		else
+		{
+			MenuMarginY = nPictureTop;
 		}
 	}
 }
