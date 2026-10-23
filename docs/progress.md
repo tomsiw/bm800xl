@@ -8,8 +8,10 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `9981c01`, with the USB keyboard remapping, the BRK
-handling and snapshot erasing all implemented and verified on hardware.
+**Last updated:** after commit `cb266e6`. USB keyboard remapping, BRK handling and
+snapshot erasing are implemented and verified on hardware; the output is muted
+while the OSD is open; the build and verification scripts refuse a kernel that
+does not fit in Circle's 2 MB region.
 
 ---
 
