@@ -40,6 +40,7 @@
 #include "cassette.h"
 #include "colours.h"
 #include "crc32.h"
+#include "esc.h"
 #include "input.h"
 #include "log.h"
 #include "memory.h"
@@ -1050,6 +1051,149 @@ static void ApplySoundConfiguration(void)
 	}
 }
 
+
+/* ===========================================================================
+ * Cassette image types, and the SIO mode each one needs
+ *
+ * A CAS image is a sequence of 8-byte block headers, each followed by its data.
+ * "data" blocks hold records that the patched SIO copies straight into memory;
+ * "fsk " blocks hold raw tape signal, which only the timed path can read.  A
+ * turbo tape therefore needs ESC_enable_sio_patch off, and a standard one is far
+ * faster with it on.  The two are mutually exclusive in the core, and the mode
+ * is fixed when the machine is built -- the OS ROM is patched then -- so
+ * changing it takes a power cycle.
+ * ======================================================================== */
+
+typedef enum {
+	CASSETTE_TYPE_UNKNOWN = 0,
+	CASSETTE_TYPE_STANDARD,
+	CASSETTE_TYPE_TURBO
+} cassette_type_t;
+
+static cassette_type_t s_cassette_type = CASSETTE_TYPE_UNKNOWN;
+static int s_bCassetteMounted = 0;	/* the type above belongs to a mounted tape */
+static int s_bRealTimingApplied = 0;	/* what the running machine was built with */
+
+static int BlockIs(const unsigned char *pHeader, const char *pIdentifier)
+{
+	return pHeader[0] == (unsigned char) pIdentifier[0]
+	    && pHeader[1] == (unsigned char) pIdentifier[1]
+	    && pHeader[2] == (unsigned char) pIdentifier[2]
+	    && pHeader[3] == (unsigned char) pIdentifier[3];
+}
+
+/*
+ * Works out whether a CAS image needs the timed tape path.
+ *
+ * Not "any fsk block": a standard tape often carries its leader as one, and the
+ * patched path skips fsk blocks harmlessly.  What makes a tape turbo is fsk
+ * payload -- fsk blocks with no data blocks at all, or fsk blocks after the data
+ * has begun.
+ */
+static cassette_type_t ClassifyCassette(const char *path)
+{
+	FILE *pFile;
+	unsigned char Header[8];
+	int bSawData = 0;
+	int bSawFsk = 0;
+	int bFskAfterData = 0;
+	unsigned nBlocks = 0;
+
+	pFile = ATARI_VFS_Open(path, "rb");
+	if (pFile == 0) {
+		return CASSETTE_TYPE_UNKNOWN;
+	}
+
+	if (ATARI_VFS_Read(Header, 1, sizeof Header, pFile) != sizeof Header
+	    || !BlockIs(Header, "FUJI")) {
+		ATARI_VFS_Close(pFile);
+		return CASSETTE_TYPE_UNKNOWN;	/* not a CAS image */
+	}
+
+	/* The description follows the header, of the length the header carries. */
+	if (ATARI_VFS_Seek(pFile, (long) (Header[4] | (Header[5] << 8)), SEEK_CUR) != 0) {
+		ATARI_VFS_Close(pFile);
+		return CASSETTE_TYPE_UNKNOWN;
+	}
+
+	for (;;) {
+		unsigned nLength;
+
+		/* A corrupt image must not spin here; no real tape has this many. */
+		if (++nBlocks > 4096) {
+			break;
+		}
+		if (ATARI_VFS_Read(Header, 1, sizeof Header, pFile) != sizeof Header) {
+			break;
+		}
+
+		nLength = Header[4] | (Header[5] << 8);
+
+		if (BlockIs(Header, "fsk ")) {
+			bSawFsk = 1;
+			if (bSawData) {
+				bFskAfterData = 1;
+			}
+		}
+		else if (BlockIs(Header, "data")) {
+			bSawData = 1;
+		}
+
+		/* "baud" blocks are skipped too: their payload is setting only. */
+		if (ATARI_VFS_Seek(pFile, (long) nLength, SEEK_CUR) != 0) {
+			break;
+		}
+	}
+
+	ATARI_VFS_Close(pFile);
+
+	if (!bSawFsk) {
+		return CASSETTE_TYPE_STANDARD;
+	}
+
+	return (!bSawData || bFskAfterData) ? CASSETTE_TYPE_TURBO
+					   : CASSETTE_TYPE_STANDARD;
+}
+
+int ATARI_ClassifyCassette(const char *path)
+{
+	s_cassette_type = (path != 0 && path[0] != '\0')
+			? ClassifyCassette(path) : CASSETTE_TYPE_UNKNOWN;
+
+	if (s_cassette_type == CASSETTE_TYPE_TURBO) {
+		ATARI_RuntimeLog("cassette: turbo tape (%s)", path);
+	}
+	else if (s_cassette_type == CASSETTE_TYPE_STANDARD) {
+		ATARI_RuntimeLog("cassette: standard tape (%s)", path);
+	}
+
+	return (int) s_cassette_type;
+}
+
+int ATARI_CassetteNeedsRebuild(void)
+{
+	if (!s_bCassetteMounted) {
+		return 0;		/* no tape: nothing to ask for */
+	}
+
+	return (s_cassette_type == CASSETTE_TYPE_TURBO) != s_bRealTimingApplied;
+}
+
+const char *ATARI_CassetteModeMessage(void)
+{
+	if (!ATARI_CassetteNeedsRebuild()) {
+		return 0;
+	}
+
+	/*
+	 * Plain ASCII: the message is drawn in the Atari character set, which has
+	 * no em dash.
+	 */
+	return s_cassette_type == CASSETTE_TYPE_TURBO
+	       ? "Turbo tape - power cycle required"
+	       : "Standard tape - power cycle required";
+}
+
 /* ===========================================================================
  * Bring-up
  * ======================================================================== */
@@ -1155,6 +1299,26 @@ int ATARI_Init(const atari_config_t *cfg)
 #if defined(AUDIO_RECORDING) || defined(VIDEO_RECORDING)
 	Screen_show_multimedia_stats = FALSE;
 #endif
+
+	/*
+	 * The tape type decides whether the OS gets patched for fast SIO.
+	 *
+	 * The two are mutually exclusive in the core: with the patch installed, the
+	 * patched SIO copies tape records straight into memory and cannot read fsk
+	 * blocks; with it removed, POKEY's timed path advances the tape and can read
+	 * anything, but every load runs at tape speed.  The OS ROM is patched when
+	 * the machine is built and ESC_Remove() only clears the dispatcher without
+	 * restoring the bytes, so this can only be chosen here, before the build --
+	 * which is why changing it takes a power cycle.
+	 */
+	s_bRealTimingApplied = (s_cassette_type == CASSETTE_TYPE_TURBO);
+	ESC_enable_sio_patch = s_bRealTimingApplied ? FALSE : TRUE;
+
+	ATARI_RuntimeLog("cassette: %s; SIO patch %s",
+	                 s_cassette_type == CASSETTE_TYPE_TURBO ? "turbo tape"
+			 : "standard tape (or none)",
+			 s_bRealTimingApplied ? "off, real timing"
+					      : "on, fast load");
 
 	/*
 	 * Atari800_Initialise() runs the whole start-up sequence in the core's
@@ -2302,6 +2466,7 @@ int ATARI_MountCartridge(const char *path)
 	}
 }
 
+
 int ATARI_SetCassetteWriteProtect(int read_only)
 {
 	int want = read_only ? 1 : 0;
@@ -2334,12 +2499,21 @@ int ATARI_MountCassette(const char *path, int read_only)
 
 	if (path == 0 || path[0] == '\0') {
 		ATARI_RuntimeLog("cassette: removed");
+		s_bCassetteMounted = 0;
+		s_cassette_type = CASSETTE_TYPE_UNKNOWN;
 		CASSETTE_Remove();
 		return 1;
 	}
 
 	ATARI_RuntimeLog("cassette: inserting %s%s", path,
 	                 read_only ? " (read only)" : "");
+
+	/*
+	 * Classified before the insert, and kept afterwards: what the tape needs is
+	 * compared against the mode the machine was built with, and a mismatch is
+	 * resolved by rebuilding it -- see ATARI_CassetteNeedsRebuild().
+	 */
+	ATARI_ClassifyCassette(path);
 
 	if (CASSETTE_Insert(path)) {
 		/*
@@ -2349,11 +2523,21 @@ int ATARI_MountCassette(const char *path, int read_only)
 		 */
 		ATARI_SetCassetteWriteProtect(read_only);
 
+		s_bCassetteMounted = 1;
+
 		ATARI_RuntimeLog("cassette: mounted %s, write protect %s", path,
 		                 CASSETTE_write_protect ? "on" : "off");
+
+		if (ATARI_CassetteNeedsRebuild()) {
+			ATARI_RuntimeLog("cassette: the running machine is in the other "
+			                 "SIO mode; a power cycle is required");
+		}
+
 		return 1;
 	}
 
+	s_cassette_type = CASSETTE_TYPE_UNKNOWN;
+	s_bCassetteMounted = 0;
 	ATARI_RuntimeLog("cassette: FAILED to mount %s", path);
 	SetError("cannot mount cassette %s", path);
 	return 0;

@@ -215,12 +215,64 @@ void CAtariMenu::Toggle (void)
 {
 	if (m_bOpen)
 	{
-		Close ();
+		ExitMenu (ExitClose);
 		return;
 	}
 
 	m_bOpen = TRUE;
 	OpenScreen (ScreenMain);
+}
+
+void CAtariMenu::ExitMenu (TMenuExit Action)
+{
+	/*
+	 * A tape that needs the other SIO mode is resolved here, whatever the user
+	 * asked for: see the declaration.  The rebuild replaces the requested
+	 * action, because none of them can change the mode.
+	 */
+	if (m_pHost != 0 && m_pHost->CassetteModeMismatch ())
+	{
+		Action = ExitPowerCycle;
+	}
+
+	switch (Action)
+	{
+	case ExitPowerCycle:
+		/*
+		 * The host logs the rebuild and why; see ATARI_PowerCycle().  Its
+		 * outcome has to be reported before the menu closes, or a failure would
+		 * leave a closed menu over a machine that did not restart.
+		 */
+		if (m_pHost != 0 && !m_pHost->PowerCycle ())
+		{
+			snprintf (m_Message, sizeof m_Message, "Could not restart: %s",
+				  m_pHost->GetLastError ());
+			m_nMessageFrames = MESSAGE_FRAMES;
+
+			return;		// stay in the menu
+		}
+		break;
+
+	case ExitColdReset:
+		if (m_pHost != 0)
+		{
+			m_pHost->ColdReset ();
+		}
+		break;
+
+	case ExitWarmReset:
+		if (m_pHost != 0)
+		{
+			m_pHost->WarmReset ();
+		}
+		break;
+
+	case ExitClose:
+	default:
+		break;
+	}
+
+	Close ();
 }
 
 void CAtariMenu::Close (void)
@@ -1021,35 +1073,10 @@ void CAtariMenu::ActivateSelection (void)
 		case 4: OpenScreen (ScreenVideo); break;
 		case 5: OpenScreen (ScreenSound); break;
 		case 6: OpenScreen (ScreenSnapshots); break;
-		case 7:
-			if (m_pHost != 0)
-			{
-				m_pHost->ColdReset ();
-			}
-			Close ();
-			break;
-		case 8:
-			if (m_pHost != 0)
-			{
-				m_pHost->WarmReset ();
-			}
-			Close ();
-			break;
-		case 9:
-			/*
-			 * A power cycle remounts the media, which can fail, so its outcome is
-			 * reported before the menu closes rather than swallowed.
-			 */
-			if (m_pHost != 0 && !m_pHost->PowerCycle ())
-			{
-				snprintf (m_Message, sizeof m_Message, "Could not restart: %s",
-					  m_pHost->GetLastError ());
-				m_nMessageFrames = MESSAGE_FRAMES;
-				break;
-			}
-			Close ();
-			break;
-		case 10: Close (); break;
+		case 7: ExitMenu (ExitColdReset); break;
+		case 8: ExitMenu (ExitWarmReset); break;
+		case 9: ExitMenu (ExitPowerCycle); break;
+		case 10: ExitMenu (ExitClose); break;
 		}
 		break;
 
@@ -1436,7 +1463,24 @@ void CAtariMenu::BrowserChoose (void)
 
 	if (bOK)
 	{
-		snprintf (m_Message, sizeof m_Message, "Loaded %s", pEntry);
+		/*
+		 * A tape that needs the other SIO mode replaces "Loaded" with what has to
+		 * happen next: the mode is fixed when the machine is built, so a power
+		 * cycle is the only way to load it.  Leaving the menu performs that cycle
+		 * -- see ExitMenu().
+		 */
+		const char *pNotice = m_pHost != 0
+				    ? m_pHost->GetCassetteModeMessage () : 0;
+
+		if (pNotice != 0)
+		{
+			snprintf (m_Message, sizeof m_Message, "%s", pNotice);
+		}
+		else
+		{
+			snprintf (m_Message, sizeof m_Message, "Loaded %s", pEntry);
+		}
+
 		m_nMessageFrames = MESSAGE_FRAMES;
 		SaveSettings ();
 		OpenScreen (BrowseOrigin (m_BrowseTarget));
@@ -1704,7 +1748,7 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 	case ATARI_KEY_ESCAPE:
 		if (m_Screen == ScreenMain)
 		{
-			Close ();
+			ExitMenu (ExitClose);
 		}
 		else
 		{

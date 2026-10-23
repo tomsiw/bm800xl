@@ -819,6 +819,14 @@ boolean CAtariKernel::Initialize (void)
 	const atari_config_t *pConfig = 0;
 	MakeEmulatorConfig (pConfig);
 
+	/*
+	 * The tape in the settings decides the SIO mode, and it has to be known
+	 * before the machine is built: the OS ROM is patched during the build.
+	 * A turbo tape then boots with real timing from the first frame, instead of
+	 * needing a power cycle to get there.
+	 */
+	ATARI_ClassifyCassette (m_Settings.CassettePath);
+
 	if (!ATARI_Init (pConfig))
 	{
 		m_pBootLog->Recordf ("PANIC: the emulation core failed to start: %s",
@@ -1765,6 +1773,16 @@ boolean CAtariKernel::MountCassette (const char *pPath, boolean bReadOnly)
 boolean CAtariKernel::SetCassetteWriteProtect (boolean bReadOnly)
 {
 	return ATARI_SetCassetteWriteProtect (bReadOnly) ? TRUE : FALSE;
+}
+
+boolean CAtariKernel::CassetteModeMismatch (void)
+{
+	return ATARI_CassetteNeedsRebuild () ? TRUE : FALSE;
+}
+
+const char *CAtariKernel::GetCassetteModeMessage (void)
+{
+	return ATARI_CassetteModeMessage ();
 }
 
 boolean CAtariKernel::SaveSnapshot (const char *pPath)

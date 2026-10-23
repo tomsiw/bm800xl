@@ -55,6 +55,17 @@ public:
 	// which would rewind the tape.
 	virtual boolean SetCassetteWriteProtect (boolean bReadOnly) = 0;
 
+	/*
+	 * Does the inserted tape need a different SIO mode than the machine was built
+	 * with?  A tape is either standard (fast load, patched SIO) or turbo (real
+	 * timing, unpatched), and the mode is fixed when the machine is built, so a
+	 * mismatch can only be resolved by a power cycle.
+	 */
+	virtual boolean CassetteModeMismatch (void) = 0;
+
+	// The one-line notice for that mismatch, or 0 when there is none.
+	virtual const char *GetCassetteModeMessage (void) = 0;
+
 	virtual boolean SaveSnapshot (const char *pPath) = 0;
 	virtual boolean LoadSnapshot (const char *pPath) = 0;
 
@@ -168,6 +179,32 @@ private:
 	void EjectSelection (void);
 
 	void OpenBrowser (TBrowseTarget Target);
+
+	/*
+	 * Leaves the menu, resolving a pending cassette SIO-mode mismatch first.
+	 *
+	 * A tape that needs the other mode cannot be loaded until the machine is
+	 * rebuilt, and every way out of the menu is a point where the user is about
+	 * to use that tape: F12, Escape on the main screen, and the warm-reset,
+	 * cold-reset, power-cycle and close items.  So all of them come through here,
+	 * and when a mismatch is pending the requested action is replaced by a power
+	 * cycle -- a warm reset would keep the wrong mode, a cold reset cannot change
+	 * it, and closing the menu would leave a tape that cannot load.  The rebuild
+	 * clears the mismatch, so this cannot loop.
+	 *
+	 * Every action has one failure path here as well: if the restart or the reset
+	 * fails the menu stays open with the reason, rather than closing over a
+	 * machine that did not do what was asked.
+	 */
+	enum TMenuExit
+	{
+		ExitClose,
+		ExitColdReset,
+		ExitWarmReset,
+		ExitPowerCycle
+	};
+
+	void ExitMenu (TMenuExit Action);
 
 	/*
 	 * The screen a browser belongs to.

@@ -566,6 +566,34 @@ int ATARI_MountCartridge(const char *path);
 int ATARI_MountCassette(const char *path, int read_only);
 
 /*
+ * Classifies a cassette image without mounting it, and remembers the answer.
+ *
+ * The kernel calls this before the machine is built, with the tape named in the
+ * settings, so that the first boot already has the SIO mode that tape needs.
+ * ATARI_MountCassette() calls it as well, for a tape inserted at run time.
+ *
+ * Returns 0 for an unknown or unreadable image, 1 for a standard tape (fast
+ * load, patched SIO) and 2 for a turbo tape (real timing, patched SIO off).
+ */
+int ATARI_ClassifyCassette(const char *path);
+
+/*
+ * Does the mounted tape need a different SIO mode than the running machine has?
+ *
+ * True only while a tape is mounted: with nothing in the drive there is nothing
+ * to ask for.  When it is true the machine has to be rebuilt -- a power cycle --
+ * because the OS ROM is patched when the machine is built and the patches cannot
+ * be taken out of a running one.
+ */
+int ATARI_CassetteNeedsRebuild(void);
+
+/*
+ * The one-line notice to show for a pending mismatch, or 0 when there is none.
+ * Plain ASCII: it is drawn in the Atari character set.
+ */
+const char *ATARI_CassetteModeMessage(void);
+
+/*
  * Sets the write protection of the inserted cassette, without re-inserting it.
  *
  * Re-mounting a tape to change this would rewind it, so the tape position is

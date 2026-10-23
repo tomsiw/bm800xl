@@ -114,6 +114,8 @@ public:
 	boolean MountCartridge (const char *pPath);
 	boolean MountCassette (const char *pPath, boolean bReadOnly);
 	boolean SetCassetteWriteProtect (boolean bReadOnly);
+	boolean CassetteModeMismatch (void);
+	const char *GetCassetteModeMessage (void);
 	boolean SaveSnapshot (const char *pPath);
 	boolean LoadSnapshot (const char *pPath);
 	void ColdReset (void);

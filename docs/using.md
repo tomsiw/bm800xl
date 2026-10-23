@@ -169,6 +169,41 @@ Writing to a real FAT file system from a bare-metal program is the part of this
 emulator most likely to surprise you if something goes wrong. Keep a copy of
 anything irreplaceable.
 
+### Standard and turbo tapes
+
+Cassette images come in two kinds, and they need different machinery inside the
+emulated machine:
+
+- a **standard** tape (600 baud, recorded by an Atari) is loaded through a patched
+  OS routine that copies whole records at once, so it loads almost instantly;
+- a **turbo** tape (any of the popular fast loaders) holds raw tape signal, which
+  only real serial timing can read. That mode turns the patch off, so loading runs
+  at tape speed — and disk input/output is slower too while the machine is built
+  that way.
+
+The type is read from the image itself when it is inserted, and the machine has to
+be rebuilt to switch between the two, because that is when the OS image is patched.
+So if you insert a tape that needs the other mode, the menu says:
+
+```
+Turbo tape - power cycle required
+Standard tape - power cycle required
+```
+
+Leaving the menu — F12, Escape on the main screen, or any of *Cold reset*, *Warm
+reset* and *Close menu* — performs that power cycle instead of the action you
+picked, and the tape is still in the drive afterwards. Be aware of what that means:
+**a power cycle clears the machine's memory**, so an unsaved program is lost at
+that moment. That is the price of having the tape loadable at all; a cold reset
+cannot do it, because the OS patches are installed when the machine is built.
+
+A tape named in the settings file is classified before the machine starts, so the
+first boot already has the right mode and no cycle is needed.
+
+A standard tape in a machine built for turbo loading still works, just slowly;
+ejecting a turbo tape keeps the machine in real-timing mode until the next power
+cycle.
+
 ---
 
 ## Snapshots
