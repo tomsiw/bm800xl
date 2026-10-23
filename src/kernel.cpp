@@ -747,6 +747,15 @@ boolean CAtariKernel::Initialize (void)
 	 */
 	m_pBootLog->Attach (&m_Video, &m_Logger);
 
+	/*
+	 * The OSD uses Circle's 8x16 font: monospaced, comfortable to read on a
+	 * 720p display, and thirteen list rows still fit in the panel.  The font is
+	 * chosen here and nowhere else: the boot log derives its line spacing from
+	 * GetTextHeight(), and CAtariMenu::Initialize() derives the panel's row
+	 * pitch and row count from it, so a different font needs no other change.
+	 */
+	m_Video.SetFont (Font8x16);
+
 	m_pBootLog->Recordf ("Display: %ux%u, picture %ux%u%s",
 			   m_Video.GetWidth (), m_Video.GetHeight (),
 			   m_Video.GetPictureWidth (), m_Video.GetHeight (),

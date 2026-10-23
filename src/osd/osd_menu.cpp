@@ -89,7 +89,15 @@ CAtariMenu::CAtariMenu (void)
 	m_nBrowseTop (0),
 	m_nBrowserSelected (0),
 	m_nEraseFrames (0),
-	m_nMessageFrames (0)
+	m_nMessageFrames (0),
+	m_nLineHeight (16),
+	m_nRowPitch (26),
+	m_nHeaderHeight (40),
+	m_nFooterHeight (34),
+	m_nItemTop (60),
+	m_nStatusOffset (60),
+	m_nMessageOffset (78),
+	m_nVisibleRows (20)
 {
 	m_SettingsPath[0] = '\0';
 	m_BrowseDirectory[0] = '\0';
@@ -114,6 +122,40 @@ void CAtariMenu::Initialize (CAtariVideoOut *pVideo, CAtariStorage *pStorage,
 	if (pSettingsPath != 0)
 	{
 		CopyText (m_SettingsPath, pSettingsPath, sizeof m_SettingsPath);
+	}
+
+	/*
+	 * The font decides the vertical rhythm: one line plus a gap is a row, the
+	 * header and footer bands hold a line with room around it, and the status
+	 * and message lines sit above the footer.  Deriving these from the line
+	 * height is what lets the OSD use a different font -- Circle's 8x8 instead
+	 * of 8x16 -- without the panel looking empty or the text overlapping.
+	 */
+	unsigned nLine = pVideo != 0 ? pVideo->GetTextHeight () : 16;
+
+	m_nLineHeight    = nLine;
+	m_nRowPitch      = nLine + 8;
+	m_nHeaderHeight  = nLine + 18;
+	m_nFooterHeight  = nLine + 16;
+	m_nItemTop       = m_nHeaderHeight + 8;
+	m_nStatusOffset  = m_nFooterHeight + 16;
+	m_nMessageOffset = m_nStatusOffset + 14;
+
+	/*
+	 * How many list rows fit between the header and the message line.  This
+	 * used to be a constant (20), which was only true while the font was small:
+	 * with the old 16 pixel font twenty rows ran straight past the bottom of the
+	 * panel, and with a taller font they would climb into the status line.  The
+	 * limit is the message line, because a transient message is drawn over the
+	 * last row if the list reaches it.
+	 */
+	unsigned nAvailable = MenuPanelHeight > m_nItemTop + m_nMessageOffset
+			    ? MenuPanelHeight - m_nItemTop - m_nMessageOffset : 0;
+
+	m_nVisibleRows = nAvailable / m_nRowPitch;
+	if (m_nVisibleRows == 0)
+	{
+		m_nVisibleRows = 1;		// never a listing that cannot show a row
 	}
 
 	/*
@@ -1348,8 +1390,8 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 	{
 		unsigned nCount = m_pStorage != 0 ? m_pStorage->GetEntryCount () : 0;
 
-		// Enough rows to fill the panel.
-		static const unsigned VisibleRows = 20;
+		// Enough rows to fill the panel; see m_nVisibleRows.
+		unsigned nVisibleRows = m_nVisibleRows;
 
 		switch (nKey)
 		{
@@ -1373,9 +1415,9 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 			if (nCount > 0 && m_nBrowserSelected + 1 < nCount)
 			{
 				m_nBrowserSelected++;
-				if (m_nBrowserSelected >= m_nBrowseTop + VisibleRows)
+				if (m_nBrowserSelected >= m_nBrowseTop + nVisibleRows)
 				{
-					m_nBrowseTop = m_nBrowserSelected - VisibleRows + 1;
+					m_nBrowseTop = m_nBrowserSelected - nVisibleRows + 1;
 				}
 			}
 			return TRUE;
@@ -1481,16 +1523,22 @@ void CAtariMenu::DrawHeader (const char *pTitle)
 	unsigned nPanelX = MenuMarginX;
 	unsigned nPanelY = MenuMarginY;
 
-	m_pVideo->DrawRect (nPanelX, nPanelY, MenuPanelWidth, 40, ATARI_COLOR_SELECT);
-	m_pVideo->DrawText (nPanelX + MenuIndent, nPanelY + 12, ATARI_COLOR_WHITE, pTitle);
+	m_pVideo->DrawRect (nPanelX, nPanelY, MenuPanelWidth, m_nHeaderHeight,
+			       ATARI_COLOR_SELECT);
+	m_pVideo->DrawText (nPanelX + MenuIndent,
+			    nPanelY + (m_nHeaderHeight - m_nLineHeight) / 2,
+			    ATARI_COLOR_WHITE, pTitle);
 }
 
 void CAtariMenu::DrawFooter (const char *pHint)
 {
-	unsigned nPanelY = MenuMarginY + MenuPanelHeight - 34;
+	unsigned nPanelY = MenuMarginY + MenuPanelHeight - m_nFooterHeight;
 
-	m_pVideo->DrawRect (MenuMarginX, nPanelY, MenuPanelWidth, 34, ATARI_COLOR_SELECT);
-	m_pVideo->DrawText (MenuMarginX + MenuIndent, nPanelY + 10, ATARI_COLOR_WHITE, pHint);
+	m_pVideo->DrawRect (MenuMarginX, nPanelY, MenuPanelWidth, m_nFooterHeight,
+			       ATARI_COLOR_SELECT);
+	m_pVideo->DrawText (MenuMarginX + MenuIndent,
+			    nPanelY + (m_nFooterHeight - m_nLineHeight) / 2,
+			    ATARI_COLOR_WHITE, pHint);
 }
 
 void CAtariMenu::DrawItem (unsigned nY, boolean bSelected, const char *pLabel,
@@ -1502,8 +1550,8 @@ void CAtariMenu::DrawItem (unsigned nY, boolean bSelected, const char *pLabel,
 
 	if (bSelected)
 	{
-		m_pVideo->DrawRect (nPanelX + 4, nY - 2, MenuPanelWidth - 8, 24,
-				    ATARI_COLOR_SELECT);
+		m_pVideo->DrawRect (nPanelX + 4, nY - 2, MenuPanelWidth - 8,
+				    m_nRowPitch - 4, ATARI_COLOR_SELECT);
 	}
 
 	TAtariColor Color = bSelected ? ATARI_COLOR_WHITE : ATARI_COLOR_PANEL;
@@ -1537,7 +1585,8 @@ void CAtariMenu::DrawStatusLine (void)
 		  VideoName (m_pSettings->nVideoStandard),
 		  m_pHost != 0 ? m_pHost->GetFps () : 0.0);
 
-	m_pVideo->DrawText (MenuMarginX + 4, MenuMarginY + MenuPanelHeight - 60,
+	m_pVideo->DrawText (MenuMarginX + 4,
+			    MenuMarginY + MenuPanelHeight - m_nStatusOffset,
 			    ATARI_COLOR_TITLE, Text);
 }
 
@@ -1545,13 +1594,13 @@ void CAtariMenu::DrawMainScreen (void)
 {
 	DrawHeader ("Atari XL/XE");
 
-	unsigned nY = MenuMarginY + 60;
+	unsigned nY = MenuMarginY + m_nItemTop;
 	unsigned nCount = GetItemCount ();
 
 	for (unsigned i = 0; i < nCount; i++)
 	{
 		DrawItem (nY, i == m_nSelected, GetItemLabel (i), GetItemValue (i));
-		nY += 26;
+		nY += m_nRowPitch;
 	}
 
 	DrawFooter ("Up/Down move   Left/Right change   Return select   Esc close");
@@ -1567,11 +1616,11 @@ void CAtariMenu::DrawBrowser (void)
 	DrawHeader (Title);
 
 	unsigned nCount = m_pStorage != 0 ? m_pStorage->GetEntryCount () : 0;
-	static const unsigned VisibleRows = 20;
+	unsigned nVisibleRows = m_nVisibleRows;
 
 	if (nCount == 0)
 	{
-		m_pVideo->DrawText (MenuMarginX + MenuIndent, MenuMarginY + 70,
+		m_pVideo->DrawText (MenuMarginX + MenuIndent, MenuMarginY + m_nItemTop,
 				    ATARI_COLOR_TITLE,
 				    m_pStorage != 0 && m_pStorage->IsUserVolumeAvailable ()
 				    ? "No matching files here"
@@ -1579,9 +1628,9 @@ void CAtariMenu::DrawBrowser (void)
 	}
 	else
 	{
-		unsigned nY = MenuMarginY + 60;
+		unsigned nY = MenuMarginY + m_nItemTop;
 
-		for (unsigned nRow = 0; nRow < VisibleRows; nRow++)
+		for (unsigned nRow = 0; nRow < nVisibleRows; nRow++)
 		{
 			unsigned nIndex = m_nBrowseTop + nRow;
 			if (nIndex >= nCount)
@@ -1605,7 +1654,7 @@ void CAtariMenu::DrawBrowser (void)
 			}
 
 			DrawItem (nY, nIndex == m_nBrowserSelected, Name, "");
-			nY += 20;
+			nY += m_nRowPitch;
 		}
 	}
 
@@ -1644,7 +1693,8 @@ void CAtariMenu::Draw (void)
 	// A transient message reports the outcome of the last action.
 	if (m_nMessageFrames > 0)
 	{
-		m_pVideo->DrawText (MenuMarginX + 4, MenuMarginY + MenuPanelHeight - 78,
+		m_pVideo->DrawText (MenuMarginX + 4,
+				    MenuMarginY + MenuPanelHeight - m_nMessageOffset,
 				    ATARI_COLOR_WHITE, m_Message);
 		m_nMessageFrames--;
 	}

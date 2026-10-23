@@ -265,6 +265,24 @@ private:
 	// Transient message shown at the bottom, and how many frames are left
 	char m_Message[80];
 	unsigned m_nMessageFrames;
+
+	/*
+	 * Vertical layout, derived from the font in Initialize().
+	 *
+	 * These used to be pixel literals chosen for the 16 pixel font -- a 40 pixel
+	 * header, rows 26 apart, bands anchored 34 and 60 pixels above the bottom.
+	 * With a smaller font those numbers leave the panel looking empty and the
+	 * text crowding its bands, so they are computed from the line height
+	 * instead: the OSD follows whatever font it is given.
+	 */
+	unsigned m_nLineHeight;
+	unsigned m_nRowPitch;
+	unsigned m_nHeaderHeight;
+	unsigned m_nFooterHeight;
+	unsigned m_nItemTop;		// first item row, below the header
+	unsigned m_nStatusOffset;	// status line, above the bottom edge
+	unsigned m_nMessageOffset;	// message line, above the status line
+	unsigned m_nVisibleRows;	// list rows between the header and the status
 };
 
 #endif

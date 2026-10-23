@@ -21,6 +21,7 @@
 #define _atari_video_out_h
 
 #include <circle/bcmframebuffer.h>
+#include <circle/font.h>
 #include <circle/types.h>
 
 /// Output resolution.
@@ -141,6 +142,17 @@ public:
 	void DrawText (unsigned nX, unsigned nY, TAtariColor Color, const char *pText,
 		       boolean bDoubleSize = FALSE);
 
+	/*
+	 * The font every text call uses.
+	 *
+	 * Circle supplies several -- Font6x7 through Font12x22 -- and any TFont
+	 * table can be passed, so the OSD can be re-fonted without touching the
+	 * drawing code.  Callers that lay out rows derive their pitch from
+	 * GetTextHeight(), so changing the font here changes the whole menu
+	 * coherently.
+	 */
+	void SetFont (const TFont &rFont)	{ m_pFont = &rFont; }
+
 	/// Height of one text line in pixels.
 	unsigned GetTextHeight (void) const;
 	/// Width of one character cell in pixels.
@@ -209,6 +221,9 @@ private:
 	 * anything that repaints the whole buffer.
 	 */
 	boolean m_bPaddingCleared;
+
+	// The font all text is drawn with; see SetFont().
+	const TFont *m_pFont;
 };
 
 #endif

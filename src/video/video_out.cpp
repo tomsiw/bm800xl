@@ -57,7 +57,8 @@ CAtariVideoOut::CAtariVideoOut (void)
 	m_pBackBuffer (0),
 	m_bDoubleBuffered (FALSE),
 	m_bFrontIsFirst (FALSE),
-	m_bPaddingCleared (FALSE)
+	m_bPaddingCleared (FALSE),
+	m_pFont (&Font8x16)
 {
 }
 
@@ -618,14 +619,14 @@ void CAtariVideoOut::DimRect (unsigned nX, unsigned nY, unsigned nWidth, unsigne
 
 unsigned CAtariVideoOut::GetTextHeight (void) const
 {
-	CCharGenerator Generator (Font8x16);
+	CCharGenerator Generator (*m_pFont);
 
 	return Generator.GetCharHeight ();
 }
 
 unsigned CAtariVideoOut::GetTextWidth (void) const
 {
-	CCharGenerator Generator (Font8x16);
+	CCharGenerator Generator (*m_pFont);
 
 	return Generator.GetCharWidth ();
 }
@@ -650,7 +651,7 @@ void CAtariVideoOut::DrawText (unsigned nX, unsigned nY, TAtariColor Color,
 		return;
 	}
 
-	CCharGenerator Generator (Font8x16,
+	CCharGenerator Generator (*m_pFont,
 				  CCharGenerator::MakeFlags (bDoubleSize, bDoubleSize));
 
 	unsigned nCharWidth  = Generator.GetCharWidth ();

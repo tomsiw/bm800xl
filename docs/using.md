@@ -36,6 +36,11 @@ screen, to close it.
 The picture keeps running behind the menu, dimmed, so you can see what you are
 changing.
 
+The menu is drawn in a monospaced font — Circle's 8x16 character set — so a
+directory listing fits in the panel while the text stays comfortable to read,
+and the row spacing and the number of rows are derived from the font rather than
+fixed, which is what lets the same code use a larger or smaller one.
+
 While the menu is open the sound is silenced. Only the output is muted: the
 emulated machine keeps running and keeps producing samples, so a tune or a
 sound effect comes back in step when the menu closes rather than stuttering
