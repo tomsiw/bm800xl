@@ -79,7 +79,8 @@ MODULE_SRCS := \
 	src/input/usb_joystick.cpp \
 	src/input/gpio_joystick.cpp \
 	src/audio/audio_out.cpp \
-	src/osd/osd_menu.cpp
+	src/osd/osd_menu.cpp \
+	src/osd/atari_font.cpp
 
 OBJS := $(patsubst %.cpp,$(OBJDIR)/%.o,$(patsubst %.c,$(OBJDIR)/%.o,$(APP_SRCS) $(MODULE_SRCS)))
 

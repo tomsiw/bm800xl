@@ -26,10 +26,10 @@
 // they are variables rather than constants.
 static unsigned MenuMarginX		= 40;
 static unsigned MenuMarginY		= 30;
-static const unsigned MenuPanelWidth	= 620;
+static const unsigned MenuPanelWidth	= 900;
 static const unsigned MenuPanelHeight	= 480;
 static const unsigned MenuIndent	= 16;
-static const unsigned MenuLabelColumn	= 300;	// x offset of the value column
+static const unsigned MenuLabelColumn	= 450;	// x offset of the value column
 
 // Longest text the menu builds on the stack.
 #define MENU_TEXT_MAX 128
@@ -245,6 +245,33 @@ unsigned CAtariMenu::GetItemCount (void) const
 		return SnapshotItemCount;
 	default:
 		return 0;
+	}
+}
+
+unsigned CAtariMenu::TextColumns (unsigned nPixels) const
+{
+	unsigned nCharWidth = m_pVideo != 0 ? m_pVideo->GetTextWidth () : 8;
+
+	if (nCharWidth == 0)
+	{
+		nCharWidth = 8;
+	}
+
+	return nPixels / nCharWidth;
+}
+
+void CAtariMenu::Truncate (char *pText, unsigned nMaxChars)
+{
+	if (pText == 0)
+	{
+		return;
+	}
+
+	unsigned nLength = strlen (pText);
+
+	if (nLength > nMaxChars)
+	{
+		pText[nMaxChars] = '\0';
 	}
 }
 
@@ -1565,7 +1592,13 @@ void CAtariMenu::DrawItem (unsigned nY, boolean bSelected, const char *pLabel,
 	m_pVideo->DrawText (nRowX, nY, Color, pLabel);
 	if (pValue != 0 && pValue[0] != '\0')
 	{
-		m_pVideo->DrawText (nPanelX + MenuLabelColumn, nY, Color, pValue);
+		{
+		char Value[64];
+		CopyText (Value, pValue, sizeof Value);
+		Truncate (Value, TextColumns (MenuPanelWidth - MenuLabelColumn - 8));
+
+		m_pVideo->DrawText (nPanelX + MenuLabelColumn, nY, Color, Value);
+	}
 	}
 
 	(void) nRowWidth;
@@ -1585,6 +1618,8 @@ void CAtariMenu::DrawStatusLine (void)
 		  VideoName (m_pSettings->nVideoStandard),
 		  m_pHost != 0 ? m_pHost->GetFps () : 0.0);
 
+	Truncate (Text, TextColumns (MenuPanelWidth - 8));
+
 	m_pVideo->DrawText (MenuMarginX + 4,
 			    MenuMarginY + MenuPanelHeight - m_nStatusOffset,
 			    ATARI_COLOR_TITLE, Text);
@@ -1603,7 +1638,7 @@ void CAtariMenu::DrawMainScreen (void)
 		nY += m_nRowPitch;
 	}
 
-	DrawFooter ("Up/Down move   Left/Right change   Return select   Esc close");
+	DrawFooter ("Up/Down  Left/Right  Return  Esc");
 }
 
 void CAtariMenu::DrawBrowser (void)
@@ -1611,8 +1646,10 @@ void CAtariMenu::DrawBrowser (void)
 	char Title[MENU_TEXT_MAX];
 
 	// The browser's title is the directory being listed, which can be longer
-	// than the title bar; CopyText truncates it cleanly.
+	// than the title bar; CopyText truncates it to the buffer, and the second
+	// cut is to the panel, which is what the user can see.
 	CopyText (Title, m_BrowseDirectory, sizeof Title);
+	Truncate (Title, TextColumns (MenuPanelWidth - 2 * MenuIndent));
 	DrawHeader (Title);
 
 	unsigned nCount = m_pStorage != 0 ? m_pStorage->GetEntryCount () : 0;
@@ -1653,14 +1690,16 @@ void CAtariMenu::DrawBrowser (void)
 				snprintf (Name, sizeof Name, "%s", pEntry != 0 ? pEntry : "");
 			}
 
+			Truncate (Name, TextColumns (MenuPanelWidth - 2 * MenuIndent));
+
 			DrawItem (nY, nIndex == m_nBrowserSelected, Name, "");
 			nY += m_nRowPitch;
 		}
 	}
 
 	DrawFooter (   m_BrowseTarget == BrowseSnapshotErase
-		    ? "Up/Down move   Return or Del erase   Esc back"
-		    : "Up/Down move   Return choose   Esc back");
+		    ? "Up/Down  Return/Del erase  Esc"
+		    : "Up/Down  Return  Esc");
 }
 
 void CAtariMenu::Draw (void)
@@ -1690,12 +1729,17 @@ void CAtariMenu::Draw (void)
 
 	DrawStatusLine ();
 
-	// A transient message reports the outcome of the last action.
+	// A transient message reports the outcome of the last action.  It can carry
+	// a file name, so it is cut to the panel like everything else.
 	if (m_nMessageFrames > 0)
 	{
+		char Message[sizeof m_Message];
+		CopyText (Message, m_Message, sizeof Message);
+		Truncate (Message, TextColumns (MenuPanelWidth - 8));
+
 		m_pVideo->DrawText (MenuMarginX + 4,
 				    MenuMarginY + MenuPanelHeight - m_nMessageOffset,
-				    ATARI_COLOR_WHITE, m_Message);
+				    ATARI_COLOR_WHITE, Message);
 		m_nMessageFrames--;
 	}
 

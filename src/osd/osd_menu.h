@@ -227,6 +227,15 @@ private:
 	const char *GetItemLabel (unsigned nIndex) const;
 	const char *GetItemValue (unsigned nIndex) const;
 
+	/*
+	 * How many characters of the current font fit in PIXELS, and a cut-down
+	 * copy of a string to that many characters.  File names and paths have no
+	 * length limit; the panel does, and text drawn past its edge lands on the
+	 * picture instead of in the panel.
+	 */
+	unsigned TextColumns (unsigned nPixels) const;
+	static void Truncate (char *pText, unsigned nMaxChars);
+
 	// Names shown for enumerated settings
 	static const char *MachineName (int nMachine);
 	static const char *RamName (int nRamKB);

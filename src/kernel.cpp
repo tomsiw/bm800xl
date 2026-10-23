@@ -86,6 +86,7 @@ extern "C" void *_sbrk (ptrdiff_t nBytes)
 #include "input/joystick.h"
 #include "input/gpio_joystick.h"
 #include "input/usb_keymap.h"
+#include "osd/atari_font.h"
 
 #include "vfs.h"
 
@@ -747,15 +748,6 @@ boolean CAtariKernel::Initialize (void)
 	 */
 	m_pBootLog->Attach (&m_Video, &m_Logger);
 
-	/*
-	 * The OSD uses Circle's 8x16 font: monospaced, comfortable to read on a
-	 * 720p display, and thirteen list rows still fit in the panel.  The font is
-	 * chosen here and nowhere else: the boot log derives its line spacing from
-	 * GetTextHeight(), and CAtariMenu::Initialize() derives the panel's row
-	 * pitch and row count from it, so a different font needs no other change.
-	 */
-	m_Video.SetFont (Font8x16);
-
 	m_pBootLog->Recordf ("Display: %ux%u, picture %ux%u%s",
 			   m_Video.GetWidth (), m_Video.GetHeight (),
 			   m_Video.GetPictureWidth (), m_Video.GetHeight (),
@@ -818,6 +810,13 @@ boolean CAtariKernel::Initialize (void)
 		return FALSE;
 	}
 	m_pBootLog->Recordf ("Emulation core started: %s", ATARI_CoreVersion ());
+
+	/*
+	 * The OSD's font is the Atari character set, doubled, compiled into the
+	 * kernel: the shapes an Atari would draw rather than a PC console font, and
+	 * no ROM to read at run time.  See src/osd/atari_font.cpp.
+	 */
+	m_Video.SetFont (AtariFont);
 
 	/*
 	 * BRK follows the machine unless the settings file asks for the diagnostic.
