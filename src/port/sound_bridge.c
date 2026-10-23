@@ -60,6 +60,7 @@ static unsigned s_channels;
 static unsigned s_sample_size;		/* bytes per sample: 1 or 2 */
 static unsigned s_buffer_bytes;		/* one full hardware buffer, in bytes */
 static int s_running;
+static int s_device_open;		/* the sink below is open and playing */
 
 void ATARI_SetHostAudioSink(audio_sink_t *sink)
 {
@@ -103,7 +104,30 @@ int PLATFORM_SoundSetup(Sound_setup_t *setup)
 		return FALSE;
 	}
 
+	/*
+	 * Reuse the device that is already open when the shape has not changed.
+	 *
+	 * Opening the sink closes and rebuilds the Circle device behind it -- a new
+	 * CHDMISoundBaseDevice, its DMA channel and its clock setup -- and
+	 * reopening the HDMI sink on this hardware hangs.  A power cycle
+	 * re-initialises the emulator, which asks for the sound setup again; with
+	 * the same rate, channel count and sample size there is nothing to rebuild,
+	 * and all the core wants back is the buffer size it was given.
+	 */
+	if (s_device_open
+	    && setup->freq == s_sample_rate
+	    && setup->channels == s_channels
+	    && setup->sample_size == s_sample_size) {
+		setup->buffer_frames = s_buffer_bytes / (s_channels * s_sample_size);
+		s_running = 0;		/* output starts paused, as on a new open */
+
+		Log_print("Audio: reusing the open device (%u Hz, %u channel(s))",
+		          s_sample_rate, s_channels);
+		return TRUE;
+	}
+
 	frames = s_sink->open(s_sink, setup->freq, setup->channels, setup->sample_size);
+
 	if (frames == 0) {
 		s_running = 0;
 
@@ -137,6 +161,8 @@ int PLATFORM_SoundSetup(Sound_setup_t *setup)
 	Log_print("Audio: opened %u Hz, %u channel(s), %u-byte samples, %u frames",
 	          s_sample_rate, s_channels, s_sample_size, frames);
 
+	s_device_open = 1;
+
 	return TRUE;
 }
 
@@ -146,6 +172,7 @@ void PLATFORM_SoundExit(void)
 		s_sink->close(s_sink);
 	}
 	s_running = 0;
+	s_device_open = 0;
 }
 
 void PLATFORM_SoundPause(void)

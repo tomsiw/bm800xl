@@ -321,9 +321,34 @@ int ATARI_ApplyModifiers(int base_key_code, int shift, int control);
  * Machine control
  * ------------------------------------------------------------------------- */
 
-/* Reboots the emulated machine.  COLD = power cycle, otherwise a Reset key. */
+/*
+ * Reboots the emulated machine.
+ *
+ * ATARI_ColdReset() is a cold start: the CPU's RESET line.  It resets PIA, ANTIC
+ * and the CPU, but POKEY and GTIA have no reset pin on the real machine and keep
+ * their registers.  ATARI_WarmReset() is the Reset key.
+ */
 void ATARI_ColdReset(void);
 void ATARI_WarmReset(void);
+
+/*
+ * Power cycles the emulated machine: RAM zeroed, every chip at its power-up
+ * state, the ROM images loaded again, and then a cold start.
+ *
+ * This is not what ATARI_ColdReset() does, and the difference is visible: GTIA
+ * has no reset pin, so its console-key mask survives a cold start, and software
+ * that masked a key out leaves the machine believing that key is held.  The OS
+ * then boots as though Option were down -- no BASIC, and BOOT ERROR when there
+ * is nothing to boot from.
+ *
+ * CFG is the configuration to build the machine with, as ATARI_Init() takes it;
+ * NULL means the configuration already in use.  The caller must mount its media
+ * again afterwards: the drives, the cartridge and the cassette are all empty on
+ * the new machine.
+ *
+ * Returns 1 on success, 0 on failure, with ATARI_LastError() saying why.
+ */
+int ATARI_PowerCycle(const atari_config_t *cfg);
 
 /* Changes that take effect immediately. */
 void ATARI_SetVideoStandard(atari_video_standard_t video);

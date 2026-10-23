@@ -61,6 +61,12 @@ public:
 	virtual void ColdReset (void) = 0;
 	virtual void WarmReset (void) = 0;
 
+	// Rebuilds the emulated machine from scratch: RAM cleared, every chip at its
+	// power-up state, the media mounted again.  A cold reset is not this -- GTIA
+	// has no reset pin, so its state (and the console-key mask software can set
+	// through it) survives one.
+	virtual boolean PowerCycle (void) = 0;
+
 	// The message to show when the last operation failed.
 	virtual const char *GetLastError (void) = 0;
 

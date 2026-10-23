@@ -118,6 +118,7 @@ public:
 	boolean LoadSnapshot (const char *pPath);
 	void ColdReset (void);
 	void WarmReset (void);
+	boolean PowerCycle (void);
 	const char *GetLastError (void);
 	double GetFps (void);
 

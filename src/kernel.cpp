@@ -1800,6 +1800,41 @@ void CAtariKernel::WarmReset (void)
 	CBootLog::Get ()->RecordRuntime ("OSD: warm reset returned");
 }
 
+boolean CAtariKernel::PowerCycle (void)
+{
+	/*
+	 * The configuration is rebuilt from the settings first: the core is about to
+	 * be built again, so machine type, RAM, video standard and the sound settings
+	 * all come from what the user has chosen, not from whatever the previous
+	 * machine was told.
+	 */
+	const atari_config_t *pConfig = 0;
+	MakeEmulatorConfig (pConfig);
+
+	CBootLog::Get ()->RecordRuntime ("OSD: power cycle requested");
+
+	if (!ATARI_PowerCycle (pConfig))
+	{
+		CBootLog::Get ()->RecordRuntime ("OSD: power cycle failed");
+
+		return FALSE;
+	}
+
+	/*
+	 * The new machine has no media in it: put back what the settings say was
+	 * inserted.  A power cycle does not empty the drives -- the images are on the
+	 * card -- so they are mounted again from the same paths.
+	 */
+	MountMediaFromSettings ();
+
+	/* Not part of the core's configuration: it is a policy of this port. */
+	ATARI_SetContinueOnBrk (m_Settings.bContinueOnBrk);
+
+	CBootLog::Get ()->RecordRuntime ("OSD: power cycle returned");
+
+	return TRUE;
+}
+
 const char *CAtariKernel::GetLastError (void)
 {
 	return ATARI_LastError ();

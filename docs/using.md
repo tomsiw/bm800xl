@@ -64,21 +64,19 @@ settings without losing your mounted media.
 
 **Sound** — On or off, volume in 5% steps, and stereo (two POKEYs).
 
-**Snapshots** — Save, load or erase a machine snapshot. Cold and warm reset are
-separate items on the main screen.
+**Snapshots** — Save, load or erase a machine snapshot. Warm reset, cold reset and
+power cycle are separate items on the main screen.
 
 ### Changing something takes effect immediately
 
 There is no "apply" step. Changing the volume, the video standard, the sound
 switch or the artifacting applies at once; changing the RAM size or the machine
 type rebuilds and resets the emulated machine, which is what those changes
-inherently require.
+inherently require; and toggling a disk's `[ro]` flag re-opens that drive so the
+new mode reaches the machine.
 
-Two things are the exception, and the menu says so when you change them:
+One thing is the exception, and the menu says so when you change it:
 
-- **A disk's read-only flag** is applied by the emulation core when the image is
-  opened, so toggling `[ro]` on a drive that is already loaded does not by itself
-  protect the file being written. Re-select the image to reopen it read-only.
 - **Switching sound back on** reopens the audio device; if that fails the menu
   reports it.
 
@@ -222,13 +220,21 @@ why the emulator raises the core's snapshot buffer size; see
 
 ## Resetting
 
-Three ways to reset, matching what a real machine offers:
+Four ways, and they are not interchangeable:
 
-| Reset | Where | What it does |
+| Action | Where | What it does |
 |---|---|---|
-| Warm reset | Menu → Snapshots → Warm reset | Presses the emulated Reset button. Programs keep their memory. |
-| Cold reset | Menu → Snapshots → Cold reset | Power-cycles the machine. Memory is cleared and the OS restarts. |
+| Warm reset | Menu → Warm reset | Presses the emulated Reset button. Programs keep their memory. |
+| Cold reset | Menu → Cold reset | The CPU's RESET line: PIA, ANTIC and the CPU are reset and the OS cold-starts. RAM keeps its contents, and POKEY and GTIA keep their registers — on a real machine neither chip has a reset pin. |
+| Power cycle | Menu → Power cycle | A new machine: RAM cleared, every chip at its power-up state, the ROMs loaded again, and the media mounted again from the settings. |
 | Power-on | Power the Pi off and on | The emulator starts with the settings file, and re-mounts the media |
+
+Cold reset is enough for most things. It is not enough when the software that was
+running left a chip in a state the OS reads while booting. GTIA is the usual
+culprit: a program that masks a console key out of it leaves the machine believing
+that key is held, so a cold reset boots as though OPTION were down — BASIC is
+skipped, and with nothing in the drive the boot ends in BOOT ERROR. Power cycle
+clears that, because it builds the machine again rather than resetting it.
 
 Inserting a cartridge applies a cold start automatically, because that is what a
 real Atari does when you plug one in.

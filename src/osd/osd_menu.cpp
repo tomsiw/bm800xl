@@ -39,7 +39,7 @@ static const unsigned MenuLabelColumn	= 450;	// x offset of the value column
 
 // Numbers of entries on each screen.  All five switch statements keyed on
 // m_Screen have to agree with these, so they are named rather than repeated.
-static const unsigned MainItemCount		= 10;
+static const unsigned MainItemCount		= 11;
 static const unsigned DiskItemCount		= SETTINGS_MAX_DRIVES * 2;	// insert and eject
 static const unsigned CartridgeItemCount	= 2;	// insert, eject
 static const unsigned CassetteItemCount		= 2;	// insert, eject
@@ -372,7 +372,8 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 6: return "Save states";
 		case 7: return "Cold reset";
 		case 8: return "Warm reset";
-		case 9: return "Close menu";
+		case 9: return "Power cycle";
+		case 10: return "Close menu";
 		}
 		break;
 
@@ -1034,7 +1035,21 @@ void CAtariMenu::ActivateSelection (void)
 			}
 			Close ();
 			break;
-		case 9: Close (); break;
+		case 9:
+			/*
+			 * A power cycle remounts the media, which can fail, so its outcome is
+			 * reported before the menu closes rather than swallowed.
+			 */
+			if (m_pHost != 0 && !m_pHost->PowerCycle ())
+			{
+				snprintf (m_Message, sizeof m_Message, "Could not restart: %s",
+					  m_pHost->GetLastError ());
+				m_nMessageFrames = MESSAGE_FRAMES;
+				break;
+			}
+			Close ();
+			break;
+		case 10: Close (); break;
 		}
 		break;
 

@@ -1716,6 +1716,52 @@ unsigned ATARI_SoundChannels(void)
  * Machine control
  * ======================================================================== */
 
+int ATARI_PowerCycle(const atari_config_t *cfg)
+{
+	if (!s_initialised) {
+		SetError("the emulator is not running");
+		return 0;
+	}
+
+	/*
+	 * A power cycle is a new machine, not a reset.
+	 *
+	 * Atari800_Coldstart() is the CPU's RESET line: it resets PIA, ANTIC and the
+	 * CPU, and the core says in so many words that POKEY and GTIA have no reset
+	 * pin.  GTIA's console-key mask is therefore one of the things that
+	 * survives -- software that writes $D01F can mask a console key out, and a
+	 * masked key reads as *pressed*, so the OS boots as though Option were held:
+	 * no BASIC, and BOOT ERROR when there is no disk to boot from.
+	 *
+	 * So the core is torn down and built again from CFG.  Atari800_Exit() and
+	 * not ATARI_Exit(): the latter also closes the audio device, and reopening
+	 * the HDMI sink hangs this hardware.  PLATFORM_SoundSetup() reuses the open
+	 * device when the stream shape is unchanged, which it is here.
+	 */
+	ATARI_RuntimeLog("power cycle: tearing down");
+
+	Atari800_Exit(FALSE);
+	s_initialised = 0;
+
+	/*
+	 * Zero the 64K the machine sees.  RAM survives a reset -- which is what
+	 * "some software partly survives a cold reset" looks like from the outside
+	 * -- and at power-on it holds nothing.  The 130XE's extra banks belong to
+	 * the core and are not reachable from here; they are cleared when the RAM
+	 * size changes.
+	 */
+	memset(MEMORY_mem, 0, 65536);
+
+	if (!ATARI_Init(cfg)) {
+		SetError("the emulator could not be restarted: %s", ATARI_LastError());
+		return 0;
+	}
+
+	ATARI_RuntimeLog("power cycle: done, PC 0x%04x", (unsigned)CPU_regPC);
+
+	return 1;
+}
+
 void ATARI_ColdReset(void)
 {
 	if (!s_initialised) {
