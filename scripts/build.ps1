@@ -315,6 +315,36 @@ if ($Target -in @('all', 'app')) {
     Write-Ok "$($prof.Image)  ($([math]::Round($size/1KB,1)) KiB)$note"
 
     # -----------------------------------------------------------------------
+    # The file size is not the kernel size.
+    #
+    # .bss is not in the image, so an image of 800 KiB can still be a kernel of
+    # 2.2 MB.  Circle reserves a fixed region for the kernel -- MEM_KERNEL_END is
+    # MEM_KERNEL_START plus KERNEL_MAX_SIZE, 2 MiB -- and places its kernel
+    # stacks and the heap immediately after it.  A kernel whose .bss runs past
+    # that boundary is not merely too large: the heap is then allocated on top of
+    # the kernel's own data, and the machine dies before it can write a single
+    # line of log.  Measure where .bss ends, in the ELF.
+    # -----------------------------------------------------------------------
+    $elf = Join-Path $outDir 'atari-emulator.elf'
+    $nmExe = Join-Path (Join-Path $ArmDev 'bin') 'aarch64-none-elf-nm.exe'
+    if (Test-Path -LiteralPath $elf) {
+        $endLine = & $nmExe $elf 2>$null |
+            Select-String -Pattern '^([0-9a-fA-F]+)\s+B\s+_end\b' |
+            Select-Object -First 1
+        if ($endLine) {
+            $end = [Convert]::ToInt64($endLine.Matches[0].Groups[1].Value, 16)
+            $regionEnd = 0x80000 + (Get-KernelMaxSizeBytes)
+            if ($end -gt $regionEnd) {
+                Write-Fail ("the kernel's .bss ends at 0x{0:X}, past Circle's 2 MiB region (0x{1:X})" -f $end, $regionEnd)
+                $heapMsg = "The heap and stacks start at 0x{0:X}; this kernel would corrupt itself before booting." -f $regionEnd
+                Write-Host "         $heapMsg" -ForegroundColor Red
+                Write-Host "         Move large buffers to the heap instead of declaring them in .bss." -ForegroundColor Red
+                throw 'kernel does not fit in Circle''s kernel region'
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------------
     # The Pi 4's ARM stub
     #
     # The Pi 4 firmware loads a small ARM stub before the kernel, and Circle

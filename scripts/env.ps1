@@ -128,9 +128,12 @@ $script:Profiles = [ordered]@{
 # firmware still considers its own, and the result is a kernel that boots partway
 # and then dies.
 #
-# This project's image is about 1.14 MB including .bss, so 2 MiB is ample.  The
-# value is reported by the build script and checked by verify.ps1 so that an
-# image approaching the limit is noticed, but it is not passed to the compiler.
+# This project's kernel is about 1.5 MB including .bss, of which .bss is the
+# larger half (the 512 KB snapshot buffer dominates it).  That leaves roughly half
+# a megabyte of headroom under the 2 MiB ceiling, so a new buffer of any size
+# belongs on the heap, not in a static array: .bss is not in the image file, so
+# an overrun does not change the reported image size and boots to a black screen
+# with no log.  Both scripts measure `_end` from the ELF for exactly that reason.
 # See external/circle/Config2.mk for the full explanation.
 $script:KernelMaxSizeBytes = 2MB
 

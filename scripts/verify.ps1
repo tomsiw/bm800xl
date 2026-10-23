@@ -109,6 +109,26 @@ foreach ($name in $Profile) {
         if ($symbols -notmatch '_start') {
             $issues.Add("the _start symbol is missing, so the image cannot boot")
         }
+
+        # The kernel has to fit in Circle's fixed region, .bss included.
+        #
+        # MEM_KERNEL_END is MEM_KERNEL_START (0x80000) plus KERNEL_MAX_SIZE
+        # (2 MiB), and Circle puts its kernel stacks and the heap right after
+        # that boundary.  An image whose .bss ends past it is corrupted by its
+        # own heap at the first allocation: the machine shows a black screen and
+        # writes no log at all, which cannot be diagnosed from the card.  The
+        # file size says nothing about this, because .bss is not in the image.
+        $endMatch = [regex]::Match($symbols, '(?m)^([0-9a-fA-F]+)\s+B\s+_end\b')
+        if ($endMatch.Success) {
+            $end = [Convert]::ToInt64($endMatch.Groups[1].Value, 16)
+            $regionEnd = 0x80000 + (Get-KernelMaxSizeBytes)
+            if ($end -gt $regionEnd) {
+                $issues.Add(("the kernel's .bss ends at 0x{0:X}, past Circle's 2 MiB region (0x{1:X}); the heap starts there, so it would overwrite the kernel" -f $end, $regionEnd))
+            }
+        }
+        else {
+            $issues.Add("the _end symbol is missing, so the kernel's size cannot be checked")
+        }
     }
 
     if ($issues.Count -eq 0) {

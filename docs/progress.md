@@ -229,6 +229,19 @@ failures. They are listed because they are invisible until they bite.
     image" stayed broken and unnoticed. When adding a menu command, add the key
     to both drivers' lists or it will never arrive.
 
+14. **The kernel image has a fixed 2 MB region, and `.bss` counts.** Circle's
+    `MEM_KERNEL_END` is `MEM_KERNEL_START` (0x80000) plus `KERNEL_MAX_SIZE`
+    (2 MB), and it places the kernel stack and the heap immediately after that
+    boundary (`memorymap64.h`). A 640 KB static buffer added while reworking the
+    OSD pushed `_end` to 0x2AB300 — 173 KB past the boundary — and the machine
+    then did nothing at all: black screen, no boot log, nothing on the card to
+    read, because the stack and then the heap were sitting inside the kernel's
+    own data. The image file is not the kernel: `.bss` is not in it, so its size
+    said 816 KB while the kernel was 2.2 MB. `build.ps1` and `verify.ps1` now read
+    `_end` from the ELF and refuse an image that does not fit; large buffers
+    belong on the heap. Current headroom is about 450 KB, which is not a lot —
+    check before adding another buffer.
+
 ---
 
 ## 6. Known limitations
