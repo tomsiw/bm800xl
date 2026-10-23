@@ -8,10 +8,11 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `cb266e6`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `6712e7b`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
-does not fit in Circle's 2 MB region.
+does not fit in Circle's 2 MB region; the OSD font is selectable and its layout
+follows it.
 
 ---
 
@@ -145,6 +146,7 @@ here so they are not rediscovered.
 | `7713607` | MAC/65's DDT could not take control: the emulator stopped at its BRK | the core's `LIBATARI800` build treats BRK as "the program ended" and longjmps out of the frame unless `libatari800_continue_on_brk` is set. The instruction is abandoned after its opcode fetch, so the push and the vector never happen. Now `CONTINUE_ON_BRK` in the settings file, default 1, which runs BRK as the machine does. |
 | `9981c01` | the docs say Delete ejects an image, and it never did | the menu only receives the keys the keyboard drivers classify as menu keys, and neither list contained Delete: `MenuKeyForUsage()` on USB and `MenuKeyForPosition()` on GPIO both stopped at the arrows, Return, Escape and Space. The menu's handler for it was unreachable, in the same way `UpdatePlugAndPlay()` was. Delete is now classified on USB, and the GPIO driver maps BACK SPACE to it, because the Atari's Delete is CTRL+BACK SPACE and the menu cannot see modifiers. |
 | `9981c01` | no way to remove an old snapshot | the Snapshots screen could write and read files but never erase one. Erasing now has a screen of its own, *Erase snapshot*, reached like the others: the save and load browsers were the wrong place to put it, because a file could then be lost in a screen opened for another purpose. Return or Delete asks, a second press erases, and any other key cancels **and takes the question off the screen** — leaving it there made a cancelled action look pending. |
+| `6712e7b` | a long directory listing ran past the bottom of the menu panel | the browser drew a fixed 20 rows, but the panel holds about 14 at the font the menu used: the last rows were drawn over the status line and the footer, and a transient message was drawn on top of them. The row count is derived from the panel and the font now, and limited by the message line. |
 
 ---
 
