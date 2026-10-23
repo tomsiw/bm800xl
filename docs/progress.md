@@ -8,13 +8,14 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `e8c1562`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `fabd27b`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
-at twice its size, compiled in as data, and its layout follows the font; and user
-media can live on the USB drive or in `SD:/USERDATA`, chosen by the settings file.
-Checked on a Pi 400 and a Zero 2 W.
+at twice its size, compiled in as data, and its layout follows the font; user
+media can live on the USB drive or in `SD:/USERDATA`, chosen by the settings file;
+and a disk mounted read/write is genuinely writable, with its mode changeable
+while it stays inserted. Checked on a Pi 400 and a Zero 2 W.
 
 ---
 
@@ -149,6 +150,7 @@ here so they are not rediscovered.
 | `9981c01` | the docs say Delete ejects an image, and it never did | the menu only receives the keys the keyboard drivers classify as menu keys, and neither list contained Delete: `MenuKeyForUsage()` on USB and `MenuKeyForPosition()` on GPIO both stopped at the arrows, Return, Escape and Space. The menu's handler for it was unreachable, in the same way `UpdatePlugAndPlay()` was. Delete is now classified on USB, and the GPIO driver maps BACK SPACE to it, because the Atari's Delete is CTRL+BACK SPACE and the menu cannot see modifiers. |
 | `9981c01` | no way to remove an old snapshot | the Snapshots screen could write and read files but never erase one. Erasing now has a screen of its own, *Erase snapshot*, reached like the others: the save and load browsers were the wrong place to put it, because a file could then be lost in a screen opened for another purpose. Return or Delete asks, a second press erases, and any other key cancels **and takes the question off the screen** — leaving it there made a cancelled action look pending. |
 | `6712e7b` | a long directory listing ran past the bottom of the menu panel | the browser drew a fixed 20 rows, but the panel holds about 14 at the font the menu used: the last rows were drawn over the status line and the footer, and a transient message was drawn on top of them. The row count is derived from the panel and the font now, and limited by the message line. |
+| `fabd27b` | a disk mounted read/write was still write-protected, and one mounted read-only could not be made writable | three faults, each enough on its own. The ATR header's write-protect byte forced the drive read-only whatever mode the file was opened in, and the menu's `[ro]` setting was never consulted. `ATARI_VFS_Open` decoded `"rb+"` as read-only, so even a read/write mount dropped every sector the machine wrote while `SIO_WriteSector` reported success. And the mode is fixed when the file is opened, so toggling `[ro]` changed only the setting — while ejecting reset it to read-only, so re-inserting the same image always came back protected. All three are fixed, the mount log now reports the mode the drive actually has, and the cassette had the same shape of bug in its toggle. |
 
 ---
 
@@ -256,6 +258,18 @@ failures. They are listed because they are invisible until they bite.
     nearly every glyph is empty, so "the first byte is zero" is not a way to test
     whether a ROM contains a character set — that check rejected a perfectly good
     ATARIXL.ROM twice before it was found.
+
+16. **A disk image carries its own write-protect flag, and the file layer's
+    modes are not C's.** The last byte of an ATR's 16-byte header marks the image
+    write-protected, and the core honours it regardless of how the file was
+    opened; the drive then reports bit 3 of its status, which SpartaDOS calls
+    error 144. This project's `[ro]` menu entry is the decision that counts, so
+    `ignore_header_writeprotect` is set once at start-up — a plain global in
+    `sio.c` with no setter, declared `extern` in the port. Separately, `fopen` is
+    `ATARI_VFS_Open` inside the core, and `"rb+"` must ask FatFs for `FA_WRITE`:
+    without it the open succeeds, every write is refused, and `SIO_WriteSector`
+    reports success anyway. Read-only is also fixed at open time, so changing it
+    means re-opening the drive — an open image cannot be switched.
 
 ---
 
