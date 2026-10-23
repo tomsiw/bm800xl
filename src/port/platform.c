@@ -86,6 +86,20 @@ jmp_buf libatari800_cpu_crash;
  * so they are supplied from outside and recorded here.
  * ======================================================================== */
 
+/*
+ * The core honours an ATR image's own write-protect flag -- the last byte of its
+ * sixteen-byte header -- whatever mode the file was opened in, and it offers no
+ * setter for the flag that turns that off.  This project's menu decides per disk
+ * instead, with its [ro] entry, so an image carrying the flag could never be
+ * written: the drive reports write-protected and the machine refuses, even
+ * though read/write was asked for.  The core's rule is therefore turned off
+ * once, in ATARI_Init().
+ *
+ * Declared here rather than from a core header because the core does not put it
+ * in one: it is a plain global in sio.c.
+ */
+extern int ignore_header_writeprotect;
+
 typedef uint64_t (*host_clock_fn)(void *context);
 typedef void (*host_idle_fn)(void *context, uint32_t microseconds);
 
@@ -1116,6 +1130,14 @@ int ATARI_Init(const atari_config_t *cfg)
 	Atari800_turbo = FALSE;
 
 	/*
+	 * The menu's per-disk [ro] setting is the one that decides, so the image's
+	 * own write-protect flag is not consulted -- see the declaration above.
+	 * Done before the core starts, because a snapshot restore remounts the
+	 * disks from inside the core, where ATARI_MountDisk() is not involved.
+	 */
+	ignore_header_writeprotect = TRUE;
+
+	/*
 	 * Keep the emulated screen pristine: the core can draw a disk activity
 	 * LED and a speed meter directly into the framebuffer, which this project
 	 * does not want.
@@ -2014,11 +2036,27 @@ int ATARI_MountDisk(int drive, const char *path, int read_only)
 	if (SIO_Mount(drive, path, read_only)) {
 		unsigned nUsed = 0, nTotal = 0;
 
+		/*
+		 * Report what the drive really is, not what was asked for.
+		 *
+		 * With ignore_header_writeprotect set (see ATARI_Init) the only way a
+		 * read/write request comes back read-only is that the file itself could
+		 * not be opened for writing -- a read-only file attribute, or a locked
+		 * card.  Silently dropping the writes is the one outcome that must not
+		 * happen unnoticed: the emulated 1050 reports success to the machine
+		 * whatever the file layer does.
+		 */
+		if (!read_only && SIO_drive_status[drive - 1] != SIO_READ_WRITE) {
+			ATARI_RuntimeLog("disk %d: %s cannot be opened for writing; "
+			                 "the drive is read only", drive, path);
+		}
+
 		ATARI_VFS_GetHandleStats(&nUsed, &nTotal);
 
-		ATARI_RuntimeLog("disk %d: mounted %s%s -- file handles %u of %u used",
+		ATARI_RuntimeLog("disk %d: mounted %s (%s) -- file handles %u of %u used",
 		                 drive, path,
-		                 read_only ? " (read only)" : "",
+		                 SIO_drive_status[drive - 1] == SIO_READ_WRITE
+		                 ? "read/write" : "read only",
 		                 nUsed, nTotal);
 
 		/*
@@ -2218,6 +2256,29 @@ int ATARI_MountCartridge(const char *path)
 	}
 }
 
+int ATARI_SetCassetteWriteProtect(int read_only)
+{
+	int want = read_only ? 1 : 0;
+
+	if (!s_initialised) {
+		SetError("the emulator is not running");
+		return 0;
+	}
+	if (CASSETTE_status != CASSETTE_STATUS_READ_WRITE) {
+		SetError("no cassette is inserted");
+		return 0;
+	}
+	if (CASSETTE_write_protect == want) {
+		return 1;
+	}
+	if (!CASSETTE_ToggleWriteProtect()) {
+		SetError("the cassette cannot be toggled");
+		return 0;
+	}
+
+	return CASSETTE_write_protect == want;
+}
+
 int ATARI_MountCassette(const char *path, int read_only)
 {
 	if (!s_initialised) {
@@ -2237,14 +2298,13 @@ int ATARI_MountCassette(const char *path, int read_only)
 	if (CASSETTE_Insert(path)) {
 		/*
 		 * The core keeps the write protect state, not the caller, and exposes
-		 * it as a toggle.  Bring it to the requested state.
+		 * it as a toggle whose return value says whether it toggled -- not what
+		 * the state became.  So the state itself is compared, not the result.
 		 */
-		if (CASSETTE_ToggleWriteProtect() != (read_only ? 1 : 0)) {
-			CASSETTE_ToggleWriteProtect();
-		}
+		ATARI_SetCassetteWriteProtect(read_only);
 
 		ATARI_RuntimeLog("cassette: mounted %s, write protect %s", path,
-		                 read_only ? "on" : "off");
+		                 CASSETTE_write_protect ? "on" : "off");
 		return 1;
 	}
 
@@ -2253,8 +2313,7 @@ int ATARI_MountCassette(const char *path, int read_only)
 	return 0;
 }
 
-int ATARI_BootFile(const char *path)
-{
+int ATARI_BootFile(const char *path){
 	int file_type;
 
 	if (!s_initialised || path == 0 || path[0] == '\0') {

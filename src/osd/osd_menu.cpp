@@ -593,11 +593,20 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 		return "";
 
 	case ScreenCassette:
-		if (nIndex == 0)
+		// Shown like the disks: the name, and the protection state, because
+		// Left/Right changes it and the row is the only place that says so.
+		if (nIndex != 0)
 		{
-			return BaseName (S.CassettePath);
+			return "";
 		}
-		return "";
+		if (S.CassettePath[0] == '\0')
+		{
+			return "(empty)";
+		}
+		snprintf (Text, sizeof Text, "%s%s",
+			  BaseName (S.CassettePath),
+			  S.bCassetteReadOnly ? "  [ro]" : "");
+		return Text;
 
 	case ScreenMachine:
 		switch (nIndex)
@@ -770,6 +779,27 @@ void CAtariMenu::AdjustSetting (int nDelta)
 				break;
 			}
 			S.DiskReadOnly[nDrive] = S.DiskReadOnly[nDrive] ? FALSE : TRUE;
+
+			/*
+			 * Apply it now.  Read-only is decided when the image file is
+			 * opened, so an open drive can never be changed: it has to be
+			 * re-opened for the new mode to reach the machine.  Without this
+			 * the row said one thing and the drive did another, until the disk
+			 * happened to be inserted again.
+			 */
+			if (   m_pHost == 0
+			    || !m_pHost->MountDisk (nDrive + 1, S.DiskPath[nDrive],
+						    S.DiskReadOnly[nDrive]))
+			{
+				snprintf (m_Message, sizeof m_Message, "Could not re-open: %s",
+					  m_pHost != 0 ? m_pHost->GetLastError ()
+						       : "the emulator is not available");
+				m_nMessageFrames = MESSAGE_FRAMES;
+
+				// The drive did not change, so neither should the row.
+				S.DiskReadOnly[nDrive] = S.DiskReadOnly[nDrive] ? FALSE : TRUE;
+				bChanged = FALSE;
+			}
 		}
 		break;
 
@@ -793,6 +823,22 @@ void CAtariMenu::AdjustSetting (int nDelta)
 		if (m_nSelected == 0)
 		{
 			S.bCassetteReadOnly = S.bCassetteReadOnly ? FALSE : TRUE;
+
+			/*
+			 * Re-mounting would rewind the tape, so the port changes the
+			 * protection in place; the tape keeps its position.
+			 */
+			if (   m_pHost == 0
+			    || !m_pHost->SetCassetteWriteProtect (S.bCassetteReadOnly))
+			{
+				snprintf (m_Message, sizeof m_Message, "Could not apply: %s",
+					  m_pHost != 0 ? m_pHost->GetLastError ()
+						       : "the emulator is not available");
+				m_nMessageFrames = MESSAGE_FRAMES;
+
+				S.bCassetteReadOnly = S.bCassetteReadOnly ? FALSE : TRUE;
+				bChanged = FALSE;
+			}
 		}
 		else
 		{
@@ -894,7 +940,13 @@ void CAtariMenu::EjectSelection (void)
 			m_pHost->MountDisk (nDrive + 1, "",
 					    S.DiskReadOnly[nDrive]);
 			S.DiskPath[nDrive][0] = '\0';
-			S.DiskReadOnly[nDrive] = TRUE;
+
+			/*
+			 * The read-only choice stays with the drive, not with the image:
+			 * ejecting and inserting the same disk again keeps the mode it was
+			 * given, and inserting a different one starts the way the drive was
+			 * left.  It is shown on the row, and Left/Right changes it.
+			 */
 			pWhat = "Drive ejected";
 		}
 		break;

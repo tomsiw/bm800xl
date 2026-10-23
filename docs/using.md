@@ -149,10 +149,23 @@ Disk and cassette images can be written to:
   writes is written back to the file, so you can format a disk, save a program,
   and the changes persist on the USB drive.
 - If a disk is meant to be preserved, set its read-only flag with Left/Right on
-  its menu entry. It then appears as `[ro]`, and the core falls back to opening
-  it read-only.
-- A cassette image is opened read-only by default. Use Left/Right on its menu
-  entry to toggle write protection before loading it.
+  its menu entry. It then appears as `[ro]`, and the drive is re-opened read-only
+  **at once** — the machine sees the new mode without the disk being re-inserted.
+- The flag belongs to the drive, not to the image: ejecting a disk keeps it, so
+  re-inserting the same image gives the same mode, and inserting a different one
+  starts the way the drive was left. The row shows it either way.
+- A cassette image is opened read/write by default, like a disk. Use Left/Right
+  on its entry to protect it; the row then says `[ro]`, and the tape keeps its
+  position when the protection changes.
+
+That menu entry is the only thing that decides. An ATR image can carry a
+write-protect flag of its own, in the last byte of its 16-byte header, and many
+images in circulation have it set; it is ignored here, so a disk mounted without
+`[ro]` is writable even if the image asks not to be. What is *not* ignored is the
+file system: if the image file is marked read-only, or the card is locked, the
+drive comes up read-only instead, and the log says
+`disk <n>: <path> cannot be opened for writing`. `disk <n>: mounted <path>
+(read/write)` or `(read only)` in the log is what the drive actually is.
 
 Writing to a real FAT file system from a bare-metal program is the part of this
 emulator most likely to surprise you if something goes wrong. Keep a copy of

@@ -297,6 +297,16 @@ FILE *ATARI_VFS_Open(const char *path, const char *mode)
 	switch (mode[0]) {
 	case 'r':
 		want_read = 1;
+		/*
+		 * "r+" and "rb+" mean read *and* write.  Update mode is carried by the
+		 * '+' alone; opening with FA_READ and no FA_WRITE looks successful but
+		 * makes FatFs refuse every write with FR_DENIED.  That is how a disk
+		 * mounted read/write silently dropped every sector the machine wrote:
+		 * the emulated 1050 does not check fwrite's result.
+		 */
+		if (strchr(mode, '+') != 0) {
+			want_write = 1;
+		}
 		break;
 	case 'w':
 		want_write = 1;
@@ -312,7 +322,7 @@ FILE *ATARI_VFS_Open(const char *path, const char *mode)
 		return 0;
 	}
 
-	if (strchr(mode, '+') != 0 && !append) {
+	if (strchr(mode, '+') != 0) {
 		want_read = 1;
 	}
 

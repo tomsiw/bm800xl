@@ -540,6 +540,15 @@ int ATARI_MountCartridge(const char *path);
 /* Mounts a cassette image (CAS format) or removes the current one. */
 int ATARI_MountCassette(const char *path, int read_only);
 
+/*
+ * Sets the write protection of the inserted cassette, without re-inserting it.
+ *
+ * Re-mounting a tape to change this would rewind it, so the tape position is
+ * kept and only the protection state changes.  Returns 1 on success; 0 if no
+ * cassette is inserted or it cannot be toggled.
+ */
+int ATARI_SetCassetteWriteProtect(int read_only);
+
 /* Inserts a bootable executable (XEX) and reboots into it. */
 int ATARI_BootFile(const char *path);
 

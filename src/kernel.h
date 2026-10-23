@@ -113,6 +113,7 @@ public:
 	boolean MountDisk (int nDrive, const char *pPath, boolean bReadOnly);
 	boolean MountCartridge (const char *pPath);
 	boolean MountCassette (const char *pPath, boolean bReadOnly);
+	boolean SetCassetteWriteProtect (boolean bReadOnly);
 	boolean SaveSnapshot (const char *pPath);
 	boolean LoadSnapshot (const char *pPath);
 	void ColdReset (void);

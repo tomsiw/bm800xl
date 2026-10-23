@@ -1762,6 +1762,11 @@ boolean CAtariKernel::MountCassette (const char *pPath, boolean bReadOnly)
 	return ATARI_MountCassette (pPath, bReadOnly) ? TRUE : FALSE;
 }
 
+boolean CAtariKernel::SetCassetteWriteProtect (boolean bReadOnly)
+{
+	return ATARI_SetCassetteWriteProtect (bReadOnly) ? TRUE : FALSE;
+}
+
 boolean CAtariKernel::SaveSnapshot (const char *pPath)
 {
 	return ATARI_SaveSnapshot (pPath) ? TRUE : FALSE;

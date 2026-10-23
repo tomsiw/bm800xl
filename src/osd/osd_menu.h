@@ -51,6 +51,10 @@ public:
 	virtual boolean MountCartridge (const char *pPath) = 0;
 	virtual boolean MountCassette (const char *pPath, boolean bReadOnly) = 0;
 
+	// Changes the inserted cassette's write protection without re-inserting it,
+	// which would rewind the tape.
+	virtual boolean SetCassetteWriteProtect (boolean bReadOnly) = 0;
+
 	virtual boolean SaveSnapshot (const char *pPath) = 0;
 	virtual boolean LoadSnapshot (const char *pPath) = 0;
 
