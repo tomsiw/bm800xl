@@ -1,0 +1,52 @@
+MIT License
+
+Copyright (c) 2026 Atari XL/XE bare-metal emulator contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+This licence covers the code of this project itself: src/, scripts/, docs/,
+patches/, the Makefiles, and the files in the repository root.
+
+It does not cover the third-party components that this project builds against
+and that are vendored under external/ so that the build is reproducible.  They
+keep their own licences, which are the ones their authors granted:
+
+  external/circle/     Circle, GNU General Public License version 3
+                       (see external/circle/LICENSE)
+  external/atari800/   Atari800, GNU General Public License version 2 or later
+                       (see external/atari800/COPYING)
+  external/circle/addon/fatfs/LICENSE.txt
+                       FatFs, permissive (see the file)
+
+The built kernel links Circle and Atari800 into a single binary.  That binary is
+therefore a combined work under the GNU General Public License version 3, and a
+binary distributed to anyone carries the obligations of that licence: the
+corresponding source, including this project's own source, must be made
+available under the GPL as well.  The MIT grant above is the licence of this
+project's source as published; it does not and cannot relicense Circle or
+Atari800.
+
+Atari OS ROM images are not part of this repository and are not distributed with
+it: ROMS/ is excluded from version control, and the images must be supplied by
+whoever operates the emulator.
+
+Atari, Atari 800, Atari XL and Atari XE are trademarks of Atari Interactive,
+Inc.  This project is not affiliated with or endorsed by Atari.

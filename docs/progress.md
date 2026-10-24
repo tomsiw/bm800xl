@@ -35,7 +35,7 @@ and a Zero 2 W.
 |---|---|
 | Video | 1280x720, picture 960x720, correct 4:3 with black side bars |
 | Frame rate, Pi 400 | **49.8 fps** against a 50 fps target |
-| Frame rate, Pi Zero 2 W | **49.7 fps** — the primary target, verified |
+| Frame rate, Pi Zero 2 W | **49.8 fps PAL, 59.9 fps NTSC**, no picture skipped — the primary target, verified |
 | Sound | correct over HDMI; volume applies live; stereo needs a restart |
 | Disk / cartridge / cassette | loading verified; eMMC faults fixed; media from the USB drive or `SD:/USERDATA`, chosen in the settings file; standard tapes load fast, turbo tapes after the automatic power cycle |
 | Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
@@ -368,6 +368,13 @@ failures. They are listed because they are invisible until they bite.
   inability remains.
 - **Pi 3 and Pi 5 unverified.** The Pi 5 image has a page-flip branch that has
   never executed.
+- **The OSD font is the one piece of this repository that is not ours to
+  license.** `src/osd/atari_font.cpp` holds the XL/XE character shapes, extracted
+  from an OS image. The ROM images themselves are excluded from version control,
+  but these 128 glyphs are compiled in, so publishing the repository publishes
+  them. Everything else is clean: this project's code is MIT, Circle is GPLv3,
+  Atari800 is GPLv2-or-later, FatFs is permissive, and the combination of the two
+  GPLs is lawful because of the "or later" clause.
 
 ---
 
@@ -376,14 +383,18 @@ failures. They are listed because they are invisible until they bite.
 Everything below was verified on a **Pi 400** (720p, HDMI, monitor with speakers)
 and a **Pi Zero 2 W** (720p, monitor without audio).
 
-Verified: boot to BASIC; disk, cartridge and cassette mounting; settings applied at
-startup and persisted; crash marker recovery; menu navigation; sound; 49.7/49.8 fps;
-USB keyboard direct, and hot-plugged; USB gamepads — both a generic pad and a Switch
-Pro — attached before power-on and while running, with unplug, re-plug and swap;
-snapshots — save, save as new, load, and erase from the Erase snapshot screen.
+Verified: boot to BASIC; disk, cartridge and cassette mounting, and cassette
+reading at both standard and turbo timing; disk write-back from a read/write
+mount; settings applied at startup and persisted; crash marker recovery; menu
+navigation, including the power cycle; `STATIC_OSD=1`; sound; 49.8 fps PAL and
+59.9 fps NTSC with nothing skipped; USB keyboard direct, and hot-plugged; USB
+gamepads — both a generic pad and a Switch Pro — attached before power-on and
+while running, with unplug, re-plug and swap; snapshots — save, save as new, load,
+and erase from the Erase snapshot screen.
 
 Not verified: GPIO keyboard, 9-pin GPIO joysticks, the second keyboard mode, the
-128/192/320/321 kB RAM configurations in use, cassette beyond insertion, Pi 3/Pi 5.
+128/192/320/321 kB RAM configurations in use, cassette writing, hot-plugging USB
+storage, sound on the Zero 2 W, Pi 3/Pi 5.
 
 BASIC's `STICK(n)` / `STRIG(n)` are the cheapest joystick test:
 `15` = centred, `1` = no fire.

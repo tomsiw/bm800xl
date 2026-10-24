@@ -113,19 +113,18 @@ Check the name character by character. `kernel_2712.img` has an underscore, and
 `kernel8-rpi4.img` will only be loaded on a Pi 4 — on a Zero 2 W or Pi 3 the
 firmware looks for `kernel8.img` and will not find it.
 
-### 2. Is the image larger than 4 MiB?
+### 2. Is the image larger than 2 MiB?
 
-Circle's `sysinit()` checks the kernel against `KERNEL_MAX_SIZE`, and if it is
-over, **halts silently**. No message, no colour, nothing.
+Circle's `sysinit()` checks the kernel against `KERNEL_MAX_SIZE`, which is 2 MiB,
+and if it is over, **halts silently**. No message, no colour, nothing.
 
 ```powershell
 Get-Item build\kernel64\kernel8.img | Select-Object Length
 ```
 
-The build script prints a warning when this happens, and `verify.ps1` reports it
-too. `scripts/build.ps1` passes `KERNEL_MAX_SIZE=4 * MEGABYTE` to Circle; if you
-build Circle by hand without that, you get the 2 MiB default and the emulator will
-not fit.
+The built images are about 820–845 KiB, so this is unlikely unless something has
+gone wrong in the link. `verify.ps1` reports the image size and checks where the
+kernel's `.bss` ends against Circle's region.
 
 ### 3. Is `config.txt` right, and are the firmware files present?
 
@@ -463,19 +462,31 @@ to `1` to stop reporting BRKs. See [the settings file](using.md#the-settings-fil
 
 ## Performance is poor
 
-The frame rate is shown in the menu. The targets are 49.86 fps (PAL) and
-59.92 fps (NTSC).
+The menu shows the frame rate it is *aiming* for — 49.86 fps in PAL, 59.92 in
+NTSC — not the rate achieved. The achieved rate is in the `stats` line of the
+runtime log (see [Getting diagnostic information](#getting-diagnostic-information)). A Zero 2 W reaches both, so a low figure is not normal on any
+supported board.
 
-If it is low:
+Two things worth knowing before changing anything:
 
-- Build the optimised profile for the board — `kernel64-pi4`
-  for a Pi 4.
+- The emulated machine is never slowed down to fix the picture. If a frame cannot
+  be drawn within its deadline, the picture is skipped instead, and the periodic
+  `stats` line in the runtime log says how many were skipped ("N skipped"); the
+  emulated frame count stays at 50 or 60. So a *low fps* means the emulation
+  itself is being starved, while *skipped pictures with normal fps* means only the
+  display is struggling.
+- Accurate PAL blending is per-pixel and expensive; it is the first display option
+  to turn off.
+
+If the frame rate is low:
+
+- Build the optimised profile for the board — `kernel64-pi4` for a Pi 4.
 - Turn off accurate PAL blending (F12 → Display → Artifacting → `PAL blending
-  (accurate)` → `None` or `PAL blending (simple)`). Accurate blending is
-  per-pixel and the most expensive display option.
+  (accurate)` → `None` or `PAL blending (simple)`).
 - Use the 720p output rather than 1080p: it is roughly four times less video
   memory bandwidth.
-- Prefer NTSC for software that does not require PAL.
+- On a board that cannot keep up, `STATIC_OSD=1` makes the OSD cheap; see
+  [Using the emulator](using.md).
 
 ---
 
@@ -504,12 +515,14 @@ Most problems can be identified from that list alone.
 Once the machine is running, the log keeps a heartbeat so that a hang is
 distinguishable from a healthy machine:
 
-- `stats: …` every **fifteen seconds** — achieved frame rate, frame count, PC,
-  ANTIC state and the disk read counters. If the file stops growing, the machine
-  stopped there.
+- `stats: …` every **thirty seconds** — the achieved frame rate and frame count,
+  and the number of pictures skipped in that window when there were any. If the
+  file stops growing, the machine stopped there.
 - `boot t=30s` / `boot t=60s` after a cold reset — the same idea for a machine
-  that is running but never boots, with `PORTB` (the RAM bank the OS has selected)
-  and the error count added.
+  that is running but never boots, with `PC`, `DMACTL`, the display list address,
+  `PORTB` (the RAM bank the OS has selected) and the error count.
+- `OSD: opened` / `OSD: closed` whenever the menu is toggled, whichever way it was
+  toggled — useful for telling a crash while the menu was up from one after it.
 
 Both are deliberately sparse: every line is written and flushed to the card, and
 the machine's frame budget is the thing being measured.

@@ -349,7 +349,7 @@ Before blaming the build, check:
 - `config.txt` is present and is Circle's `config64.txt`, not one written for a
   Linux installation. A `config.txt` containing `cmdline.txt`-style options or a
   `dtoverlay=` for Linux hardware will confuse the firmware.
-- The kernel image is smaller than 4 MiB. An over-sized image makes `sysinit()`
-  halt silently; there is no error, only a dark screen.
+- The kernel image is smaller than Circle's 2 MiB kernel limit. An over-sized
+  image makes `sysinit()` halt silently; there is no error, only a dark screen.
 
 If the screen stays dark, see [Troubleshooting](troubleshooting.md).

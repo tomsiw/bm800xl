@@ -11,29 +11,20 @@ It is built on two upstream projects:
 | Emulation | [Atari800](https://github.com/atari800/atari800) | The emulated machine: 6502 CPU, ANTIC, GTIA, POKEY, PIA, SIO, memory, cartridges, cassettes |
 
 The result is in the same spirit as [BMC64](https://github.com/randyrossi/bmc64)
-(a bare-metal Commodore 64 for the Pi) and draws on
-[Altirra](https://www.virtualdub.org/altirra.html) for emulation accuracy
-priorities. **No code was taken from BMC64.** The Atari800 sources are used
-unmodified apart from one documented one-line change (see
-[Atari800 integration](docs/atari800-integration.md)).
+(a bare-metal Commodore 64 for the Pi). The Atari800 sources and Circle library are used mostly 
+unmodified.
 
 ---
 
 ## What it does
 
 **Emulated machines**
-- Atari XL (600XL / 800XL) and XE (65XE / 130XE), plus the XE Game System
+- Atari XL (600XL / 800XL) and XE (65XE / 130XE)
 - RAM configurations: 64 kB, 128 kB, 192 kB, 320 kB RAMBO XL, 320 kB Compy Shop
-
-> There is deliberately **no 256 kB option**. The Atari800 core has no 256 kB
-> RAM configuration — `MEMORY_SizeValid()` accepts 64, 128, 192,
-> 320 RAMBO and 320 Compy Shop but not 256. A "256 kB RAMBO XL" upgrade in the
-> real world expands in 16 kB banks, and the closest supported equivalent is
-> the 320 kB RAMBO configuration, which is what this emulator offers instead.
 
 **Display**
 - PAL and NTSC, switchable while running
-- Upscaled to 1280x720 by default, or 1920x1080
+- Upscaled to 1280x720 by default
 - Original Atari aspect ratio preserved: the picture fills the screen height and
   is padded left and right with black rather than stretched to 16:9
 - PAL colour blending and NTSC artifacting, selectable
@@ -45,16 +36,24 @@ unmodified apart from one documented one-line change (see
 **Storage**
 - Up to four disk drives, ATR and XFD images, **read and write**
 - Cartridges in CAR format
-- Cassettes in CAS format, **read and write**
-- Disk and cartridge images live on a **USB drive**; settings, snapshots and the
-  OS ROM images live on the **SD card**
+- Cassettes in CAS format, **read and write**, in both standard and turbo timing —
+  a turbo tape is detected when it is inserted and needs a power cycle to switch
+  the machine into the mode it requires
+- Disk and cartridge images live on a **USB drive** or on the **SD card**
+  (`SD:/USERDATA`); settings, snapshots and the OS ROM images live on the
+  **SD card**
 
 **Input**
 - *Mode 1:* a USB keyboard, with the Atari console keys and cursor keys mapped on
-- *Mode 2:* a real Atari keyboard wired to the GPIO header as a scan matrix
+- *Mode 2:* a real Atari keyboard wired to the GPIO header as a scan matrix (never tested)
 
 **Other**
-- OSD menu (F12, or Shift+Help on an Atari keyboard)
+- OSD menu (F12, or Shift+Help on an Atari keyboard), drawn in the Atari
+  character set, with a power cycle for the cases a reset cannot fix
+- `STATIC_OSD=1` for slow boards: the menu is drawn over the frame already on
+  screen instead of repainting the picture under it
+- Adaptive fill: if a frame cannot be drawn within its deadline, the picture is
+  skipped rather than the emulation, and the skip is reported in the log
 - Machine snapshots: save and load
 - All settings persisted on the SD card automatically
 
@@ -77,8 +76,8 @@ pwsh -ExecutionPolicy Bypass -File scripts\build.ps1 -Profile kernel64-pi5
 pwsh -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-Both build to about 800 KiB, comfortably inside Circle's 4 MiB kernel limit. Then
-follow [Building](docs/building.md), or jump straight to
+Both build to about 820 KiB, comfortably inside Circle's **2 MiB** kernel limit.
+Then follow [Building](docs/building.md), or jump straight to
 [docs/sd-card-setup.md](docs/sd-card-setup.md) if you already have the images.
 
 ---
@@ -146,6 +145,7 @@ second set of build products to cover no model that the 64-bit one does not.
 | [Architecture](docs/architecture.md) | How the pieces fit together, for anyone modifying it |
 | [Atari800 integration](docs/atari800-integration.md) | How the core is configured and the one change made to it |
 | [Troubleshooting](docs/troubleshooting.md) | What to do when there is no picture, no sound, or no disk |
+| [Progress](docs/progress.md) | The working ledger: what was changed and why, measured results, known limitations, what has been tested |
 
 Two longer reference documents are also kept here. They are working notes rather
 than manuals, but they record the API details the port depends on, each cited to
@@ -164,24 +164,36 @@ the exact upstream file and line:
 Makefile.core        Builds the Atari800 core + this project's platform layer
                      into build/lib/libatari800.a
 Makefile.app         Links the kernel image, driven by Circle's own Rules.mk
+Makefile.probe       The same for the USB/gamepad probe kernels in probe/
 scripts/
   env.ps1            Toolchain paths and profiles (edit here if your tools differ)
   build.ps1          Builds the core, Circle and the image; cleans on target change
+  build.bat          One-line wrapper that runs build.ps1 from cmd.exe
   build-armstub.ps1  Builds Circle's Pi 4 ARM stub (armstub8-rpi4.bin)
+  build-probe.ps1    Builds the bring-up probes in probe/
+  build-diagnostic.ps1
+                     Builds a kernel that reports stage colours on screen
+  bootlog_test.c     Stand-alone test of the boot log's ring buffer
   fetch-firmware.ps1 Downloads the Raspberry Pi boot firmware for the SD card
   verify.ps1         Checks each image's AArch64 type, entry point, name and size
   fetch-sources.ps1  Fetches the pinned upstream revisions and applies the patch
 patches/
   atari800-statesav-size.patch
                      The one change made to the Atari800 sources, with the reason
+probe/               Bring-up kernels: USB keyboard, gamepad, display, timing
+docs/                The manual and the reference notes listed above
 src/
   kernel.cpp/.h      Main application: bring-up order and the frame loop
   main.cpp           Circle entry point
+  main_probe.cpp     Same, for the probe kernels
+  bootlog.cpp/.h     Boot log, stage colours and the runtime log file
   core/config.h      The Atari800 core's build configuration (replaces autoconf)
   port/              The platform layer: everything the core calls out to
     atari_port.h       The interface the rest of the kernel uses
     platform.c         Platform hooks, machine configuration, snapshots
     sound_bridge.c     POKEY output to the audio device
+    audio_out.h        The audio device interface the port uses
+    host_services.h    What the port needs from the kernel
     vfs.c/.h           The file system the core sees (over FatFs)
     ui_stub.c          Headless stand-in for the core's own menu
   video/             Framebuffer, scaling, and the drawing primitives
@@ -189,12 +201,12 @@ src/
   input/             USB and GPIO keyboards, USB gamepads, GPIO joysticks
   storage/           SD card and USB file access
   config/            Settings persistence
-  osd/               The on-screen menu
+  osd/               The on-screen menu and its font
 external/
   circle/            Circle, unmodified (revision recorded in SOURCES.txt)
   atari800/          Atari800, one documented one-line change
   SOURCES.txt        Pinned upstream revisions and their SHA-256 checksums
-ROMS/                The OS ROM images to copy onto the SD card
+ROMS/                The OS ROM images to copy onto the SD card (not in git)
 ```
 
 ---
@@ -206,10 +218,10 @@ This matters, so it is stated plainly rather than buried.
 **Verified in this repository (build-time):**
 
 - All kernel images build cleanly and link as AArch64
-  (`aarch64-none-elf`), about 830 KiB each.
+  (`aarch64-none-elf`), about 820–845 KiB each.
 - `scripts/verify.ps1` confirms each image is ELF64/AArch64, has its entry point
   at 0x80000, contains `_start`, carries the filename the firmware looks for on
-  that board, and is under Circle's kernel size limit.
+  that board, and that its `.bss` ends before Circle's 2 MiB kernel region.
 - Every module compiles warning-free, including with Circle's own flags
   (`-nostdinc++`, `-fno-exceptions`, `-fno-rtti`, `-std=c++17`).
 - The `audio_sink_t` contract, the keyboard interface and the VTAB/VFS redirection
@@ -220,6 +232,8 @@ This matters, so it is stated plainly rather than buried.
 - It boots to BASIC, and the emulated machine runs.
 - Video output at the correct aspect ratio with side bars.
 - USB keyboard; the on-screen menu opens, navigates and closes.
+- USB gamepads — a generic pad and a Switch Pro — attached before power-on and
+  while running, with unplug, re-plug and swap.
 - Mounting disk images, cartridges and cassettes from USB storage, and running
   them; ejecting and re-mounting; visiting the menu with an image loaded and
   cold-resetting afterwards.
@@ -228,16 +242,26 @@ This matters, so it is stated plainly rather than buried.
 - The crash marker ejects all media and restores machine defaults on the next
   boot, so a bad image cannot trap the machine in a crash loop.
 - **Sound over HDMI**, at the correct pitch.
-- **Frame rate: 49.8 fps against the 50 fps target.** The emulation itself costs
-  about 1.5 ms per frame and the renderer about 5.5 ms, so the frame has room to
-  spare. Earlier builds ran at 30 fps because the renderer wrote the framebuffer
-  one pixel at a time into memory the ARM cannot cache; that is fixed.
+- **Frame rate: 49.8 fps against the 50 fps target.** The emulation costs about
+  1.5 ms per frame and the picture fill a few milliseconds, so the frame has room
+  to spare. Two earlier faults are worth naming because they were the whole
+  reason for the low rates: the renderer once wrote the framebuffer one pixel at
+  a time into memory the ARM cannot cache (30 fps), and the scaler once walked
+  destination pixels and chased three dependent loads for each of them (18 ms of
+  a 20 ms frame on a Zero 2 W). Both are fixed; `e2773e4` is the second.
+- **OSD**: opening and closing, navigation with the USB keyboard, and the
+  power cycle that is the only way out of a cold reset that inherited a console
+  key mask from the software that ran before it.
+- **Disk write-back**: an ATR mounted read/write is genuinely writable, and its
+  mode can be changed while it stays inserted.
 
 **Verified on hardware (Raspberry Pi Zero 2 W, 720p, HDMI, no audio on the display):**
 
-- It boots to BASIC and runs at **49.7 fps against the 50 fps target**, using the
-  `kernel64` image (`kernel8.img`). The rendering cost does not depend on what
-  the ATARI is drawing, so this is representative of a real workload.
+- It boots to BASIC and runs at **49.8 fps in PAL and 59.9 fps in NTSC**, using
+  the `kernel64` image (`kernel8.img`), with **no picture skipped**. The same
+  board used to skip every second picture in PAL and could only reach 56 fps in
+  NTSC, with visible flicker; the picture fill cost 17.9 ms and now costs 4.8 ms,
+  so the adaptive fill skip is in the code but no longer fires.
 - Boot reaches the first frame in about 6.6 s: 4.1 s of firmware (before any of
   this project's code runs), 0.4 s of Circle's own init, and the rest storage,
   core start-up and the first picture.
@@ -246,13 +270,16 @@ This matters, so it is stated plainly rather than buried.
 
 **NOT yet verified:**
 
-- Pi 3, Pi 4 and Pi 5. The Pi 400 covers the Pi 4 class; the others have not been
-  run. The `kernel64` image is the one built for the Zero 2 W.
-- The GPIO keyboard matrix, the 9-pin joystick ports, and USB gamepads.
-- Writing back to disk and cassette images; hot-plugging USB storage.
-- Cassette loading beyond insertion.
+- Pi 3 and Pi 5. The Pi 400 covers the Pi 4 class; the other two have not been
+  run, and the Pi 5 image in particular has a page-flip branch that has never
+  executed.
+- The GPIO keyboard matrix, the 9-pin joystick ports, and hot-plugging USB
+  storage.
+- Cassette writing. Reading is verified for both standard and turbo tapes.
 - Sound on the Zero 2 W: the test display had no speakers, so the sound device
   refused to open, which is the correct behaviour on such a display.
+- NTSC on the Pi 400 class. NTSC was verified on the Zero 2 W, which is the
+  slower board; the Pi 400 has run only in PAL.
 
 ### A USB hub is not enumerated on the Zero 2 W
 
@@ -292,11 +319,31 @@ advertise audio clearly. It is harmless on a display without speakers.
 
 ## Licence
 
-The emulation core is Atari800, which is **GPL v2 or later**. Circle is
-**GPL v3 or later**. This project links both, so it is distributed under the
-**GNU General Public License version 3 or later**; see `COPYING`.
+This project's own code — `src/`, `scripts/`, `docs/`, `patches/` and the
+Makefiles — is released under the **MIT licence**; see [`LICENSE`](LICENSE).
+
+It builds against two upstream projects that are not MIT and are vendored under
+`external/` so that the build is reproducible. They keep their own licences:
+
+| Component | Licence |
+|---|---|
+| Circle | GNU General Public License **version 3** (`external/circle/LICENSE`) |
+| Atari800 | GNU General Public License **version 2 or later** (`external/atari800/COPYING`) |
+| FatFs (inside Circle) | permissive, ChaN's terms (`external/circle/addon/fatfs/LICENSE.txt`) |
+
+That distinction matters for a **binary**. The kernel links Circle and Atari800
+into one image, so a distributed image is a combined work under the GPL version 3
+— with the GPL's obligations, including making the corresponding source
+available. MIT applies to this project's source as published; it cannot and does
+not relicense the components it links. Atari800's "or later" clause is what makes
+the combination lawful: GPLv2-only code could not be merged with Circle's GPLv3.
+
+Atari OS ROM images are **not** part of this repository — `ROMS/` is excluded from
+version control and the images must be supplied by whoever runs the emulator.
+The OSD font in `src/osd/atari_font.cpp` is a different matter: its shapes were
+extracted from an XL/XE OS image and are compiled in as data, so they are
+distributed here even though the ROM is not. They are Atari's glyph designs. If
+that is a concern for your redistribution, the font is the one piece to replace.
 
 Atari, Atari 800, Atari XL and Atari XE are trademarks of Atari Interactive,
-Inc. This project is not affiliated with or endorsed by Atari. The OS ROM images
-in `ROMS/` are the property of their respective rights holders and are included
-only because the operator of this repository supplied them.
+Inc. This project is not affiliated with or endorsed by Atari.

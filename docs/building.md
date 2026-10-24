@@ -146,7 +146,7 @@ forth is safe rather than a source of confusing link errors.
 A healthy build prints, at the end:
 
 ```
-    OK   kernel8.img  (801.9 KiB)
+    OK   kernel8.img  (824.6 KiB)
 ```
 
 Then confirm the images really are what they claim to be:
@@ -156,9 +156,9 @@ pwsh -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
 ```
-  OK   kernel64        kernel8.img           801.9 KiB  Pi Zero 2 W, Pi 3, Pi 4, Pi 400, CM3/CM4
-  OK   kernel64-pi5    kernel_2712.img         832 KiB  Raspberry Pi 5 (AArch64, Cortex-A76, RP1)
-  OK   kernel64-pi4    kernel8-rpi4.img      820.4 KiB  Pi 4, Pi 400, CM4 (AArch64, Cortex-A72 optimised)
+  OK   kernel64        kernel8.img           824.6 KiB  Pi Zero 2 W, Pi 3, Pi 4, Pi 400, CM3/CM4
+  OK   kernel64-pi5    kernel_2712.img       845.3 KiB  Raspberry Pi 5 (AArch64, Cortex-A76, RP1)
+  OK   kernel64-pi4    kernel8-rpi4.img        843 KiB  Pi 4, Pi 400, CM4 (AArch64, Cortex-A72 optimised)
 
   All built images verified.
 ```
@@ -166,16 +166,17 @@ pwsh -ExecutionPolicy Bypass -File scripts\verify.ps1
 It reads each image's ELF header and checks that it is ELF64/AArch64, that the
 entry point is 0x80000 (where Circle's linker script places an AArch64 kernel),
 that `_start` exists, that the image carries the filename the firmware looks for
-on that board, and that it is under the 4 MiB kernel limit. A build that produced
-files is not by itself proof of much; this is.
+on that board, and that the kernel's `.bss` ends before Circle's kernel region.
+A build that produced files is not by itself proof of much; this is.
 
-The image must stay under the **4 MiB kernel limit**, which
-`scripts/build.ps1` passes to Circle as `KERNEL_MAX_SIZE=4 * MEGABYTE`. Neither
-makefile carries that value itself, so a build driven by hand rather than by the
-script would use Circle's 2 MiB default. This matters more than it looks: if the
-image exceeds the limit then `sysinit()` **halts silently with no console output
-at all** — the screen simply stays dark, with nothing to tell you why. Both the
-build script and `verify.ps1` warn if the image crosses the limit.
+The image must stay under Circle's **2 MiB kernel limit**, `KERNEL_MAX_SIZE` in
+`external/circle/include/circle/sysconfig.h`. This project leaves it at Circle's
+default on purpose — `Makefile.app` says so, and `external/circle/Config2.mk`
+exists only as a warning about it, because raising it moves the start of Circle's
+heap and invites a fault that looks like anything but a size problem. This
+matters more than it looks: if the image exceeds the limit then `sysinit()`
+**halts silently with no console output at all** — the screen simply stays dark,
+with nothing to tell you why. Both the build script and `verify.ps1` check it.
 
 ### Keeping more than one image
 

@@ -51,6 +51,12 @@ dependency it has is satisfied by this project.** Circle is used unmodified.
       └─────────────────────────────────────────────────────────────────┘
 ```
 
+Two modules are left out of the diagram because they sit beside it rather than
+inside the call chain: `src/config/` is the settings file the OSD writes and the
+kernel reads at start-up, and `src/bootlog.cpp` records what happened — start-up
+stages as screen colours, then the runtime log the emulator writes to the SD card.
+Nearly everything else reports through it.
+
 ## The key decision: build against the core, not the wrapped library
 
 Atari800 ships a `libatari800` static library whose whole purpose is to be
@@ -148,12 +154,22 @@ framebuffer:
 1. A 256-entry palette is converted from `Colours_table`'s 0x00RRGGBB to RGB565.
    Rebuilding it each frame costs 256 iterations — far less than watching for
    palette changes would.
-2. Each output column maps to a source column through a table built once at
-   initialisation, because the scaling never changes afterwards.
+2. The scaling is driven from the **source**: `ComputeGeometry()` reduces the
+   column and row mappings to run lengths — how many destination pixels each
+   source pixel owns — and `FillScreen()` walks the 336 source columns, writing
+   each one's run of two or three destination pixels, and scales each of the 240
+   source rows once and copies it to the three destination rows it owns.
+   The earlier version walked the destination instead and chased three dependent
+   loads per destination pixel; on an in-order core that dependency chain cost
+   16.4 ms of a 20 ms frame, which is why the loop looks the way it does. See
+   [Progress](progress.md) for the measurements.
 3. The picture is scaled to the full screen height and centred horizontally, so
    the roughly 4:3 Atari display keeps its shape and the sides are black. Not
    stretching 4:3 to 16:9 is the whole point: it would turn every circle into an
    ellipse.
+
+Because the runs are derived from the maps and asserted to reproduce the
+destination size exactly, a geometry change cannot make the picture drift.
 
 Double buffering uses Circle's framebuffer paging — the framebuffer is allocated
 twice as tall as the screen and the visible window is moved between halves — but
@@ -162,6 +178,16 @@ virtual-height double buffering on the Pi 5, and the behaviour of the virtual
 offset there is not established, so on the Pi 5 the emulator draws straight into
 the visible buffer. The cost is possible tearing; the alternative is risking a
 stuck or absent picture.
+
+Two things exist because the picture does not always fit the frame:
+
+- **A skipped picture is not presented either.** Presenting it would show the
+  other half of the buffer, which holds the frame before — the screen would then
+  alternate between two pictures and look almost static.
+- **`STATIC_OSD` copies the visible half into the composition half** when the
+  menu opens (`CopyFrontToBack()`), because from then on nothing repaints the
+  picture and every OSD redraw flips between halves that would otherwise hold
+  different frames.
 
 ## Emulation loop, in order
 
@@ -173,10 +199,14 @@ stuck or absent picture.
    menu is on screen.
 3. `ATARI_RunFrame()` — one emulated frame. This pulls the keyboard state through
    the callback, runs the core, and paces the result against the real frame rate
-   using the host clock.
-4. `FillScreen()` — scale the finished screen into the framebuffer.
+   using the host clock. The pacing wait is at the end of the call, so when it
+   finds itself late the frame that just finished — emulation **and** the drawing
+   the kernel did — did not fit; `ATARI_LastFrameOverran()` reports that.
+4. `FillScreen()` — scale the finished screen into the framebuffer, unless the
+   menu is open under `STATIC_OSD`, or the previous frame overran and the picture
+   is skipped (with the menu closed).
 5. If the menu is open, draw it over the picture.
-6. `Present()` — page-flip.
+6. `Present()` — page-flip, unless the picture was skipped.
 
 Frame pacing deserves a note because it is easy to get subtly wrong. A PAL frame
 is 20055.9 µs, not a whole number. Truncating that to 20055 would lose 0.9 µs per
@@ -219,9 +249,13 @@ and validates them by length and CRC32.
 
 ## Memory
 
-The kernel image must stay under Circle's `KERNEL_MAX_SIZE`, which this project
-raises to 4 MiB. The default is 2 MiB, and overrunning it makes `sysinit()` halt
-**silently with no output at all** — a dark screen and nothing to explain it.
+The kernel image must stay under Circle's `KERNEL_MAX_SIZE`, which is **2 MiB**
+and which this project deliberately leaves at the default. Overrunning it makes
+`sysinit()` halt **silently with no output at all** — a dark screen and nothing
+to explain it. `Makefile.app` records why the limit is not raised and
+`external/circle/Config2.mk` exists as a warning about it: raising it moves the
+start of Circle's heap, and the fault that follows looks like anything but a size
+problem. `scripts/verify.ps1` checks the built image's `.bss` against that region.
 
 The largest part of the kernel's memory use is not code but the snapshot buffer:
 `emulator_state_t` carries a `state[]` array sized by `STATESAV_MAX_SIZE`, and

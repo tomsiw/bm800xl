@@ -84,15 +84,21 @@ One thing is the exception, and the menu says so when you change it:
 
 The menu normally repaints the emulated picture behind it and sits on a dimmed copy
 of it, so you can see the machine carrying on while the OSD is open. Repainting a
-960x720 picture costs about 18 ms of a 20 ms frame on a Pi Zero 2 W, which leaves
-nothing for the emulation: the machine misses its frame deadline, and games that
-depend on 50 Hz timing can crash.
+960x720 picture with the menu on top does not fit in one 20 ms frame on a Pi Zero
+2 W, and the machine misses its frame deadline — games that depend on 50 Hz timing
+can crash.
 
 Set `STATIC_OSD=1` in `settings.cfg` and the menu is drawn over the frame that is
 already on screen, on an opaque panel instead — the picture underneath stops
 updating while the menu is open, and closing the menu repaints as usual. That is one
 line in the settings file, not a menu item: it describes the board rather than the
 session. The default, `0`, is the dimmed-picture behaviour.
+
+The picture *outside* the menu is no longer the reason to need this: the fill was
+made about four times faster in `e2773e4`, from 18 ms to 4.8 ms on a Zero 2 W, so
+a game frame now fits at both PAL and NTSC. `STATIC_OSD` still saves the OSD's own
+redraw cost on a slow board, and it is the difference between a menu that opens
+smoothly and one that does not.
 
 ### Settings are saved as you go
 
@@ -442,11 +448,15 @@ for PAL, 59.92 Hz for NTSC.
 
 > **The frame-rate readout in the menu is the target rate, not a measurement.**
 > It shows 49.86 or 59.92 according to the selected video standard, and it
-> cannot read low. There is no throughput counter anywhere in the kernel, so the
-> menu cannot tell you whether the Pi is keeping up — that has to be judged by
-> whether the emulation sounds and plays correctly. A real measurement would need
-> a frame-time accumulator in the main loop and a way to display it; it does not
-> exist yet.
+> cannot read low. The **measured** rate is in the runtime log instead:
+> `runtimeLog.txt` on the SD card carries a `stats` line every 30 seconds with
+> the achieved frame rate and frame count, and — only when there were any — the
+> number of pictures that were skipped because a frame did not fit. See
+> [Getting diagnostic information](troubleshooting.md#getting-diagnostic-information).
+
+A low `stats` figure means the emulation itself is being starved. A normal frame
+rate with a `skipped` count means only the display is struggling: the emulated
+machine keeps its 50 or 60 frames a second and the picture updates less often.
 
 If it struggles:
 
@@ -458,3 +468,5 @@ If it struggles:
   cheaper frame and many games were written for it.
 - Keep the resolution at 1280x720 rather than 1920x1080; that is four times less
   video memory bandwidth.
+- On a slow board, set `STATIC_OSD=1` so that opening the menu does not have to
+  repaint the picture behind it.
