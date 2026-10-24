@@ -1745,7 +1745,7 @@ int ATARI_RunFrame(void)
 		}
 
 		/*
-		 * The emulated machine's health, once every fifteen seconds.
+		 * The emulated machine's health, once every thirty seconds.
 		 *
 		 * The achieved frame rate is the one number that says whether the host
 		 * is keeping up, and it cannot be inferred from anything else in the
@@ -1754,33 +1754,31 @@ int ATARI_RunFrame(void)
 		 *
 		 * Deliberately terse and rate limited.  The log has to stay readable
 		 * and the card has to stay mostly idle -- a line every frame would wear
-		 * out the card and bury the one line that matters.
+		 * out the card and bury the one line that matters.  Thirty seconds is
+		 * long enough that a run of a few minutes reads as a short table, and
+		 * short enough to see a slowdown when it starts.
 		 */
 		if (s_rate_start_us != 0
-		    && now - s_rate_start_us >= 15000000ULL)
+		    && now - s_rate_start_us >= 30000000ULL)
 		{
 			unsigned frames = (unsigned)(Atari800_nframes - s_rate_start_frames);
 			unsigned long long elapsed_us = now - s_rate_start_us;
 			unsigned fps10 = (unsigned)((frames * 10000000ULL)
 						    / (elapsed_us ? elapsed_us : 1));
-			unsigned target = (unsigned)(ATARI_Fps() + 0.5);
-			unsigned long reads = 0;
-			unsigned long long bytes = 0;
-			unsigned long errors = 0;
 
-			ATARI_VFS_GetStats(&reads, &bytes, &errors);
-
-			ATARI_RuntimeLog("stats: %u.%u fps (%u target), %u frames, "
-					 "PC 0x%04x, DMACTL 0x%02x, dlist 0x%04x, "
-					 "disk reads %lu (%lu kB, %lu errors)",
-					 fps10 / 10, fps10 % 10, target,
+			/*
+			 * Frame rate, and nothing else: it is the one number that says
+			 * whether the host is keeping up.  The disc read counters and the
+			 * ANTIC registers used to be here and were noise on a healthy
+			 * machine -- the boot watchdog below still carries them while a
+			 * boot is being followed.  The target rate is not printed either:
+			 * it is a property of the chosen video standard, not something that
+			 * changes, so every line would repeat it.
+			 */
+			ATARI_RuntimeLog("stats: %u.%u fps, %u frames, PC 0x%04x",
+					 fps10 / 10, fps10 % 10,
 					 frames,
-					 (unsigned)CPU_regPC,
-					 (unsigned)ANTIC_DMACTL,
-					 (unsigned)ANTIC_dlist,
-					 reads,
-					 (unsigned long)(bytes / 1024),
-					 errors);
+					 (unsigned)CPU_regPC);
 
 			/* Restart the measurement so each line covers its own window. */
 			s_rate_start_us = now;

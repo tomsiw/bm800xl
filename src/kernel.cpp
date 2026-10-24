@@ -210,21 +210,13 @@ boolean CRuntimeLogTarget::s_bRuntimeLogReady = FALSE;
 static CRuntimeLogTarget s_RuntimeLogTarget;
 
 /*
- * Accumulated per-phase frame timings, in microseconds.
- *
- * Reported as averages because a single frame is too noisy to read, and because
- * the point is to find which phase dominates the budget, not to chase spikes.
+ * Frame timing was measured here and reported every 300 frames as
+ * "frame cost (us): emulate ..., fill ...".  It served its purpose: it is what
+ * showed that the picture fill, not the emulation, was blowing the frame budget
+ * on the slower boards.  Both the measurement and the line are gone now -- the
+ * periodic stats line in the port carries the frame rate, and a per-frame cost
+ * line is not something the log needs while the emulator is healthy.
  */
-struct TFrameTimings
-{
-	u64 nEmulation;
-	u64 nFill;
-	u64 nMenu;
-	u64 nPresent;
-	unsigned nFrames;
-};
-
-static TFrameTimings s_Timings;
 
 void CAtariExceptionHandler::Throw (unsigned nException, TAbortFrame *pFrame)
 {
@@ -1448,16 +1440,6 @@ void CAtariKernel::RunFrame (void)
 		ATARI_AudioSinkSetMuted (m_pAudioSink, m_Menu.IsOpen ());
 	}
 
-	/*
-	 * Frame timing.
-	 *
-	 * The emulation itself costs only a few milliseconds, so the frame budget is
-	 * being spent somewhere in this function.  Measuring each phase separately
-	 * is the difference between optimising the right thing and guessing: the
-	 * numbers go into the periodic report below.
-	 */
-	u64 nStart = CTimer::GetClockTicks64 ();
-
 	// Emulate one frame.  The emulation core pulls the keyboard state itself,
 	// through the callback installed in InitializeKeyboard().
 	if (!ATARI_RunFrame ())
@@ -1496,8 +1478,6 @@ void CAtariKernel::RunFrame (void)
 			ATARI_WarmReset ();
 		}
 	}
-
-	u64 nAfterEmulation = CTimer::GetClockTicks64 ();
 
 	/*
 	 * Draw the frame, on a reduced cadence while the menu is open.
@@ -1568,35 +1548,6 @@ void CAtariKernel::RunFrame (void)
 		}
 
 		m_Video.Present ();
-	}
-
-	u64 nEnd = CTimer::GetClockTicks64 ();
-
-	s_Timings.nEmulation += nAfterEmulation - nStart;
-	s_Timings.nFill      += nEnd - nAfterEmulation;
-	s_Timings.nMenu      += 0;
-	s_Timings.nPresent   += 0;
-	s_Timings.nFrames++;
-
-	/*
-	 * Report every few hundred frames rather than every frame: the numbers are
-	 * averages, and a log line per frame would cost more than it measures.
-	 */
-	if (s_Timings.nFrames >= 300)
-	{
-		unsigned n = s_Timings.nFrames;
-
-		m_pBootLog->RecordRuntimef (
-			"frame cost (us): emulate %llu, fill %llu, menu %llu, "
-			"present %llu, total %llu",
-			s_Timings.nEmulation / n, s_Timings.nFill / n,
-			s_Timings.nMenu / n, s_Timings.nPresent / n,
-			(s_Timings.nEmulation + s_Timings.nFill + s_Timings.nMenu
-			 + s_Timings.nPresent) / n);
-
-		s_Timings.nEmulation = s_Timings.nFill = 0;
-		s_Timings.nMenu = s_Timings.nPresent = 0;
-		s_Timings.nFrames = 0;
 	}
 
 	/*

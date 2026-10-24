@@ -12,6 +12,8 @@
 
 #include <circle/logger.h>
 
+#include "bootlog.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -221,6 +223,14 @@ void CAtariMenu::Toggle (void)
 
 	m_bOpen = TRUE;
 	OpenScreen (ScreenMain);
+
+	/*
+	 * The OSD's presence changes how the frame is paced -- while it is open the
+	 * picture is redrawn on a reduced cadence, and with STATIC_OSD it is not
+	 * redrawn at all -- so the log says when it opened.  Closing is logged in
+	 * Close(), which every route out of the menu goes through.
+	 */
+	CBootLog::Get ()->RecordRuntime ("OSD: opened");
 }
 
 void CAtariMenu::ExitMenu (TMenuExit Action)
@@ -282,6 +292,15 @@ void CAtariMenu::Close (void)
 	m_nSelected = 0;
 	m_BrowseTarget = BrowseNone;
 	ClearPendingErase (FALSE);
+
+	/*
+	 * Logged here rather than in each exit: F12, Escape, Close menu, the three
+	 * reset items and the fallback key path all end up in this one function, so
+	 * this is the only place that can say the OSD closed whichever way it was
+	 * left.  Nothing calls Close() during start-up, so a closed line always has
+	 * its opened line before it.
+	 */
+	CBootLog::Get ()->RecordRuntime ("OSD: closed");
 }
 
 void CAtariMenu::OpenScreen (TMenuScreen Screen)
