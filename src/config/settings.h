@@ -77,6 +77,23 @@ struct TAtariSettings
 	boolean		bContinueOnBrk;
 
 	/*
+	 * Whether the OSD is drawn on a static picture.
+	 *
+	 * With this off, every OSD redraw also repaints the emulated picture behind
+	 * it, and the panel sits on a dimmed copy of that picture.  With it on, the
+	 * picture is left exactly as it was -- the OSD is drawn over the frame that
+	 * is already there, and the panel gets a solid background instead of a
+	 * dimmed picture.
+	 *
+	 * Off by default, because the picture behind the menu is part of how the
+	 * OSD looks.  On the slower boards it is the difference between a readable
+	 * menu and a stuttering machine: repainting 960x720 pixels costs about
+	 * 18 ms of a 20 ms frame there, so a redraw cannot fit alongside the
+	 * emulation.
+	 */
+	boolean		bStaticOSD;
+
+	/*
 	 * Controllers.
 	 *
 	 * The two kinds are independent rather than one setting with three values,

@@ -1544,10 +1544,22 @@ void CAtariKernel::RunFrame (void)
 
 	if (bRedraw)
 	{
-		const u8 *pScreen = ATARI_ScreenIndices ();
-		if (pScreen != 0)
+		/*
+		 * With STATIC_OSD the emulated picture is not repainted while the menu
+		 * is up: the OSD is drawn over the frame already in the buffer, and the
+		 * panel covers it.  Repainting 960x720 pixels costs about 18 ms of a
+		 * 20 ms frame on a Zero 2 W, so a redraw cannot fit beside the
+		 * emulation there -- the machine loses its frame deadline and games that
+		 * depend on it crash.  Only the OSD redraws skip the picture; closing
+		 * the menu repaints on the next frame as usual.
+		 */
+		if (!bMenuOpen || !m_Settings.bStaticOSD)
 		{
-			m_Video.FillScreen (pScreen, (const u32 *) ATARI_Palette ());
+			const u8 *pScreen = ATARI_ScreenIndices ();
+			if (pScreen != 0)
+			{
+				m_Video.FillScreen (pScreen, (const u32 *) ATARI_Palette ());
+			}
 		}
 
 		if (bMenuOpen)

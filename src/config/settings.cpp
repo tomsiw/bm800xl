@@ -345,6 +345,13 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 			pSettings->bContinueOnBrk = bValue;
 		}
 	}
+	else if (strcmp (pKey, "STATIC_OSD") == 0)
+	{
+		if (ParseBool (pValue, &bValue))
+		{
+			pSettings->bStaticOSD = bValue;
+		}
+	}
 	else if (strcmp (pKey, "USB_JOYSTICKS") == 0)
 	{
 		if (ParseBool (pValue, &bValue))
@@ -551,6 +558,8 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 		    Settings.bNumpadAsCursor ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "CONTINUE_ON_BRK=%d\n",
 		    Settings.bContinueOnBrk ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "STATIC_OSD=%d\n",
+		    Settings.bStaticOSD ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "USB_JOYSTICKS=%d\n",
 		    Settings.bUSBJoysticks ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "GPIO_JOYSTICKS=%d\n",

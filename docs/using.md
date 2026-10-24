@@ -80,6 +80,20 @@ One thing is the exception, and the menu says so when you change it:
 - **Switching sound back on** reopens the audio device; if that fails the menu
   reports it.
 
+### On a slower board: `STATIC_OSD`
+
+The menu normally repaints the emulated picture behind it and sits on a dimmed copy
+of it, so you can see the machine carrying on while the OSD is open. Repainting a
+960x720 picture costs about 18 ms of a 20 ms frame on a Pi Zero 2 W, which leaves
+nothing for the emulation: the machine misses its frame deadline, and games that
+depend on 50 Hz timing can crash.
+
+Set `STATIC_OSD=1` in `settings.cfg` and the menu is drawn over the frame that is
+already on screen, on an opaque panel instead — the picture underneath stops
+updating while the menu is open, and closing the menu repaints as usual. That is one
+line in the settings file, not a menu item: it describes the board rather than the
+session. The default, `0`, is the dimmed-picture behaviour.
+
 ### Settings are saved as you go
 
 Every change is written to `SD:/ATARI/settings.cfg` immediately, so the emulator
@@ -300,6 +314,7 @@ RESOLUTION=0
 KEYBOARD=0
 NUMPAD_CURSOR=1
 CONTINUE_ON_BRK=1
+STATIC_OSD=0
 DISK1_PATH=USB:/disks/BOUNTYBOB.ATR
 DISK1_READONLY=0
 DISK2_PATH=
@@ -324,6 +339,7 @@ SYSTEM_DIR=SD:/ATARI
 | `KEYBOARD` | 0 = USB, 1 = GPIO |
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
+| `STATIC_OSD` | 0 or 1 — 1 draws the menu over a frozen picture on an opaque panel; 0 (the default) repaints and dims the picture behind it |
 | `USB_JOYSTICKS` | 0 or 1 — read USB gamepads |
 | `GPIO_JOYSTICKS` | 0 or 1 — read the two 9-pin ports on the header |
 | `DISK1_PATH` … `DISK4_PATH` | a path, or empty for "no disk in this drive" |

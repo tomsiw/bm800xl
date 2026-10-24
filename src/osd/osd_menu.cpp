@@ -1941,9 +1941,25 @@ void CAtariMenu::Draw (void)
 	unsigned nPanelX = MenuMarginX;
 	unsigned nPanelY = MenuMarginY;
 
-	// Dim the picture behind the panel so the menu reads clearly without
-	// hiding what the machine is doing.
-	m_pVideo->DimRect (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight, 65);
+	/*
+	 * The panel's background.
+	 *
+	 * Normally the picture behind it is dimmed, so the menu reads clearly without
+	 * hiding what the machine is doing.  With STATIC_OSD the picture is not
+	 * repainted while the menu is open, so a dimmed copy of it would be a stale
+	 * one: the panel gets an opaque background instead, which is also cheaper --
+	 * a write, rather than a read-modify-write over 0.9 MB.
+	 */
+	if (m_pSettings->bStaticOSD)
+	{
+		m_pVideo->DrawRect (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight,
+				    ATARI_COLOR_DARK);
+	}
+	else
+	{
+		m_pVideo->DimRect (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight, 65);
+	}
+
 	m_pVideo->DrawRectOutline (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight,
 				   ATARI_COLOR_WHITE);
 
