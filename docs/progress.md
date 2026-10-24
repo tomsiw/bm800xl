@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `f37797e`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `64d93ba`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -19,8 +19,10 @@ console-key mask from the software that ran before it; user media can live on th
 USB drive or in `SD:/USERDATA`, chosen by the settings file; a disk mounted
 read/write is genuinely writable, with its mode changeable while it stays inserted;
 a cassette image is classified when it is inserted, so a standard tape loads fast
-and a turbo tape gets the real-timing mode a power cycle away; and `STATIC_OSD=1`
-lets a slow board open the menu without losing the frame deadline. Checked on a
+and a turbo tape gets the real-timing mode a power cycle away; `STATIC_OSD=1` lets
+a slow board open the menu without losing the frame deadline; and the runtime log
+now carries a 30-second stats line and the OSD's open and close, with the frame
+cost report retired. Checked on a
 Pi 400 and a Zero 2 W.
 
 ---
@@ -104,6 +106,12 @@ emulate 14454 us, fill 5547 us, menu 0, present 0, total 20005     (49.8 fps)
 
 `emulate` here includes the frame pacer's idle wait; the true emulation cost is
 about **1.5 ms**.
+
+The measurement has since been removed from the kernel: it answered its question,
+and the same numbers can be taken again from the `stats` line by reading the
+frame rate, or by rebuilding with the timings reinstated. Just the same, the
+figures above are the ones the renderer work was judged by, and they are worth
+keeping:
 
 ### Boot breakdown, Zero 2 W
 
@@ -325,8 +333,6 @@ failures. They are listed because they are invisible until they bite.
   (~18 ms on that board) and is the next thing to attack: an adaptive fill skip
   would keep the emulation at 50 Hz and let the picture drop to 25–40 Hz, and a
   DMA copy of a cached frame, or a second core, would remove most of it outright.
-- **`frame cost` logging is always on**, every 300 frames. Should be gated before
-  release.
 - **The `stereo change deferred` message** is now accurate, but the underlying
   inability remains.
 - **Pi 3 and Pi 5 unverified.** The Pi 5 image has a page-flip branch that has
@@ -512,7 +518,9 @@ before and during a session.
 
 ### 2. Housekeeping
 
-- Gate the `frame cost` logging behind a build flag.
+- ~~Gate the `frame cost` logging behind a build flag.~~ Done the other way round
+  in `64d93ba`: the measurement and its line were removed entirely, and the stats
+  line was reduced to fps, frames and PC.
 - Nothing uncommitted: the gamepad work is `aed2e43`, `7b8153a` and `92d4282`.
 
 ### 3. USB keyboard remapping  *(implemented and verified — `5498dc7`)*
