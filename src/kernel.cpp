@@ -387,6 +387,7 @@ CAtariKernel::CAtariKernel (void)
 	m_bAudioOpen (FALSE),
 	m_bUSBReady (FALSE),
 	m_bFirstFrameDrawn (FALSE),
+	m_bStaticOSDWasOpen (FALSE),
 	m_bFrameErrorReported (FALSE),
 	m_bKeyboardSeen (FALSE),
 	m_bKeyboardWarned (FALSE),
@@ -1525,15 +1526,41 @@ void CAtariKernel::RunFrame (void)
 	if (bRedraw)
 	{
 		/*
-		 * With STATIC_OSD the emulated picture is not repainted while the menu
-		 * is up: the OSD is drawn over the frame already in the buffer, and the
-		 * panel covers it.  Repainting 960x720 pixels costs about 18 ms of a
-		 * 20 ms frame on a Zero 2 W, so a redraw cannot fit beside the
-		 * emulation there -- the machine loses its frame deadline and games that
-		 * depend on it crash.  Only the OSD redraws skip the picture; closing
-		 * the menu repaints on the next frame as usual.
+		 * The picture is left alone for two reasons, and they are counted
+		 * differently.
+		 *
+		 * With STATIC_OSD it is deliberate while the menu is up: the OSD is
+		 * drawn over the frame already in the buffer, and the panel covers it.
+		 * Repainting 960x720 pixels costs about 18 ms of a 20 ms frame on a
+		 * Zero 2 W, so an OSD redraw cannot fit beside the emulation there.
+		 *
+		 * Otherwise it is adaptive, and only with the menu closed: if the last
+		 * cycle ran past its deadline, skipping this picture lets the emulated
+		 * machine catch up.  The emulation is never skipped -- audio depends on
+		 * 50 frames of it a second -- and the skip is reported, because a
+		 * picture that is quietly not drawn is otherwise indistinguishable from
+		 * a machine that is keeping up.  With the menu open the OSD is what has
+		 * to keep up, and STATIC_OSD is the answer there.
 		 */
-		if (!bMenuOpen || !m_Settings.bStaticOSD)
+		boolean bStaticOSD = bMenuOpen && m_Settings.bStaticOSD;
+		boolean bOverran = ATARI_LastFrameOverran () ? TRUE : FALSE;
+		boolean bSkipped = !bMenuOpen && bOverran;
+
+		if (bStaticOSD)
+		{
+			/*
+			 * The picture stops being repainted from here on, so the half that
+			 * is not on screen has to be brought up to date with the one that
+			 * is -- otherwise every OSD redraw, which flips, would swap the
+			 * background around the panel for a different frame.  Done once, on
+			 * the frame the menu opens.
+			 */
+			if (!m_bStaticOSDWasOpen)
+			{
+				m_Video.CopyFrontToBack ();
+			}
+		}
+		else if (!bSkipped)
 		{
 			const u8 *pScreen = ATARI_ScreenIndices ();
 			if (pScreen != 0)
@@ -1542,12 +1569,30 @@ void CAtariKernel::RunFrame (void)
 			}
 		}
 
+		m_bStaticOSDWasOpen = bStaticOSD;
+
 		if (bMenuOpen)
 		{
 			m_Menu.Draw ();
 		}
 
-		m_Video.Present ();
+		if (bSkipped)
+		{
+			ATARI_NoteFrameSkipped ();
+		}
+
+		/*
+		 * A skipped frame is not presented either.
+		 *
+		 * Presenting it would show the other half of the buffer, which holds the
+		 * frame from before -- so the screen would alternate between two
+		 * pictures and look almost static.  Leaving the buffer alone keeps the
+		 * frame that is already on screen until a real one is ready.
+		 */
+		if (!bSkipped)
+		{
+			m_Video.Present ();
+		}
 	}
 
 	/*

@@ -103,6 +103,19 @@ public:
 	void Present (void);
 
 	/*
+	 * Copies the visible half into the half being composed.
+	 *
+	 * Needed when the picture is about to stop being redrawn but the OSD keeps
+	 * being drawn over it -- STATIC_OSD.  Without this the two halves hold
+	 * different pictures, so each OSD redraw swaps the background and the area
+	 * around the panel appears to flicker between two frames.
+	 *
+	 * A one-off cost of one buffer's worth of pixels: it happens when the OSD
+	 * opens, not per frame.
+	 */
+	void CopyFrontToBack (void);
+
+	/*
 	 * Fills the whole visible screen with one colour and presents it.
 	 *
 	 * This is a diagnostic, not part of the emulator's output.  It is how the

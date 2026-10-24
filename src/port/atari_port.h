@@ -147,6 +147,24 @@ uint32_t ATARI_FrameNumber(void);
 /* Frames per second of the current video standard, as a double. */
 double ATARI_Fps(void);
 
+/*
+ * Did the frame that ATARI_RunFrame() last completed run past its deadline?
+ *
+ * The pacing wait happens at the end of that call, after the emulation, so this
+ * covers the whole previous cycle -- emulation plus whatever the caller drew --
+ * and not just the emulation.  A caller that owns the drawing can use it to leave
+ * the picture alone on the next frame, which lets the emulated machine catch up.
+ */
+int ATARI_LastFrameOverran(void);
+
+/*
+ * Notes that the caller left a picture undrawn to catch up.
+ *
+ * Counted only for the periodic stats line, which reports it and then forgets it;
+ * on a host that keeps up, nothing ever calls this.
+ */
+void ATARI_NoteFrameSkipped(void);
+
 /* ---------------------------------------------------------------------------
  * Emulated screen
  * ------------------------------------------------------------------------- */

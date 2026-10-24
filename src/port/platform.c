@@ -600,6 +600,19 @@ static uint64_t s_rate_start_us;
 static unsigned s_rate_start_frames;
 
 /*
+ * Adaptive fill skip, as far as this layer is concerned.
+ *
+ * The wait for the next frame happens at the end of ATARI_RunFrame(), after the
+ * emulation, so "late" there means the whole previous cycle -- emulation plus
+ * whatever the kernel drew -- did not fit in a frame.  The kernel reads that
+ * after ATARI_RunFrame() returns and can leave the next picture alone, which is
+ * the only part of the cycle it owns; ATARI_NoteFrameSkipped() then feeds the
+ * stats line, so a picture that is quietly not drawn is still visible.
+ */
+static int s_bFrameOverran;
+static unsigned s_frames_skipped;
+
+/*
  * Boot watchdog.
  *
  * Armed by every cold reset.  For the first minute afterwards it writes a short
@@ -1718,6 +1731,8 @@ int ATARI_RunFrame(void)
 		s_next_frame_time += s_frame_phase >> 16;
 		s_frame_phase &= 0xffff;
 
+		s_bFrameOverran = 0;
+
 		if (now < s_next_frame_time) {
 			s_host_idle(s_host_context, (uint32_t)(s_next_frame_time - now));
 		}
@@ -1742,6 +1757,10 @@ int ATARI_RunFrame(void)
 			 */
 			s_next_frame_time = now;
 			s_frame_phase = 0;
+
+			/* The cycle that just ended did not fit: the kernel may skip the
+			   next picture to let the emulation catch up. */
+			s_bFrameOverran = 1;
 		}
 
 		/*
@@ -1768,17 +1787,29 @@ int ATARI_RunFrame(void)
 
 			/*
 			 * Frame rate, and nothing else: it is the one number that says
-			 * whether the host is keeping up.  The disc read counters and the
-			 * ANTIC registers used to be here and were noise on a healthy
-			 * machine -- the boot watchdog below still carries them while a
-			 * boot is being followed.  The target rate is not printed either:
-			 * it is a property of the chosen video standard, not something that
-			 * changes, so every line would repeat it.
+			 * whether the host is keeping up.  The disc read counters, the ANTIC
+			 * registers and the program counter used to be here and were noise
+			 * on a healthy machine -- the boot watchdog below still carries the
+			 * registers while a boot is being followed, and the target rate is a
+			 * property of the video standard rather than something that changes.
+			 *
+			 * Skipped pictures are reported only when there were any: on a host
+			 * that keeps up, the line stays as short as it was.
 			 */
-			ATARI_RuntimeLog("stats: %u.%u fps, %u frames, PC 0x%04x",
-					 fps10 / 10, fps10 % 10,
-					 frames,
-					 (unsigned)CPU_regPC);
+			if (s_frames_skipped != 0)
+			{
+				ATARI_RuntimeLog("stats: %u.%u fps, %u frames, "
+						 "%u skipped",
+						 fps10 / 10, fps10 % 10, frames,
+						 s_frames_skipped);
+
+				s_frames_skipped = 0;
+			}
+			else
+			{
+				ATARI_RuntimeLog("stats: %u.%u fps, %u frames",
+						 fps10 / 10, fps10 % 10, frames);
+			}
 
 			/* Restart the measurement so each line covers its own window. */
 			s_rate_start_us = now;
@@ -1922,6 +1953,21 @@ int ATARI_PowerCycle(const atari_config_t *cfg)
 	ATARI_RuntimeLog("power cycle: done, PC 0x%04x", (unsigned)CPU_regPC);
 
 	return 1;
+}
+
+/* ===========================================================================
+ * Adaptive fill skip: the state itself lives with the other port statics, so
+ * that ATARI_RunFrame() can set it; only the accessors are here.
+ * ======================================================================== */
+
+int ATARI_LastFrameOverran(void)
+{
+	return s_bFrameOverran;
+}
+
+void ATARI_NoteFrameSkipped(void)
+{
+	s_frames_skipped++;
 }
 
 void ATARI_ColdReset(void)

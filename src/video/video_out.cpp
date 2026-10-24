@@ -405,6 +405,29 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 	}
 }
 
+/*
+ * Copies the visible half into the half being composed.
+ *
+ * Only needed when the picture stops being redrawn while the OSD continues to be
+ * drawn over it: the two halves otherwise hold different frames, and every OSD
+ * redraw -- which flips -- would swap the background under the panel.
+ *
+ * The halves are contiguous rows of the same pitch, so this is one memcpy per
+ * buffer and nothing else.
+ */
+void CAtariVideoOut::CopyFrontToBack (void)
+{
+	assert (m_bInitialized);
+
+	if (!m_bDoubleBuffered)
+	{
+		return;			// one buffer: nothing to synchronise
+	}
+
+	memcpy (BackBuffer (), FrontBuffer (),
+		(size_t) m_nPitchPixels * m_nHeight * sizeof (u16));
+}
+
 void CAtariVideoOut::Present (void)
 {
 	assert (m_bInitialized);

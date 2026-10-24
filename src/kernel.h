@@ -218,6 +218,16 @@ private:
 	boolean			m_bFirstFrameDrawn;
 
 	/*
+	 * Whether the last drawn frame was a static OSD frame.
+	 *
+	 * With STATIC_OSD the picture stops being repainted when the menu opens, so
+	 * that is the moment the two halves of the framebuffer have to be brought
+	 * into agreement -- otherwise every OSD redraw swaps the background for a
+	 * different frame.  See CopyFrontToBack().
+	 */
+	boolean			m_bStaticOSDWasOpen;
+
+	/*
 	 * Frame errors are reported once per distinct reason rather than every
 	 * frame, and a CPU crash is the only one that resets the machine.  See
 	 * RunFrame().
