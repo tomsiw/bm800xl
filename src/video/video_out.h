@@ -103,8 +103,7 @@ public:
 	void Present (void);
 
 	/*
-	 * Copies the visible half into the half being composed.
-	 *
+	 * Copies the visible half into the half being composed.	 *
 	 * Needed when the picture is about to stop being redrawn but the OSD keeps
 	 * being drawn over it -- STATIC_OSD.  Without this the two halves hold
 	 * different pictures, so each OSD redraw swaps the background and the area
@@ -221,6 +220,26 @@ private:
 	unsigned m_nColumnMapSize;
 	u16 m_RowMap[1080];
 	unsigned m_nRowMapSize;
+
+	/*
+	 * The same mapping as runs, for the scaler.
+	 *
+	 * Each entry is one source pixel and the number of destination pixels it
+	 * owns: at 720p a column owns two or three of the 960, a row always three of
+	 * the 720.  Walking these instead of the destination lets the scaling loop
+	 * do one palette lookup per source pixel rather than one per destination
+	 * pixel, and -- the point -- one dependent chain per source pixel.
+	 */
+	static const unsigned MaxSourceRuns = 384;	// one per source pixel at most
+
+	u16 m_ColumnRunSource[MaxSourceRuns];
+	u8  m_ColumnRunLength[MaxSourceRuns];
+	unsigned m_nColumnRuns;
+
+	u16 m_RowRunSource[MaxSourceRuns];
+	u16 m_RowRunFirst[MaxSourceRuns];
+	u8  m_RowRunLength[MaxSourceRuns];
+	unsigned m_nRowRuns;
 
 	u16 *m_pBackBuffer;
 	boolean m_bDoubleBuffered;	// frame is composed in an off-screen half

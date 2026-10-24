@@ -44,6 +44,7 @@ static const unsigned MaxDestinationWidth = 1920;
  * the two places that touch large numbers of framebuffer pixels. */
 static u16 s_DimRow[MaxDestinationWidth];
 
+
 CAtariVideoOut::CAtariVideoOut (void)
 :	m_pFrameBuffer (0),
 	m_bInitialized (FALSE),
@@ -236,6 +237,73 @@ void CAtariVideoOut::ComputeGeometry (void)
 		}
 		m_RowMap[nY] = (u16) nSource;
 	}
+
+	/*
+	 * Run maps: the same mapping, read the other way round.
+	 *
+	 * The two loops above answer "which source pixel does this destination pixel
+	 * show".  The scaler wants the opposite -- "how many destination pixels does
+	 * this source pixel own" -- because then it can walk the source once and
+	 * write runs, instead of walking 960 destination pixels and chasing three
+	 * dependent loads for each of them.  On an in-order core that dependency
+	 * chain was the whole cost of the fill: 16.4 ms of a 20 ms frame.
+	 *
+	 * Both scales are non-integer in general -- 336 columns become 960, so most
+	 * columns own three destination pixels and some own two -- so a run is a
+	 * count, not a constant.  Summing them must reproduce the destination size
+	 * exactly, which is what keeps the picture from drifting; the assertions
+	 * below state that.
+	 */
+	m_nColumnRuns = 0;
+	{
+		unsigned nX = 0;
+
+		while (nX < m_nColumnMapSize && m_nColumnRuns < MaxSourceRuns)
+		{
+			unsigned nSource = m_ColumnMap[nX];
+			unsigned nRun = 1;
+
+			while (   nX + nRun < m_nColumnMapSize
+			       && m_ColumnMap[nX + nRun] == nSource)
+			{
+				nRun++;
+			}
+
+			m_ColumnRunSource[m_nColumnRuns] = (u16) nSource;
+			m_ColumnRunLength[m_nColumnRuns] = (u8) nRun;
+			m_nColumnRuns++;
+
+			nX += nRun;
+		}
+
+		assert (nX == m_nColumnMapSize);
+	}
+
+	m_nRowRuns = 0;
+	{
+		unsigned nY = 0;
+
+		while (nY < m_nRowMapSize && m_nRowRuns < MaxSourceRuns)
+		{
+			unsigned nSource = m_RowMap[nY];
+			unsigned nRun = 1;
+
+			while (   nY + nRun < m_nRowMapSize
+			       && m_RowMap[nY + nRun] == nSource)
+			{
+				nRun++;
+			}
+
+			m_RowRunSource[m_nRowRuns] = (u16) nSource;
+			m_RowRunFirst[m_nRowRuns] = (u16) nY;
+			m_RowRunLength[m_nRowRuns] = (u8) nRun;
+			m_nRowRuns++;
+
+			nY += nRun;
+		}
+
+		assert (nY == m_nRowMapSize);
+	}
 }
 
 u16 *CAtariVideoOut::BackBuffer (void) const
@@ -324,53 +392,95 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 	/*
 	 * Scale the picture.
 	 *
-	 * Both maps are precomputed in ComputeGeometry(), so this loop is one table
-	 * lookup and one palette lookup per destination pixel with no arithmetic to
-	 * speak of.  That matters: at 960x720 this writes around 690,000 pixels per
-	 * frame, and a division per pixel here was costing real frame time.
-	 */
-	/*
-	 * Scale the picture, one row at a time into a cached staging buffer.
+	 * The source is walked once per source row, not once per destination pixel.
 	 *
-	 * The framebuffer is not cacheable from the ARM, so every store to it is its
-	 * own bus transaction.  Writing the row pixel by pixel straight into it
-	 * measured at ~31 ms per frame -- 95% of the frame budget, against 1.5 ms for
-	 * the emulation itself -- because ~690,000 individual 16-bit stores were each
-	 * paying for a separate transaction.
+	 * The earlier version walked all 960 destination pixels and, for each, chased
+	 * three dependent loads -- the column map, the source byte, the palette -- on
+	 * a core that is in-order and cannot overlap them.  Measured on a Zero 2 W,
+	 * that came to 16.4 ms per frame, 92% of the fill and most of a 20 ms frame,
+	 * while the copy into the un-cacheable framebuffer -- the part I expected to
+	 * dominate -- was only 1.5 ms.
 	 *
-	 * Building the row in ordinary cached memory and then copying it with one
-	 * memcpy() turns that into a small number of wide, burst stores: Circle's
-	 * memcpy uses 128-bit transfers, so the transaction count drops by roughly an
-	 * order of magnitude while the same bytes are written.
+	 * So the loop now walks the 336 source pixels and writes each one's run of
+	 * two or three destination pixels: one dependent chain per source pixel
+	 * instead of per destination pixel, and a third fewer chains at that.  The
+	 * run lengths come from ComputeGeometry(), and their sum is exactly the
+	 * destination width, so the picture cannot drift.
+	 *
+	 * Each source row is scaled once and then copied to as many destination rows
+	 * as it owns -- three at 720p -- which used to be three separate scales of the
+	 * same row.
 	 */
 	static u16 s_RowBuffer[MaxDestinationWidth];
 
 	const bool bStage = m_nColumnMapSize <= MaxDestinationWidth;
 
-	for (unsigned nY = 0; nY < m_nRowMapSize; nY++)
+
+	for (unsigned nRow = 0; nRow < m_nRowRuns; nRow++)
 	{
-		const u8 *pSource = pScreen + (uintptr) m_RowMap[nY] * ScreenStride;
-		u16 *pRow = pFrame
-			  + (uintptr) (nY + m_nDestTop) * m_nPitchPixels
-			  + m_nDestLeft;
+		const u8 *pSource = pScreen
+				  + (uintptr) m_RowRunSource[nRow] * ScreenStride;
+		const unsigned nRunRows = m_RowRunLength[nRow];
 
 		if (!bStage)
 		{
-			for (unsigned nX = 0; nX < m_nColumnMapSize; nX++)
+			/*
+			 * A destination wider than the staging buffer: write the picture
+			 * directly.  Slower, but this geometry never occurs on a display
+			 * this emulator supports.
+			 */
+			for (unsigned nRowIndex = 0; nRowIndex < nRunRows; nRowIndex++)
 			{
-				pRow[nX] = Palette565[pSource[ScreenXOrigin + m_ColumnMap[nX]]];
+				u16 *pRow = pFrame
+					  + (uintptr) (m_nDestTop + m_RowRunFirst[nRow]
+							+ nRowIndex) * m_nPitchPixels
+					  + m_nDestLeft;
+
+				unsigned nOut = 0;
+
+				for (unsigned nCol = 0; nCol < m_nColumnRuns; nCol++)
+				{
+					u16 nColour = Palette565[
+						pSource[ScreenXOrigin
+							+ m_ColumnRunSource[nCol]]];
+
+					for (unsigned k = 0; k < m_ColumnRunLength[nCol]; k++)
+					{
+						pRow[nOut++] = nColour;
+					}
+				}
 			}
 
 			continue;
 		}
 
-		for (unsigned nX = 0; nX < m_nColumnMapSize; nX++)
+		// One scaled row in cached memory, then one burst copy per destination
+		// row that shows it.
+		u16 *pOut = s_RowBuffer;
+
+		for (unsigned nCol = 0; nCol < m_nColumnRuns; nCol++)
 		{
-			s_RowBuffer[nX] =
-				Palette565[pSource[ScreenXOrigin + m_ColumnMap[nX]]];
+			u16 nColour = Palette565[pSource[ScreenXOrigin
+							+ m_ColumnRunSource[nCol]]];
+			const unsigned nRun = m_ColumnRunLength[nCol];
+
+			for (unsigned k = 0; k < nRun; k++)
+			{
+				pOut[k] = nColour;
+			}
+
+			pOut += nRun;
 		}
 
-		memcpy (pRow, s_RowBuffer, m_nColumnMapSize * sizeof (u16));
+		for (unsigned nRowIndex = 0; nRowIndex < nRunRows; nRowIndex++)
+		{
+			u16 *pRow = pFrame
+				  + (uintptr) (m_nDestTop + m_RowRunFirst[nRow]
+						+ nRowIndex) * m_nPitchPixels
+				  + m_nDestLeft;
+
+			memcpy (pRow, s_RowBuffer, m_nColumnMapSize * sizeof (u16));
+		}
 	}
 
 	/*
@@ -431,7 +541,6 @@ void CAtariVideoOut::CopyFrontToBack (void)
 void CAtariVideoOut::Present (void)
 {
 	assert (m_bInitialized);
-
 	if (m_bDoubleBuffered)
 	{
 		// Swap the visible window to the half just drawn.  No copying.
