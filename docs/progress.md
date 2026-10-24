@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `7a410b4`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `f37797e`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -18,8 +18,9 @@ machine, the last of which is the only way out of a cold reset that inherited a
 console-key mask from the software that ran before it; user media can live on the
 USB drive or in `SD:/USERDATA`, chosen by the settings file; a disk mounted
 read/write is genuinely writable, with its mode changeable while it stays inserted;
-and a cassette image is classified when it is inserted, so a standard tape loads
-fast and a turbo tape gets the real-timing mode a power cycle away. Checked on a
+a cassette image is classified when it is inserted, so a standard tape loads fast
+and a turbo tape gets the real-timing mode a power cycle away; and `STATIC_OSD=1`
+lets a slow board open the menu without losing the frame deadline. Checked on a
 Pi 400 and a Zero 2 W.
 
 ---
@@ -35,7 +36,7 @@ Pi 400 and a Zero 2 W.
 | Disk / cartridge / cassette | loading verified; eMMC faults fixed; media from the USB drive or `SD:/USERDATA`, chosen in the settings file; standard tapes load fast, turbo tapes after the automatic power cycle |
 | Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
 | Snapshots | save, save-as-new, load and erase **verified on hardware** |
-| OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker |
+| OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker; `STATIC_OSD` for boards where the picture fill will not fit beside the emulation |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
 | Pi 3 / Pi 5 | images build; never run |
@@ -315,6 +316,15 @@ failures. They are listed because they are invisible until they bite.
 - **The OSD redraw still costs ~18–30 ms** when it happens. Mitigated by redrawing
   every 10th frame while the menu is open, and at most every 4th frame while keys
   are held; emulation keeps running at full speed throughout.
+- **On a slow board the picture fill alone can exceed the frame budget.** On a
+  Zero 2 W repainting 960x720 costs about 18 ms against a 20 ms frame, so any OSD
+  redraw — which also repaints the picture — cannot fit and the machine can lose
+  its 50 Hz timing. `STATIC_OSD=1` removes that: the menu is drawn over the frame
+  already on screen, on an opaque panel, and the picture is left alone while the
+  menu is open. The remaining fill cost with the menu closed is unchanged
+  (~18 ms on that board) and is the next thing to attack: an adaptive fill skip
+  would keep the emulation at 50 Hz and let the picture drop to 25–40 Hz, and a
+  DMA copy of a cached frame, or a second core, would remove most of it outright.
 - **`frame cost` logging is always on**, every 300 frames. Should be gated before
   release.
 - **The `stereo change deferred` message** is now accurate, but the underlying
