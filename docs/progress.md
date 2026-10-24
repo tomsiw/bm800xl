@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `64d93ba`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `826b299`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -20,10 +20,11 @@ USB drive or in `SD:/USERDATA`, chosen by the settings file; a disk mounted
 read/write is genuinely writable, with its mode changeable while it stays inserted;
 a cassette image is classified when it is inserted, so a standard tape loads fast
 and a turbo tape gets the real-timing mode a power cycle away; `STATIC_OSD=1` lets
-a slow board open the menu without losing the frame deadline; and the runtime log
-now carries a 30-second stats line and the OSD's open and close, with the frame
-cost report retired. Checked on a
-Pi 400 and a Zero 2 W.
+a slow board open the menu without losing the frame deadline; the picture is
+skipped rather than drawn when the previous frame overran, so a Zero 2 W holds
+49.8 fps at half the pictures; and the runtime log carries a 30-second stats line
+with that skip count and the OSD's open and close, the frame cost report retired.
+Checked on a Pi 400 and a Zero 2 W.
 
 ---
 
@@ -325,14 +326,20 @@ failures. They are listed because they are invisible until they bite.
   every 10th frame while the menu is open, and at most every 4th frame while keys
   are held; emulation keeps running at full speed throughout.
 - **On a slow board the picture fill alone can exceed the frame budget.** On a
-  Zero 2 W repainting 960x720 costs about 18 ms against a 20 ms frame, so any OSD
-  redraw — which also repaints the picture — cannot fit and the machine can lose
-  its 50 Hz timing. `STATIC_OSD=1` removes that: the menu is drawn over the frame
-  already on screen, on an opaque panel, and the picture is left alone while the
-  menu is open. The remaining fill cost with the menu closed is unchanged
-  (~18 ms on that board) and is the next thing to attack: an adaptive fill skip
-  would keep the emulation at 50 Hz and let the picture drop to 25–40 Hz, and a
-  DMA copy of a cached frame, or a second core, would remove most of it outright.
+  Zero 2 W repainting 960x720 costs about 18 ms against a 20 ms frame, so a frame
+  that draws cannot finish in time. `STATIC_OSD=1` removes that while the menu is
+  open (the menu is drawn over the frame already on screen, on an opaque panel);
+  with the menu closed the adaptive fill skip leaves the picture alone for a frame
+  whenever the previous cycle overran, which keeps the emulation at 49.2–49.8 fps
+  on that board at the cost of roughly half the pictures — about 25 a second, and
+  the stats line reports how many were skipped.
+- **NTSC cannot be sustained on a Zero 2 W.** A 60 Hz frame is 16.7 ms and the fill
+  alone is longer than that: the board reports 56.0 fps against 60 and the picture
+  visibly flickers, because the drawn frames land unevenly against the display's
+  own refresh. No skip schedule recovers time that is not there. PAL on the same
+  board is within 0.4% of 50 fps. The fix is a cheaper fill — DMA of a staged
+  frame through Circle's portable `CDMAChannel`, or the fill on a second core —
+  and until then the honest statement is that NTSC needs a faster board.
 - **The `stereo change deferred` message** is now accurate, but the underlying
   inability remains.
 - **Pi 3 and Pi 5 unverified.** The Pi 5 image has a page-flip branch that has
