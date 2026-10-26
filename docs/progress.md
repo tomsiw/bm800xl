@@ -346,6 +346,21 @@ failures. They are listed because they are invisible until they bite.
     with no data blocks, or fsk blocks after the data has begun. A standard tape
     whose leader is an fsk block stays standard.
 
+19. **The SIO patch breaks the built-in SELF TEST's ROM check, by design.** The
+    patch is ESC opcodes written into the OS ROM image in memory via
+    `MEMORY_dPutByte()` (`esc.c:101`), bypassing the CPU's write protection: at
+    `$E459` (SIO entry), `$FD13` and `$FD60` (cassette open, XL OS) and — a
+    telling one — `$C31D`, where two `EA` bytes replace the OS's boot-time
+    checksum test, with the comment *"Disable setting NGFLAG on wrong OS
+    checksum"*. The core suppresses the OS's own complaint because it caused it;
+    it cannot suppress the self-test's separate verification, so the self-test
+    reports a ROM error while the machine is otherwise perfectly healthy, and the
+    RAM tests pass. Confirmed on a Zero 2 W: with a turbo `.cas` inserted and a
+    power cycle (real-timing mode, `ESC_enable_sio_patch = FALSE`, unmodified
+    ROM), the ROM test passes. This is upstream behaviour, not a port defect, and
+    the documentation now says so rather than leaving a reader to conclude the
+    emulator is broken.
+
 ---
 
 ## 6. Known limitations

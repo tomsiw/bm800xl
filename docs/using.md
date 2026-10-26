@@ -224,6 +224,13 @@ A standard tape in a machine built for turbo loading still works, just slowly;
 ejecting a turbo tape keeps the machine in real-timing mode until the next power
 cycle.
 
+One consequence of the patched OS is worth knowing: **the built-in SELF TEST
+reports a ROM error while the fast-load patch is active.** The patch works by
+overwriting a few bytes of the OS ROM image in memory, which is precisely what the
+self-test's ROM check is looking for. Real-timing mode — any turbo tape, power
+cycle — presents an unmodified ROM, and the test passes. See
+[SELF TEST reports a ROM error](troubleshooting.md#self-test-reports-a-rom-error).
+
 ---
 
 ## Snapshots

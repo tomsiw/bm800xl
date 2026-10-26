@@ -414,6 +414,42 @@ is the most common mistake in a hand-made cable.
 
 ---
 
+## SELF TEST reports a ROM error
+
+**This is expected with the SIO patch enabled, and it is not a fault in the
+emulated memory.**
+
+The XL/XE self-test adds up the OS ROM and compares the total with the value the
+ROM stores for itself. Atari800's fast-load SIO patch works by writing ESC
+opcodes **into the ROM image in memory** — `ESC_PatchOS()` in
+`external/atari800/src/esc.c` — so nine bytes of a 16 KB XL OS no longer match:
+
+| Address | Becomes | Purpose |
+|---|---|---|
+| `$E459` | `F2 xx 60` | fast SIO entry |
+| `$FD13` | `F2 xx` | cassette leader wait, load |
+| `$FD60` | `F2 xx` | cassette leader wait, save |
+| `$C31D` | `EA EA` | disables the OS's own boot-time checksum warning |
+
+The last row is why the machine boots and runs normally: the core suppresses the
+OS's boot-time complaint about the checksum it has just invalidated. It cannot
+suppress the self-test's separate verification, which is why that one still fails.
+The RAM tests pass, because the emulated RAM is untouched — only the ROM contents
+differ.
+
+**To see the self-test pass**, run with the patch off. The patch mode follows the
+tape type (`src/port/platform.c`): insert any **turbo** `.cas` and power cycle,
+and the machine comes up in real-timing mode with an unmodified ROM — the log says
+`SIO patch off, real timing`. The price is that every load then runs at true SIO
+speed.
+
+If the ROM test still fails in that mode, the ROM image itself is not pristine:
+many circulating XL OS files are already patched for high-speed SIO, and their
+stored checksum does not match their contents. The boot log records which revision
+the core identified from the image's CRC.
+
+---
+
 ## A disk image will not load
 
 If it is an ATR or XFD and it is on a working FAT32 USB drive, the likely cause
