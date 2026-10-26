@@ -59,11 +59,128 @@ unmodified.
 
 ---
 
+## Getting started: prepare an SD card
+
+Nothing has to be built to run the emulator. The
+[releases page](https://github.com/tomsiw/bm800xl/releases) carries two files:
+
+| Asset | What it is |
+|---|---|
+| `BM800XL-sd.img.zip` | the card image, ready to write: partition table, FAT32 filesystem and all the files in one |
+| `BM800XL-sd.zip` | the same files loose, for copying onto a card you formatted yourself (`BM800XL.zip` in older releases) |
+
+### 1. Write the image (the short way)
+
+Unpack `BM800XL-sd.img.zip` to get `BM800XL-sd.img`, a 128 MB image, and write it
+to the card:
+
+- **Raspberry Pi Imager**: *Choose OS → Use custom* → pick the `.img`. It also
+  takes the `.zip` directly and unpacks it itself.
+- **Rufus**: pick the file and answer **yes** to the "DD mode" prompt.
+- **balenaEtcher**: either file works.
+
+**There is nothing to format first**, and no FAT32 caveat in this path: the image
+brings its own partition table and FAT32 filesystem, and writing it replaces
+whatever was on the card. Any card of 128 MB or more will do, and everything below
+that size is left unallocated — which is fine, because the emulator keeps its own
+media in `USERDATA/` and needs nothing else. If you want that space back for disk
+images later, extend the partition with a partition tool afterwards.
+
+### 2. Or copy the files
+
+This is the path to take if you would rather see what lands on the card, or if you
+want a particular partition layout of your own. It is the only one that needs the
+card prepared first.
+
+**The card must be FAT32.** The Raspberry Pi firmware reads the files from a FAT
+partition, so exFAT and NTFS cards will not boot — the screen simply stays dark.
+Use one FAT32 partition, the first on the card, marked bootable.
+
+Windows' own formatter refuses FAT32 on anything larger than 32 GB. For a bigger
+card, create the partition with `diskpart` and then run `format /FS:FAT32`, or use
+a tool such as Rufus, which will force it.
+
+Unpack `BM800XL-sd.zip`. It contains a directory `SD-card-content/`, and it is
+**the contents of that directory** that belong in the root of the card — not the
+directory itself:
+
+```
+kernel8.img        kernel_2712.img    kernel8-rpi4.img
+config.txt         cmdline.txt
+bootcode.bin       start.elf   start4.elf   fixup.dat   fixup4.dat
+bcm*.dtb           armstub8-rpi4.bin
+ATARI/             ROMS/        USERDATA/
+```
+
+Three kernel images ship, and they are alternatives rather than additions: two of
+them cover every supported model and the third is the Pi 4-only optimisation, so
+copying them all means the card works in any board without a decision. The
+firmware loads the one its model needs and ignores the others, and `config.txt` is
+already set up for that — it needs no editing.
+
+### 3. Supply the ROMs
+
+The Atari OS, BASIC and 5200 ROM images are **copyrighted and not included**;
+`ROMS/` ships empty on purpose, with a note listing what it wants. Add these to it
+— in the image's case after writing the card, which Windows will mount as an
+ordinary drive. Copy them in:
+
+| File | Size | Needed for |
+|---|---|---|
+| `ATARIXL.ROM` | 16384 | XL/XE OS — **the one that matters**: without it there is no real machine |
+| `ATARIOSA.ROM` | 10240 | Atari 800 OS rev. A |
+| `ATARIOSB.ROM` | 10240 | Atari 800 OS rev. B |
+| `ATARIBAS.ROM` | 8192 | Atari BASIC |
+| `atari5200.rom` | 2048 | Atari 5200 BIOS |
+
+The emulator matches each file by length and CRC32 against the core's table of
+known images, and reports a file it cannot identify in the log. With no usable OS
+ROM at all it falls back to **AltirraOS**, a free replacement compiled into the
+kernel: it starts and runs, but it is not a genuine Atari OS.
+
+Disk, cartridge and cassette images are *not* ROMs; they belong in `USERDATA/`
+(see below) and are the user's own collection.
+
+### 4. Two lines of `settings.cfg`
+
+The settings file is `SD:/ATARI/settings.cfg`. It is plain text, one `KEY=value`
+per line, safe to edit by hand, and the emulator rewrites it whenever a setting is
+changed in the OSD menu — so edit it with the machine powered off, then power
+cycle, and do not be surprised if the file changes back after a menu edit.
+
+Two entries are worth setting before the first run. The shipped file already has
+both of them at the values below:
+
+| Line | Values | What it does |
+|---|---|---|
+| `STATIC_OSD` | `1` (static) or `0` (overlay) | With `1` the menu is drawn on an opaque panel over the frame already on screen and the picture behind it stops updating. With `0` the menu sits on a dimmed, live picture, which costs noticeably more compute power — worth `0` on a Pi 4, usually `1` on a Zero 2 W. |
+| `USER_DIR` | `SD:` or `USB:` | `SD:` keeps disk, cartridge and cassette images on the card and offers **only** `SD:/USERDATA` to the file browser. `USB:` offers the whole USB drive. Media are never read from the rest of the card, because that part belongs to the emulator. |
+
+Everything else — machine type, RAM size, video standard, sound, volume, joysticks
+— is in the OSD, which opens with **F12**. The full list is in
+[the settings file](docs/using.md#the-settings-file).
+
+### 5. Power on
+
+Insert the card, plug in a USB keyboard, and switch the Pi on. Two logs on the
+card, `ATARI/bootlog.txt` and `ATARI/runtimelog.txt`, say what happened if the
+screen stays dark; see [Troubleshooting](docs/troubleshooting.md).
+
+How to use the machine once it is running — the OSD menu and its keys, loading
+disks, cartridges and tapes, the standard and turbo cassette modes, snapshots,
+and every setting in the settings file — is in
+[Using the emulator](docs/using.md).
+
+For a card built by hand, file by file, including which firmware files your model
+needs, see [SD card setup](docs/sd-card-setup.md).
+
+---
+
 ## Quick start
 
-Everything is built for 64-bit (AArch64). **Two images cover every supported
-model**, and both can sit on one SD card because the firmware picks between them
-by name:
+If you would rather build the emulator yourself, everything is compiled for 64-bit
+(AArch64). **Two images cover every supported model**, and both can sit on one SD
+card because the firmware picks between them by name:
 
 ```powershell
 # kernel8.img - the one to start with: Pi Zero 2 W, Pi 3, Pi 4, Pi 400

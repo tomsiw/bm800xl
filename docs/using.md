@@ -456,7 +456,7 @@ for PAL, 59.92 Hz for NTSC.
 > **The frame-rate readout in the menu is the target rate, not a measurement.**
 > It shows 49.86 or 59.92 according to the selected video standard, and it
 > cannot read low. The **measured** rate is in the runtime log instead:
-> `runtimeLog.txt` on the SD card carries a `stats` line every 30 seconds with
+> `SD:/ATARI/runtimelog.txt` carries a `stats` line every 30 seconds with
 > the achieved frame rate and frame count, and — only when there were any — the
 > number of pictures that were skipped because a frame did not fit. See
 > [Getting diagnostic information](troubleshooting.md#getting-diagnostic-information).
