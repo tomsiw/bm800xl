@@ -60,7 +60,16 @@ drive with an image is selected, Left/Right toggles its read-only flag, shown as
 the video standard, and a "restore defaults" item that resets the machine
 settings without losing your mounted media.
 
-**Display** — PAL or NTSC, and the artifacting mode.
+**Display** — PAL or NTSC, the artifacting mode, and the output resolution
+(1280x720 or 1920x1080). Changing the resolution stores the new value but cannot
+take effect until the Raspberry Pi is switched off and on again, because the
+framebuffer is created before the emulator is: the menu says so, and the next time
+the board starts it comes up in the mode you chose.
+
+That is a restart of the **Pi**, not of the emulated machine — the menu's *Power
+cycle* item rebuilds the emulated Atari and leaves the framebuffer alone, so it
+does not make a resolution change take effect. The tape-mode notice works the
+other way round: it is satisfied by that same *Power cycle* item.
 
 **Sound** — On or off, volume in 5% steps, and stereo (two POKEYs).
 
@@ -348,7 +357,7 @@ SYSTEM_DIR=SD:/ATARI
 | `SOUND` | 0 or 1 |
 | `VOLUME` | 0 to 100 |
 | `STEREO` | 0 or 1 — two POKEYs |
-| `RESOLUTION` | 0 = 1280x720, 1 = 1920x1080 |
+| `RESOLUTION` | 0 = 1280x720, 1 = 1920x1080 — the same setting as the menu's Display → Resolution; it takes effect the next time the Pi is switched off and on |
 | `KEYBOARD` | 0 = USB, 1 = GPIO |
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
@@ -473,7 +482,10 @@ If it struggles:
   (`3`) or none (`0`).
 - Use NTSC rather than PAL for software that does not care; it is a slightly
   cheaper frame and many games were written for it.
-- Keep the resolution at 1280x720 rather than 1920x1080; that is four times less
-  video memory bandwidth.
+- Keep the resolution at 1280x720 rather than 1920x1080. The picture is drawn in
+  the framebuffer, so the cost is proportional to its area: 1080p is 2.25 times
+  the pixels of 720p, and on a Pi Zero 2 W that difference is the whole frame
+  budget — the picture fill alone goes from about 4.8 ms to about 10.8 ms, and
+  the adaptive skip starts leaving every second picture undrawn.
 - On a slow board, set `STATIC_OSD=1` so that opening the menu does not have to
   repaint the picture behind it.

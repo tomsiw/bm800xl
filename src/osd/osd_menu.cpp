@@ -46,7 +46,7 @@ static const unsigned DiskItemCount		= SETTINGS_MAX_DRIVES * 2;	// insert and ej
 static const unsigned CartridgeItemCount	= 2;	// insert, eject
 static const unsigned CassetteItemCount		= 2;	// insert, eject
 static const unsigned MachineItemCount		= 3;	// machine, RAM, restore defaults
-static const unsigned VideoItemCount		= 2;	// standard, artifacting
+static const unsigned VideoItemCount		= 3;	// standard, artifacting, resolution
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
 
@@ -497,6 +497,7 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		{
 		case 0: return "Video standard";
 		case 1: return "Artifacting";
+		case 2: return "Resolution";
 		}
 		break;
 
@@ -715,6 +716,7 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 		{
 		case 0: return VideoName (S.nVideoStandard);
 		case 1: return ArtifactName (S.nArtifact);
+		case 2: return ResolutionName (S.nResolution);
 		}
 		break;
 
@@ -824,12 +826,31 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			S.nVideoStandard = S.nVideoStandard == ATARI_VIDEO_PAL
 					 ? ATARI_VIDEO_NTSC : ATARI_VIDEO_PAL;
 		}
-		else
+		else if (m_nSelected == 1)
 		{
 			int nValue = S.nArtifact + nDelta;
 			if (nValue < ATARI_ARTIFACT_NONE) nValue = ATARI_ARTIFACT_PAL_BLEND;
 			if (nValue > ATARI_ARTIFACT_PAL_BLEND) nValue = ATARI_ARTIFACT_NONE;
 			S.nArtifact = nValue;
+		}
+		else
+		{
+			/*
+			 * The output mode is chosen when the framebuffer is created, which
+			 * is before the emulator is built -- changing it means tearing the
+			 * framebuffer down and building another, with the display
+			 * renegotiating its mode underneath a running machine.  So the
+			 * setting is written here and applied by the next start, and the
+			 * menu says as much instead of leaving the row looking as if it
+			 * had taken effect.
+			 */
+			S.nResolution = S.nResolution == AtariResolution720p
+					? AtariResolution1080p : AtariResolution720p;
+
+			snprintf (m_Message, sizeof m_Message,
+				  "%s: switch the Pi off and on",
+				  ResolutionName (S.nResolution));
+			m_nMessageFrames = MESSAGE_FRAMES;
 		}
 		break;
 

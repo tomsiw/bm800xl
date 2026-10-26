@@ -519,8 +519,10 @@ If the frame rate is low:
 - Build the optimised profile for the board — `kernel64-pi4` for a Pi 4.
 - Turn off accurate PAL blending (F12 → Display → Artifacting → `PAL blending
   (accurate)` → `None` or `PAL blending (simple)`).
-- Use the 720p output rather than 1080p: it is roughly four times less video
-  memory bandwidth.
+- Use the 720p output rather than 1080p: the fill costs what the picture area
+  costs, and 1080p is 2.25 times the pixels — about 4.8 ms against 10.8 ms on a
+  Zero 2 W, which is the difference between drawing every frame and skipping
+  every second one.
 - On a board that cannot keep up, `STATIC_OSD=1` makes the OSD cheap; see
   [Using the emulator](using.md).
 
