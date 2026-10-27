@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `3c74b8b`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `a5f5d73`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -24,8 +24,8 @@ a slow board open the menu without losing the frame deadline; the picture fill w
 made five times faster by scaling from the source, so a Zero 2 W now holds 49.8 fps
 at PAL and 59.9 at NTSC with no picture skipped, the adaptive skip remaining as a
 safety net; the output resolution and the joystick interface are chosen in the
-menu, the resolution and the interface on the next power cycle and the joystick
-port swap at once; and the runtime log carries a 30-second stats line with that
+menu -- USB gamepads, the 9-pin ports or keys on the USB keyboard -- the resolution
+and the interface on the next power cycle and the joystick port swap at once; and the runtime log carries a 30-second stats line with that
 skip count and the OSD's open and close, the frame cost report retired. Checked on
 a Pi 400 and a Zero 2 W.
 
@@ -45,7 +45,7 @@ a Pi 400 and a Zero 2 W.
 | OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker; `STATIC_OSD` for boards where the picture fill will not fit beside the emulation |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
-| Joystick ports | two inputs (`STICK(0)`, `STICK(1)`); one interface at a time, chosen in the OSD as USB gamepads or the two 9-pin GPIO ports, with the ports swappable live; the 9-pin path has never been run on hardware |
+| Joystick ports | two inputs (`STICK(0)`, `STICK(1)`); one interface at a time, chosen in the OSD as USB gamepads, the two 9-pin GPIO ports, or keys on the USB keyboard (`Joy1_Up` .. `Joy2_Fire` in `usbkeys.cfg`, nothing bound by default), with the ports swappable live; the 9-pin path has never been run on hardware |
 | Pi 3 / Pi 5 | images build; never run |
 
 ---
@@ -350,6 +350,13 @@ failures. They are listed because they are invisible until they bite.
     with no data blocks, or fsk blocks after the data has begun. A standard tape
     whose leader is an fsk block stays standard.
 
+20. **Circle's keyboard device has room for exactly one raw key handler.**  `m_pKeyStatusHandlerRaw`
+    is a single pointer in `CUSBKeyboardDevice`, and registering again replaces rather than adds;
+    there is no getter for the held keys either, so a second driver cannot poll instead.  Two drivers
+    here need those reports -- the Atari keyboard, and the keyboard joystick -- so neither owns the
+    device: `src/input/usb_key_reports.cpp` claims the handler and forwards every report to a list
+    of listeners, and the report for a keyboard that has gone is an empty one so that nothing stays
+    held.  Any future driver that wants key reports registers there, not on the device.
 19. **The SIO patch breaks the built-in SELF TEST's ROM check, by design.** The
     patch is ESC opcodes written into the OS ROM image in memory via
     `MEMORY_dPutByte()` (`esc.c:101`), bypassing the CPU's write protection: at
@@ -411,7 +418,7 @@ gamepads — both a generic pad and a Switch Pro — attached before power-on an
 while running, with unplug, re-plug and swap; snapshots — save, save as new, load,
 and erase from the Erase snapshot screen; the Joysticks screen — opening it,
 stepping the interface and the swap row, the footer messages, and the two-port
-order surviving a power cycle.
+order surviving a power cycle; the keyboard interface — `Joy1_*` keys moving `STICK(0)` while the rest of the keyboard still types, and a mapped key no longer typing its character.
 
 Not verified: GPIO keyboard, 9-pin GPIO joysticks, the second keyboard mode, the
 128/192/320/321 kB RAM configurations in use, cassette writing, hot-plugging USB
