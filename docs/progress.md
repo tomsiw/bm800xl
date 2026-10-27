@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `e2773e4`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `3c74b8b`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -23,9 +23,11 @@ and a turbo tape gets the real-timing mode a power cycle away; `STATIC_OSD=1` le
 a slow board open the menu without losing the frame deadline; the picture fill was
 made five times faster by scaling from the source, so a Zero 2 W now holds 49.8 fps
 at PAL and 59.9 at NTSC with no picture skipped, the adaptive skip remaining as a
-safety net; and the runtime log carries a 30-second stats line with that skip count
-and the OSD's open and close, the frame cost report retired. Checked on a Pi 400
-and a Zero 2 W.
+safety net; the output resolution and the joystick interface are chosen in the
+menu, the resolution and the interface on the next power cycle and the joystick
+port swap at once; and the runtime log carries a 30-second stats line with that
+skip count and the OSD's open and close, the frame cost report retired. Checked on
+a Pi 400 and a Zero 2 W.
 
 ---
 
@@ -43,6 +45,7 @@ and a Zero 2 W.
 | OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker; `STATIC_OSD` for boards where the picture fill will not fit beside the emulation |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
+| Joystick ports | two inputs (`STICK(0)`, `STICK(1)`); one interface at a time, chosen in the OSD as USB gamepads or the two 9-pin GPIO ports, with the ports swappable live; the 9-pin path has never been run on hardware |
 | Pi 3 / Pi 5 | images build; never run |
 
 ---
@@ -192,6 +195,7 @@ here so they are not rediscovered.
 | `7b8153a` | a controller plugged in later was never seen; the Switch Pro never appeared at all | `UpdatePlugAndPlay()` was **unreachable**: the only call was in `CUSBAtariKeyboard::Update()`, and nothing ever called `Update()`. So port-status events were never drained, and a failed enumeration was never retried. |
 | `aed2e43` | generic pads reported a constant wrong `STICK`; every hat direction read as "up" | the resolver was still only in the probe: the adapter used fixed bits 15–18 and axis trim, and read the hat as degrees when Circle reports the raw HID value 0–7. |
 | `7713607` | MAC/65's DDT could not take control: the emulator stopped at its BRK | the core's `LIBATARI800` build treats BRK as "the program ended" and longjmps out of the frame unless `libatari800_continue_on_brk` is set. The instruction is abandoned after its opcode fetch, so the push and the vector never happen. Now `CONTINUE_ON_BRK` in the settings file, default 1, which runs BRK as the machine does. |
+| `3c74b8b` | the two 9-pin joystick ports could never be used | the USB loop filled **all four** controller slots with driver objects even when no pad was attached — deliberately, so a later plug-in is noticed without polling — and the GPIO loop skipped any port that already had a handle. So the slots the 9-pin ports wanted always held placeholders that reported themselves absent, and nothing in the log said why. Replaced rather than patched: one interface at a time, two inputs, chosen in the OSD. |
 | `9981c01` | the docs say Delete ejects an image, and it never did | the menu only receives the keys the keyboard drivers classify as menu keys, and neither list contained Delete: `MenuKeyForUsage()` on USB and `MenuKeyForPosition()` on GPIO both stopped at the arrows, Return, Escape and Space. The menu's handler for it was unreachable, in the same way `UpdatePlugAndPlay()` was. Delete is now classified on USB, and the GPIO driver maps BACK SPACE to it, because the Atari's Delete is CTRL+BACK SPACE and the menu cannot see modifiers. |
 | `9981c01` | no way to remove an old snapshot | the Snapshots screen could write and read files but never erase one. Erasing now has a screen of its own, *Erase snapshot*, reached like the others: the save and load browsers were the wrong place to put it, because a file could then be lost in a screen opened for another purpose. Return or Delete asks, a second press erases, and any other key cancels **and takes the question off the screen** — leaving it there made a cancelled action look pending. |
 | `6712e7b` | a long directory listing ran past the bottom of the menu panel | the browser drew a fixed 20 rows, but the panel holds about 14 at the font the menu used: the last rows were drawn over the status line and the footer, and a transient message was drawn on top of them. The row count is derived from the panel and the font now, and limited by the message line. |
@@ -405,7 +409,9 @@ navigation, including the power cycle; `STATIC_OSD=1`; sound; 49.8 fps PAL and
 59.9 fps NTSC with nothing skipped; USB keyboard direct, and hot-plugged; USB
 gamepads — both a generic pad and a Switch Pro — attached before power-on and
 while running, with unplug, re-plug and swap; snapshots — save, save as new, load,
-and erase from the Erase snapshot screen.
+and erase from the Erase snapshot screen; the Joysticks screen — opening it,
+stepping the interface and the swap row, the footer messages, and the two-port
+order surviving a power cycle.
 
 Not verified: GPIO keyboard, 9-pin GPIO joysticks, the second keyboard mode, the
 128/192/320/321 kB RAM configurations in use, cassette writing, hot-plugging USB
