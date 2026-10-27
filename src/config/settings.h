@@ -46,6 +46,14 @@ enum TAtariResolution
 	AtariResolutionUnknown
 };
 
+/* Where the two Atari joystick ports are fed from. */
+enum TAtariJoystickInterface
+{
+	AtariJoystickInterfaceUSB = 0,	///< two USB gamepads
+	AtariJoystickInterfaceGPIO,	///< the two 9-pin ports on the GPIO header
+	AtariJoystickInterfaceUnknown
+};
+
 struct TAtariSettings
 {
 	// Emulated machine
@@ -96,14 +104,18 @@ struct TAtariSettings
 	/*
 	 * Controllers.
 	 *
-	 * The two kinds are independent rather than one setting with three values,
-	 * because they are independent in reality: they share no hardware, so "both"
-	 * is a state worth being able to ask for.  The one thing that cannot happen
-	 * is GPIO joysticks alongside a GPIO keyboard, which needs no setting --
-	 * they need the same pins, so the kernel refuses and says so.
+	 * One interface at a time, not both: the two Atari ports are fed from either
+	 * two USB gamepads or the two 9-pin ports on the GPIO header, and mixing the
+	 * two would mean deciding case by case which source owns a port.  The
+	 * interface is chosen when the controllers are created, which is before the
+	 * emulator runs, so changing it needs the Pi switched off and on.
+	 *
+	 * Swap exchanges the two ports, and unlike the interface it is applied
+	 * immediately: it is only a question of which handle the platform layer finds
+	 * in which slot.
 	 */
-	boolean		bUSBJoysticks;
-	boolean		bGPIOJoysticks;
+	int		nJoystickInterface;	///< TAtariJoystickInterface
+	boolean		bSwapJoystickPorts;
 
 	// Media.  Empty means nothing loaded.
 	char		DiskPath[SETTINGS_MAX_DRIVES][SETTINGS_PATH_MAX];

@@ -383,6 +383,7 @@ CAtariKernel::CAtariKernel (void)
 	m_EMMC (&m_Interrupt, &m_Timer, &m_ActLED),
 	m_pKeyboard (0),
 	m_pAudioSink (0),
+	m_pJoystickHandle{0, 0},
 	m_bInitialized (FALSE),
 	m_bAudioOpen (FALSE),
 	m_bUSBReady (FALSE),
@@ -702,11 +703,12 @@ boolean CAtariKernel::Initialize (void)
 
 	CBootLog::Get ()->RecordRuntimef (
 		"input configured: %s keyboard, numpad as cursor %s, "
-		"USB joysticks %s, GPIO joysticks %s, cassette %s",
+		"joysticks %s (ports %s), cassette %s",
 		m_Settings.nKeyboardMode == AtariKeyboardModeUSB ? "USB" : "GPIO",
 		m_Settings.bNumpadAsCursor ? "on" : "off",
-		m_Settings.bUSBJoysticks ? "on" : "off",
-		m_Settings.bGPIOJoysticks ? "on" : "off",
+		m_Settings.nJoystickInterface == AtariJoystickInterfaceGPIO
+			? "9-pin GPIO" : "USB gamepads",
+		m_Settings.bSwapJoystickPorts ? "swapped" : "normal",
 		m_Settings.bCassetteReadOnly ? "read only" : "read/write");
 
 	/*
@@ -1071,6 +1073,7 @@ boolean CAtariKernel::InitializeKeyboard (void)
 void CAtariKernel::InitializeJoysticks (void)
 {
 	boolean bGPIOKeyboard = m_Settings.nKeyboardMode == AtariKeyboardModeGPIO;
+	boolean bGPIO = m_Settings.nJoystickInterface == AtariJoystickInterfaceGPIO;
 
 	/*
 	 * A start-up record of the controller configuration.  The driver's own log
@@ -1078,92 +1081,34 @@ void CAtariKernel::InitializeJoysticks (void)
 	 * log without controller lines apart from a log written by a build in which
 	 * joysticks were never created.
 	 */
-	CBootLog::Get ()->RecordRuntimef ("joysticks: initialising, usb %s, gpio %s",
-					 m_Settings.bUSBJoysticks ? "on" : "off",
-					 bGPIOKeyboard ? "on" : "off");
+	CBootLog::Get ()->RecordRuntimef ("joysticks: %s, ports %s",
+					 bGPIO ? "9-pin GPIO" : "USB gamepads",
+					 m_Settings.bSwapJoystickPorts ? "swapped" : "normal");
 
-	// --- USB gamepads -------------------------------------------------------
-	//
-	// Four are supported, matching the core's four controller inputs.  Each is
-	// looked up by index, and a controller that is not attached simply reports
-	// itself absent until one is.
-	if (m_Settings.bUSBJoysticks)
+	for (unsigned n = 0; n < ATARI_JOYSTICK_COUNT; n++)
 	{
-		unsigned nUSBFound = 0;
-		unsigned nUSBAttached = 0;
-		for (unsigned n = 1; n <= ATARI_JOYSTICK_COUNT; n++)
-		{
-			CAtariJoystick *pJoystick = ATARI_CreateUSBJoystick (&m_USBHCI, n);
-			if (pJoystick == 0)
-			{
-				continue;
-			}
-
-			pJoystick->Initialize ();
-
-			if (pJoystick->IsPresent ())
-			{
-				nUSBAttached++;
-			}
-
-			/*
-			 * The slot is filled even when nothing is attached: a USB gamepad
-			 * plugged in later is then noticed by the driver's own IsPresent(),
-			 * without the kernel having to poll for new devices.
-			 */
-			ATARI_SetJoystick ((int) n - 1, pJoystick->Handle ());
-			nUSBFound++;
-		}
-
-		/*
-		 * LogWarning, because this kernel's logger discards LogNotice -- this
-		 * line was written for years without ever reaching the log.  It says the
-		 * driver is running, which is not the same thing as a controller being
-		 * attached, so the two are reported separately.
-		 */
-		if (nUSBFound > 0)
-		{
-			m_Logger.Write (FromKernel, LogWarning,
-					"Watching %u USB gamepad input%s; plug one in at any time",
-					nUSBFound, nUSBFound == 1 ? "" : "s");
-		}
-
-		if (nUSBAttached == 0)
-		{
-			m_Logger.Write (FromKernel, LogWarning,
-					"No USB gamepad is attached yet; one plugged in later "
-					"is noticed without restarting");
-		}
+		m_pJoystickHandle[n] = 0;
 	}
 
-	// --- 9-pin ports on GPIO ------------------------------------------------
-	if (!m_Settings.bGPIOJoysticks)
-	{
-		return;
-	}
-
-	if (bGPIOKeyboard)
+	/*
+	 * One interface or the other, never both: they would be competing for the
+	 * same two Atari ports, and the 9-pin ports need the header pins the GPIO
+	 * keyboard uses.
+	 */
+	if (bGPIO && bGPIOKeyboard)
 	{
 		m_Logger.Write (FromKernel, LogWarning,
-				"GPIO joysticks are off while the GPIO keyboard is selected: "
+				"9-pin joysticks are off while the GPIO keyboard is selected: "
 				"they need the same header pins");
 		return;
 	}
 
-	for (unsigned nPort = 1; nPort <= ATARI_GPIO_JOYSTICK_PORTS; nPort++)
+	for (unsigned n = 1; n <= ATARI_JOYSTICK_COUNT; n++)
 	{
-		CAtariJoystick *pJoystick = ATARI_CreateGPIOJoystick (nPort);
+		CAtariJoystick *pJoystick = bGPIO
+			? ATARI_CreateGPIOJoystick (n)
+			: ATARI_CreateUSBJoystick (&m_USBHCI, n);
 		if (pJoystick == 0)
-		{
-			continue;
-		}
-
-		/*
-		 * A USB gamepad has already claimed this port if one was found, and a
-		 * USB gamepad is the more informative of the two.  The GPIO port is
-		 * then left unclaimed rather than silently overriding it.
-		 */
-		if (ATARI_GetJoystick ((int) nPort - 1) != 0)
 		{
 			continue;
 		}
@@ -1171,12 +1116,84 @@ void CAtariKernel::InitializeJoysticks (void)
 		if (!pJoystick->Initialize ())
 		{
 			m_Logger.Write (FromKernel, LogWarning,
-					"GPIO joystick port %u did not initialise", nPort);
+					"%s %u did not initialise",
+					bGPIO ? "GPIO joystick port" : "USB gamepad",
+					n);
 			continue;
 		}
 
-		ATARI_SetJoystick ((int) nPort - 1, pJoystick->Handle ());
+		/*
+		 * A USB slot is filled even when no gamepad is attached: the driver's
+		 * own IsPresent() then notices one plugged in later, without the kernel
+		 * having to poll for new devices.
+		 */
+		m_pJoystickHandle[n - 1] = pJoystick->Handle ();
 	}
+
+	BindJoysticks ();
+
+	if (!bGPIO)
+	{
+		unsigned nAttached = 0;
+
+		for (unsigned n = 0; n < ATARI_JOYSTICK_COUNT; n++)
+		{
+			if (m_pJoystickHandle[n] != 0)
+			{
+				nAttached++;
+			}
+		}
+
+		/*
+		 * LogWarning, because this kernel's logger discards LogNotice.  The
+		 * line says the driver is running, which is not the same thing as a
+		 * controller being attached, so the two are reported separately.
+		 */
+		m_Logger.Write (FromKernel, LogWarning,
+				"Watching %u USB gamepad input%s; plug one in at any time",
+				nAttached, nAttached == 1 ? "" : "s");
+
+		if (nAttached == 0)
+		{
+			m_Logger.Write (FromKernel, LogWarning,
+					"No USB gamepad is attached yet; one plugged in later "
+					"is noticed without restarting");
+		}
+	}
+}
+
+/*
+ * Points the two Atari ports at the two controllers, in the order the setting
+ * asks for.
+ *
+ * Separated from InitializeJoysticks() because swapping the ports is applied
+ * while the machine runs: it is only a question of which handle the platform
+ * layer finds in which slot, so no controller has to be created or destroyed.
+ */
+void CAtariKernel::BindJoysticks (void)
+{
+	for (unsigned n = 0; n < ATARI_JOYSTICK_COUNT; n++)
+	{
+		unsigned nPort = m_Settings.bSwapJoystickPorts
+			? (ATARI_JOYSTICK_COUNT - 1) - n
+			: n;
+
+		ATARI_SetJoystick ((int) nPort, m_pJoystickHandle[n]);
+	}
+}
+
+void CAtariKernel::SwapJoystickPorts (void)
+{
+	if (m_pJoystickHandle[0] == 0 && m_pJoystickHandle[1] == 0)
+	{
+		return;
+	}
+
+	BindJoysticks ();
+
+	CBootLog::Get ()->RecordRuntimef ("joysticks: ports %s",
+					 m_Settings.bSwapJoystickPorts
+						? "swapped" : "normal");
 }
 
 void CAtariKernel::MountMediaFromSettings (void)

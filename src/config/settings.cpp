@@ -69,14 +69,16 @@ void Settings_SetDefaults (TAtariSettings *pSettings)
 	pSettings->bContinueOnBrk = TRUE;
 
 	/*
-	 * Both kinds of controller are on by default.
+	 * USB gamepads by default.
 	 *
-	 * They share no hardware, so there is nothing to choose between them: a USB
-	 * gamepad plugged in later works, and so does a 9-pin joystick wired up.  A
-	 * machine with neither costs one function call per frame per slot.
+	 * One interface, not two: which one is feeding the two Atari ports has to be
+	 * a decision, because the GPIO ports need the same header pins as the GPIO
+	 * keyboard and because a machine cannot meaningfully have both kinds wired to
+	 * the same two ports.  A USB gamepad plugged in later still works, which is
+	 * why USB is the default.
 	 */
-	pSettings->bUSBJoysticks = TRUE;
-	pSettings->bGPIOJoysticks = TRUE;
+	pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
+	pSettings->bSwapJoystickPorts = FALSE;
 
 	strcpy (pSettings->UserDirectory, STORAGE_VOLUME_USER);
 	strcpy (pSettings->SystemDirectory, STORAGE_VOLUME_SYSTEM);
@@ -352,20 +354,35 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 			pSettings->bStaticOSD = bValue;
 		}
 	}
-	else if (strcmp (pKey, "USB_JOYSTICKS") == 0)
+	else if (strcmp (pKey, "JOY_INTERFACE") == 0)
+	{
+		if (EqualsIgnoreCase (pValue, "USB") || strcmp (pValue, "0") == 0)
+		{
+			pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
+		}
+		else if (EqualsIgnoreCase (pValue, "GPIO") || strcmp (pValue, "1") == 0)
+		{
+			pSettings->nJoystickInterface = AtariJoystickInterfaceGPIO;
+		}
+	}
+	else if (strcmp (pKey, "JOY_SWAP") == 0)
 	{
 		if (ParseBool (pValue, &bValue))
 		{
-			pSettings->bUSBJoysticks = bValue;
+			pSettings->bSwapJoystickPorts = bValue;
 		}
 	}
-	else if (strcmp (pKey, "GPIO_JOYSTICKS") == 0)
-	{
-		if (ParseBool (pValue, &bValue))
-		{
-			pSettings->bGPIOJoysticks = bValue;
-		}
-	}
+	/*
+	 * USB_JOYSTICKS and GPIO_JOYSTICKS are deliberately not read, now that one
+	 * interface is chosen instead of two independent switches.
+	 *
+	 * Every settings file written before this change carries both, set to 1, in
+	 * that order.  Honouring them would be worse than ignoring them: a rule that
+	 * let the second key win would silently put existing users -- all of whom
+	 * have only ever run USB controllers, because the 9-pin path was never
+	 * reachable -- onto the GPIO interface, which for them means no joystick at
+	 * all.  Ignoring both leaves the default, which is USB.
+	 */
 	else if (strcmp (pKey, "CARTRIDGE") == 0)
 	{
 		ParseString (pValue, pSettings->CartridgePath, SETTINGS_PATH_MAX);
@@ -560,10 +577,11 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 		    Settings.bContinueOnBrk ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "STATIC_OSD=%d\n",
 		    Settings.bStaticOSD ? 1 : 0);
-	AppendLine (Buffer, sizeof Buffer, &nUsed, "USB_JOYSTICKS=%d\n",
-		    Settings.bUSBJoysticks ? 1 : 0);
-	AppendLine (Buffer, sizeof Buffer, &nUsed, "GPIO_JOYSTICKS=%d\n",
-		    Settings.bGPIOJoysticks ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "JOY_INTERFACE=%s\n",
+		    Settings.nJoystickInterface == AtariJoystickInterfaceGPIO
+			? "GPIO" : "USB");
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "JOY_SWAP=%d\n",
+		    Settings.bSwapJoystickPorts ? 1 : 0);
 
 	for (int i = 0; i < SETTINGS_MAX_DRIVES; i++)
 	{

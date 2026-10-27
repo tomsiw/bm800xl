@@ -40,13 +40,16 @@
 #define ATARI_JOY_TRIG_FIRED	0
 
 /*
- * How many controller inputs the emulation core has.
+ * How many controller inputs this project fills.
  *
- * This is what an Atari 800 had: each of its two ports carried a second
- * controller's lines alongside the first, for four-player games.  The core asks
- * for all four, so this project can serve all four.
+ * An Atari 800 had four ports, and each of its two pairs carried a second
+ * controller's lines alongside the first, so the core asks for four.  An XL/XE
+ * has two physical ports, and this project drives those two -- STICK(0) and
+ * STICK(1).  The remaining two inputs are left unbound, and the platform layer
+ * answers them as centred, so a game that reads STICK(2) sees a released
+ * joystick rather than a fault.
  */
-#define ATARI_JOYSTICK_COUNT	4
+#define ATARI_JOYSTICK_COUNT	2
 
 #ifdef __cplusplus
 extern "C" {

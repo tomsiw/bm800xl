@@ -41,10 +41,11 @@ static const unsigned MenuLabelColumn	= 450;	// x offset of the value column
 
 // Numbers of entries on each screen.  All five switch statements keyed on
 // m_Screen have to agree with these, so they are named rather than repeated.
-static const unsigned MainItemCount		= 11;
+static const unsigned MainItemCount		= 12;
 static const unsigned DiskItemCount		= SETTINGS_MAX_DRIVES * 2;	// insert and eject
 static const unsigned CartridgeItemCount	= 2;	// insert, eject
 static const unsigned CassetteItemCount		= 2;	// insert, eject
+static const unsigned JoystickItemCount		= 2;	// interface, swap ports
 static const unsigned MachineItemCount		= 3;	// machine, RAM, restore defaults
 static const unsigned VideoItemCount		= 3;	// standard, artifacting, resolution
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
@@ -327,6 +328,8 @@ unsigned CAtariMenu::GetItemCount (void) const
 		return CartridgeItemCount;
 	case ScreenCassette:
 		return CassetteItemCount;
+	case ScreenJoysticks:
+		return JoystickItemCount;
 	case ScreenMachine:
 		return MachineItemCount;
 	case ScreenVideo:
@@ -437,14 +440,15 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 0: return "Disk drives";
 		case 1: return "Cartridges";
 		case 2: return "Cassettes";
-		case 3: return "Machine and memory";
-		case 4: return "Screen";
-		case 5: return "Sound";
-		case 6: return "Save states";
-		case 7: return "Cold reset";
-		case 8: return "Warm reset";
-		case 9: return "Power cycle";
-		case 10: return "Close menu";
+		case 3: return "Joysticks";
+		case 4: return "Machine and memory";
+		case 5: return "Screen";
+		case 6: return "Sound";
+		case 7: return "Save states";
+		case 8: return "Cold reset";
+		case 9: return "Warm reset";
+		case 10: return "Power cycle";
+		case 11: return "Close menu";
 		}
 		break;
 
@@ -482,6 +486,14 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 			return "Cassette";
 		}
 		return "Eject cassette";
+
+	case ScreenJoysticks:
+		switch (nIndex)
+		{
+		case 0: return "Interface";
+		case 1: return "Swap ports";
+		}
+		break;
 
 	case ScreenMachine:
 		switch (nIndex)
@@ -579,6 +591,16 @@ const char *CAtariMenu::KeyboardName (int nMode)
 	}
 }
 
+const char *CAtariMenu::JoystickInterfaceName (int nInterface)
+{
+	switch (nInterface)
+	{
+	case AtariJoystickInterfaceUSB:  return "USB gamepads";
+	case AtariJoystickInterfaceGPIO: return "9-pin GPIO ports";
+	default:                         return "?";
+	}
+}
+
 const char *CAtariMenu::ResolutionName (int nResolution)
 {
 	switch (nResolution)
@@ -632,15 +654,20 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 		case 2:
 			return BaseName (S.CassettePath);
 		case 3:
+			snprintf (Text, sizeof Text, "%s%s",
+				  JoystickInterfaceName (S.nJoystickInterface),
+				  S.bSwapJoystickPorts ? ", swapped" : "");
+			return Text;
+		case 4:
 			snprintf (Text, sizeof Text, "%s, %s",
 				  MachineName (S.nMachine), RamName (S.nRamKB));
 			return Text;
-		case 4:
+		case 5:
 			snprintf (Text, sizeof Text, "%s, %s",
 				  VideoName (S.nVideoStandard),
 				  ResolutionName (S.nResolution));
 			return Text;
-		case 5:
+		case 6:
 			if (!S.bSoundEnabled)
 			{
 				return "Off";
@@ -648,7 +675,7 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			snprintf (Text, sizeof Text, "%d%%%s", S.nSoundVolume,
 				  S.bSoundStereo ? ", stereo" : "");
 			return Text;
-		case 6:
+		case 7:
 			return "Save / load / erase";
 		}
 		break;
@@ -701,6 +728,14 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			  BaseName (S.CassettePath),
 			  S.bCassetteReadOnly ? "  [ro]" : "");
 		return Text;
+
+	case ScreenJoysticks:
+		switch (nIndex)
+		{
+		case 0: return JoystickInterfaceName (S.nJoystickInterface);
+		case 1: return S.bSwapJoystickPorts ? "On" : "Off";
+		}
+		break;
 
 	case ScreenMachine:
 		switch (nIndex)
@@ -960,6 +995,45 @@ void CAtariMenu::AdjustSetting (int nDelta)
 		}
 		break;
 
+	case ScreenJoysticks:
+		if (m_nSelected == 0)
+		{
+			/*
+			 * The interface is fixed when the controllers are created, which is
+			 * before the emulator runs: the USB drivers are cached in the factory
+			 * and the GPIO ports claim header pins.  So the choice is stored and
+			 * the next start applies it, and the menu says so rather than leaving
+			 * the row looking as if it had taken effect.
+			 */
+			S.nJoystickInterface = S.nJoystickInterface == AtariJoystickInterfaceUSB
+				? AtariJoystickInterfaceGPIO
+				: AtariJoystickInterfaceUSB;
+
+			snprintf (m_Message, sizeof m_Message,
+				  "%s: switch the Pi off and on",
+				  JoystickInterfaceName (S.nJoystickInterface));
+			m_nMessageFrames = MESSAGE_FRAMES;
+		}
+		else
+		{
+			/*
+			 * Swapping is applied at once: it is only a question of which
+			 * controller the platform layer finds in which port, so the two are
+			 * re-bound rather than recreated.
+			 */
+			S.bSwapJoystickPorts = S.bSwapJoystickPorts ? FALSE : TRUE;
+
+			if (m_pHost != 0)
+			{
+				m_pHost->SwapJoystickPorts ();
+			}
+
+			snprintf (m_Message, sizeof m_Message, "Ports %s",
+				  S.bSwapJoystickPorts ? "swapped" : "back to normal");
+			m_nMessageFrames = MESSAGE_FRAMES;
+		}
+		break;
+
 	default:
 		bChanged = FALSE;
 		break;
@@ -1109,14 +1183,15 @@ void CAtariMenu::ActivateSelection (void)
 		case 0: OpenScreen (ScreenDisks); break;
 		case 1: OpenScreen (ScreenCartridge); break;
 		case 2: OpenScreen (ScreenCassette); break;
-		case 3: OpenScreen (ScreenMachine); break;
-		case 4: OpenScreen (ScreenVideo); break;
-		case 5: OpenScreen (ScreenSound); break;
-		case 6: OpenScreen (ScreenSnapshots); break;
-		case 7: ExitMenu (ExitColdReset); break;
-		case 8: ExitMenu (ExitWarmReset); break;
-		case 9: ExitMenu (ExitPowerCycle); break;
-		case 10: ExitMenu (ExitClose); break;
+		case 3: OpenScreen (ScreenJoysticks); break;
+		case 4: OpenScreen (ScreenMachine); break;
+		case 5: OpenScreen (ScreenVideo); break;
+		case 6: OpenScreen (ScreenSound); break;
+		case 7: OpenScreen (ScreenSnapshots); break;
+		case 8: ExitMenu (ExitColdReset); break;
+		case 9: ExitMenu (ExitWarmReset); break;
+		case 10: ExitMenu (ExitPowerCycle); break;
+		case 11: ExitMenu (ExitClose); break;
 		}
 		break;
 

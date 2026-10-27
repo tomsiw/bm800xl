@@ -78,6 +78,14 @@ public:
 	// through it) survives one.
 	virtual boolean PowerCycle (void) = 0;
 
+	/*
+	 * Re-points the two Atari joystick ports at the two controllers, in the
+	 * order the settings now ask for.  Called when the swap row changes: unlike
+	 * the choice of interface, which is fixed when the controllers are created,
+	 * this costs nothing and can be done while the machine runs.
+	 */
+	virtual void SwapJoystickPorts (void) = 0;
+
 	// The message to show when the last operation failed.
 	virtual const char *GetLastError (void) = 0;
 
@@ -131,6 +139,7 @@ private:
 		ScreenDisks,
 		ScreenCartridge,
 		ScreenCassette,
+		ScreenJoysticks,
 		ScreenMachine,
 		ScreenVideo,
 		ScreenSound,
@@ -303,6 +312,7 @@ private:
 	static const char *ArtifactName (int nArtifact);
 	static const char *KeyboardName (int nMode);
 	static const char *ResolutionName (int nResolution);
+	static const char *JoystickInterfaceName (int nInterface);
 	static const char *BaseName (const char *pPath);
 
 private:

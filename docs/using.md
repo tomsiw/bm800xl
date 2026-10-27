@@ -56,6 +56,15 @@ drive with an image is selected, Left/Right toggles its read-only flag, shown as
 
 **Cartridge** — Load a cartridge image (CAR or ROM).
 
+**Joysticks** — Which interface feeds the two Atari joystick ports: **USB
+gamepads**, or the two **9-pin ports** on the GPIO header. One or the other, never
+both, because they would be competing for the same two ports -- and the 9-pin
+ports need the header pins the GPIO keyboard uses. The second row, **Swap ports**,
+exchanges the two: gamepad 1 then drives joystick 2 and gamepad 2 drives joystick
+1, or the same for the two 9-pin ports. Swapping applies at once; changing the
+interface needs the Pi switched off and on, because the controllers are created
+before the emulator starts, and the menu says so when you change it.
+
 **Machine and memory** — The machine type (XL, XE, XE Game System), the RAM size,
 the video standard, and a "restore defaults" item that resets the machine
 settings without losing your mounted media.
@@ -337,6 +346,8 @@ KEYBOARD=0
 NUMPAD_CURSOR=1
 CONTINUE_ON_BRK=1
 STATIC_OSD=0
+JOY_INTERFACE=USB
+JOY_SWAP=0
 DISK1_PATH=USB:/disks/BOUNTYBOB.ATR
 DISK1_READONLY=0
 DISK2_PATH=
@@ -362,8 +373,8 @@ SYSTEM_DIR=SD:/ATARI
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
 | `STATIC_OSD` | 0 or 1 — 1 draws the menu over a frozen picture on an opaque panel; 0 (the default) repaints and dims the picture behind it |
-| `USB_JOYSTICKS` | 0 or 1 — read USB gamepads |
-| `GPIO_JOYSTICKS` | 0 or 1 — read the two 9-pin ports on the header |
+| `JOY_INTERFACE` | `USB` or `GPIO` — which interface feeds the two joystick ports; the same setting as the menu's Joysticks → Interface, and it takes effect the next time the Pi is switched off and on |
+| `JOY_SWAP` | 0 or 1 — 1 exchanges the two joystick ports, and takes effect immediately |
 | `DISK1_PATH` … `DISK4_PATH` | a path, or empty for "no disk in this drive" |
 | `DISK1_READONLY` … `DISK4_READONLY` | 0 or 1 |
 | `CARTRIDGE` | a path, or empty |
@@ -376,6 +387,14 @@ A missing or damaged file is not fatal: the defaults are used, unknown lines are
 ignored, and a value that cannot be parsed leaves the default in place. This
 means you can leave comments in the file, and a half-written file still yields
 everything that was intact.
+
+One consequence of that rule is worth spelling out, because it affects anyone
+upgrading: `USB_JOYSTICKS` and `GPIO_JOYSTICKS` — the two switches this version
+replaced with `JOY_INTERFACE` — are **no longer read at all**. An older file still
+carrying both, set to 1, therefore leaves the interface at its default, which is
+**USB gamepads**. That is deliberate: honouring the old pair would put existing
+users onto the GPIO interface, and the two 9-pin ports have never been the ones
+being used.
 
 ### `CONTINUE_ON_BRK`
 
@@ -445,10 +464,11 @@ real machine, and **Shift+Help** opens the menu. See
 Controllers work with no setup at all: plug in a USB gamepad, or wire a real
 9-pin joystick to the GPIO header, and it is read.
 
-There are four controller inputs, matching an Atari 800 — each of its two ports
-carried a second controller's lines alongside the first, so four-player games
-work. A gamepad's D-pad or left stick gives the four directions, and any of its
-action buttons fires.
+There are **two** controller inputs, because an XL/XE has two ports: `STICK(0)`
+and `STICK(1)`. A gamepad's D-pad or left stick gives the four directions, and any
+of its action buttons fires. Which interface is in use — two USB gamepads or the
+two 9-pin ports — and whether the two ports are swapped, is chosen in the menu:
+**F12 → Joysticks**.
 
 One thing is worth knowing before choosing a keyboard: **a GPIO keyboard and the
 GPIO joystick ports need the same header pins**, so only one of the two can be

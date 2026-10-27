@@ -33,6 +33,7 @@
 #include "bootlog.h"
 #include "config/settings.h"
 #include "input/keyboard.h"
+#include "input/joystick_types.h"
 #include "osd/osd_menu.h"
 #include "storage/storage.h"
 #include "video/video_out.h"
@@ -121,6 +122,7 @@ public:
 	void ColdReset (void);
 	void WarmReset (void);
 	boolean PowerCycle (void);
+	void SwapJoystickPorts (void);
 	const char *GetLastError (void);
 	double GetFps (void);
 
@@ -156,7 +158,14 @@ private:
 	 */
 	void InitializeJoysticks (void);
 
-	/* Reads usbkeys.cfg and hands it to the USB keyboard driver. */
+	/*
+	 * Binds the two controllers to the two Atari ports in the order the settings
+	 * ask for, and is called again when the swap row changes -- that is the
+	 * whole of a live swap, because only the handle in the slot changes.
+	 */
+	void BindJoysticks (void);
+
+	// Reads usbkeys.cfg and hands it to the USB keyboard driver.
 	void LoadKeyboardMap (void);
 
 	// Runs one frame: keyboard, emulation, screen, sound, menu.
@@ -196,6 +205,13 @@ private:
 	CAtariMenu		m_Menu;
 	CAtariKeyboard	       *m_pKeyboard;
 	audio_sink_t	       *m_pAudioSink;
+
+	/*
+	 * The two controllers, in the order they were created: handle 0 is "gamepad
+	 * 1" or GPIO port 1, whichever interface is selected.  Kept so that swapping
+	 * the ports can re-bind them without recreating anything.
+	 */
+	atari_joystick_t       *m_pJoystickHandle[2];
 
 	// Configuration in force
 	TAtariSettings		m_Settings;

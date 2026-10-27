@@ -1,21 +1,48 @@
 # Joysticks and controllers
 
-The emulator supports two kinds of Atari controller, and both can be used at the
-same time because they share no hardware:
+The emulator can feed its two Atari joystick ports from either of two interfaces:
 
-- a **USB gamepad**, plugged into any USB port;
-- a **real 9-pin Atari joystick**, wired to the Raspberry Pi's GPIO header.
+- **two USB gamepads**, plugged into any USB port;
+- **two real 9-pin Atari joysticks**, wired to the Raspberry Pi's GPIO header.
 
-There are four controller inputs, which is what an Atari 800 had: each of its two
-ports carried a second controller's lines alongside the first, for four-player
-games. So a four-player game works with four USB gamepads, and a two-player game
-works with two 9-pin joysticks in the two physical ports.
+One interface at a time. They would be competing for the same two ports, and the
+9-pin ports need the header pins the GPIO keyboard uses, so mixing them has no
+meaning and is not offered.
+
+Which one is in use, and whether the two ports are swapped, is chosen in the OSD:
+**F12 → Joysticks**. Both are also settings-file keys (`JOY_INTERFACE`,
+`JOY_SWAP`), and both are described below.
+
+An XL/XE has two controller ports, so that is what this project drives: `STICK(0)`
+and `STICK(1)`. The core also has inputs 2 and 3 for the four ports an Atari 800
+had; those are left unbound, and a game that reads them sees a released joystick
+rather than a fault.
+
+---
+
+## The Joysticks screen
+
+| Row | Values | Effect |
+|---|---|---|
+| Interface | `USB gamepads` / `9-pin GPIO ports` | which controllers feed the two ports |
+| Swap ports | `Off` / `On` | exchanges the two |
+
+**Swapping applies immediately.** It is only a question of which controller the
+platform layer finds in which port, so the menu re-binds the two and says
+`Ports swapped` in its footer. With swapping off, gamepad 1 (or GPIO port 1)
+drives `STICK(0)` and gamepad 2 (or port 2) drives `STICK(1)`; with it on, they
+trade places. Note what that means with a single controller attached: swapping
+moves *that* controller to the other Atari port.
+
+**Changing the interface needs a restart** — the controllers are created before
+the emulator runs, so the menu stores the choice and tells you to switch the Pi
+off and on. The next start comes up with the interface you chose.
 
 ---
 
 ## USB gamepads
 
-Plug one in at any time, before or after power-on. Up to four are watched, and a
+Plug one in at any time, before or after power-on. **Two** are watched, and a
 controller attached later is noticed without restarting. Unplugging one releases
 whatever it was holding, and a different controller plugged into the same slot is
 mapped afresh — the two are not assumed to be the same device.
@@ -102,8 +129,12 @@ An actual Atari joystick — or a Competition Pro, or a Tac-2 — wired to the
 40-pin header. This is what the machine originally had, including the feel of a
 real microswitched stick.
 
+Select them with **F12 → Joysticks → Interface**, then switch the Pi off and on.
+
 > **Read [the pin budget](#the-pin-budget) before wiring.** These two ports and
-> the GPIO keyboard need the same pins, so they cannot both be used.
+> the GPIO keyboard need the same pins, so they cannot both be used: with
+> `KEYBOARD=1` (the GPIO keyboard) chosen, the kernel refuses the 9-pin ports and
+> says so in the log.
 
 ### How the port is wired
 

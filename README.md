@@ -46,6 +46,9 @@ unmodified.
 **Input**
 - *Mode 1:* a USB keyboard, with the Atari console keys and cursor keys mapped on
 - *Mode 2:* a real Atari keyboard wired to the GPIO header as a scan matrix (never tested)
+- Two joystick ports, fed either by **two USB gamepads** or by **two real 9-pin
+  joysticks** on the GPIO header — one interface at a time, chosen in the menu,
+  and the two ports can be swapped from there without a restart
 
 **Other**
 - OSD menu (F12, or Shift+Help on an Atari keyboard), drawn in the Atari
