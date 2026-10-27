@@ -356,7 +356,31 @@ Two things follow from rule 4:
 - They are lines rather than functions: a key mapped to `A(Shift)` sets the line
   while it is held, so at least two keys have to be down for it to matter.
 
-### 5.5 `A(None)`
+### 5.5 `A(Joy1_*)` and `A(Joy2_*)` -- the keyboard as a joystick
+
+Ten names drive the two Atari joystick ports from keys:
+
+| Name | Effect |
+|---|---|
+| `A(Joy1_Up)`, `A(Joy1_Down)`, `A(Joy1_Left)`, `A(Joy1_Right)` | that direction of joystick 1 |
+| `A(Joy1_Fire)` | its fire button |
+| `A(Joy2_Up)` ... `A(Joy2_Fire)` | the same for joystick 2 |
+
+```ini
+U(NUM_8) = A(Joy1_Up)
+U(NUM_4) = A(Joy1_Left)
+U(NUM_5) = A(Joy1_Down)
+U(NUM_6) = A(Joy1_Right)
+U(NUM_0) = A(Joy1_Fire)
+```
+
+Nothing is bound to them by default; they do something only when a line names
+them. A stroke bound to one **types nothing** -- the key is a joystick direction
+now, not a character -- and only the keyboard joystick driver acts on it, so this
+works while the keyboard itself keeps working. They are read only when
+`JOY_INTERFACE=KEYBOARD`; see [Joysticks](joystick.md#the-keyboard-as-a-joystick).
+
+### 5.6 `A(None)`
 
 `A(None)` is not an Atari function. It means "this stroke does nothing", and it
 is the way to take a stroke out of service without giving its function somewhere

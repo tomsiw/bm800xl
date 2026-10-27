@@ -52,8 +52,27 @@ enum TUsbKeyAction
 	UsbKeyActionSelect,
 	UsbKeyActionOption,
 	UsbKeyActionShiftLine,
-	UsbKeyActionCtrlLine
+	UsbKeyActionCtrlLine,
+	/*
+	 * A joystick direction or its fire button.  Code carries
+	 * (port << USB_KEYMAP_JOY_PORT_SHIFT) | USB_KEYMAP_JOY_*.
+	 *
+	 * The Atari keyboard driver deliberately does nothing with these: a stroke
+	 * bound to one types nothing there, and they are read by the keyboard
+	 * joystick driver instead, which listens to the same key reports for its
+	 * own purposes.
+	 */
+	UsbKeyActionJoystick
 };
+
+/* One bit per direction, plus fire, and a byte for which port it belongs to. */
+#define USB_KEYMAP_JOY_UP	ATARI_JOY_UP
+#define USB_KEYMAP_JOY_DOWN	ATARI_JOY_DOWN
+#define USB_KEYMAP_JOY_LEFT	ATARI_JOY_LEFT
+#define USB_KEYMAP_JOY_RIGHT	ATARI_JOY_RIGHT
+#define USB_KEYMAP_JOY_FIRE	0x10
+#define USB_KEYMAP_JOY_MASK	0x1f
+#define USB_KEYMAP_JOY_PORT_SHIFT 8
 
 struct TUsbKeyResult
 {
@@ -71,6 +90,16 @@ class CUSBKeyMap
 {
 public:
 	CUSBKeyMap (void);
+
+	/*
+	 * The map in force.
+	 *
+	 * It is loaded once at start-up and read afterwards by two drivers -- the
+	 * keyboard and the keyboard joystick -- which is why it is reachable here
+	 * rather than living inside the keyboard.  Reading it is safe from any
+	 * context once Load() has returned: nothing writes it again.
+	 */
+	static CUSBKeyMap &Get (void);
 
 	/* Forgets everything, so that the built-in mapping applies again. */
 	void Reset (void);
@@ -95,6 +124,14 @@ public:
 	 *	   nothing"; FALSE when the built-in mapping applies.
 	 */
 	boolean Resolve (unsigned nUsage, unsigned nMods, TUsbKeyResult *pResult) const;
+
+	/*
+	 * How many strokes are bound to a direction or the fire button of PORT.
+	 *
+	 * Lets the keyboard joystick say in the log whether it has anything to
+	 * work with, instead of looking alive and doing nothing.
+	 */
+	unsigned CountJoystickMappings (int nPort) const;
 
 private:
 	struct TBinding

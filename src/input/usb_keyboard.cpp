@@ -29,10 +29,14 @@
 
 #include "usb_keyboard.h"
 
+#include "usb_key_reports.h"
+
 #include <circle/logger.h>
 #include <circle/timer.h>
 #include <circle/devicenameservice.h>
 #include <circle/device.h>
+
+#include <string.h>
 
 /* How long Initialize() waits between two looks for a keyboard. */
 #define USB_KEYBOARD_POLL_MS	10
@@ -110,7 +114,11 @@ boolean CUSBAtariKeyboard::s_bMenuActive = FALSE;
  * The remapping table.  Written once by SetKeyMap() before any keyboard is
  * registered, read-only afterwards, so the interrupt handler needs no lock.
  */
-CUSBKeyMap CUSBAtariKeyboard::s_KeyMap;
+/*
+ * Shared with the keyboard joystick driver, so the instance lives in
+ * CUSBKeyMap and this is only a reference to it.
+ */
+CUSBKeyMap &CUSBAtariKeyboard::s_KeyMap = CUSBKeyMap::Get ();
 
 /* ---------------------------------------------------------------------------
  * Bit maps over HID usage codes
@@ -494,95 +502,76 @@ int CUSBAtariKeyboard::MenuKeyForUsage (unsigned nUsage, boolean bNumpadAsCursor
  * looked up by, so a stale adapter (`s_bUsed` already cleared) is harmless: its
  * keyboard's slot is gone and the report is dropped.
  */
-class CUSBKeyboardRawAdapter
+/*
+ * The report source.
+ *
+ * Circle's keyboard device carries a single raw key handler, and two drivers here
+ * need the reports, so neither of them owns the device: CUSBKeyReports does, and
+ * this class is one of its listeners.  That is what lets the keyboard joystick
+ * read the same reports without the two drivers knowing about each other.
+ */
+static void ReportListener (void *pContext, unsigned nSlot,
+			    unsigned char ucModifiers,
+			    const unsigned char RawKeys[6])
 {
-public:
-	CUSBKeyboardRawAdapter (void)
-	:	m_pKeyboard (0),
-		m_bUsed (FALSE)
-	{
-	}
+	(void) pContext;
 
-	void Attach (CUSBKeyboardDevice *pKeyboard)
-	{
-		m_pKeyboard = pKeyboard;
-		m_bUsed = TRUE;
-	}
-
-	void Detach (void)
-	{
-		m_bUsed = FALSE;
-	}
-
-	void Invoke (unsigned char ucModifiers, const unsigned char RawKeys[6]) const
-	{
-		if (m_bUsed)
-		{
-			CUSBAtariKeyboard::KeyReport (m_pKeyboard, ucModifiers, RawKeys);
-		}
-	}
-
-	/* The plain function pointer to hand to RegisterKeyStatusHandlerRaw(). */
-	static TKeyStatusHandlerRaw *Handler (unsigned nSlot);
-
-private:
-	CUSBKeyboardDevice	*m_pKeyboard;
-	boolean			 m_bUsed;
-};
-
-static CUSBKeyboardRawAdapter s_RawAdapter[USB_KEYBOARD_MAX_DEVICES];
-
-TKeyStatusHandlerRaw *CUSBKeyboardRawAdapter::Handler (unsigned nSlot)
-{
-	/*
-	 * One trampoline per slot, because the callback has no context to say
-	 * which slot it came from.
-	 */
-	switch (nSlot)
-	{
-	case 0: return [] (unsigned char ucModifiers, const unsigned char RawKeys[6])
-			{ s_RawAdapter[0].Invoke (ucModifiers, RawKeys); };
-	case 1: return [] (unsigned char ucModifiers, const unsigned char RawKeys[6])
-			{ s_RawAdapter[1].Invoke (ucModifiers, RawKeys); };
-	case 2: return [] (unsigned char ucModifiers, const unsigned char RawKeys[6])
-			{ s_RawAdapter[2].Invoke (ucModifiers, RawKeys); };
-	case 3: return [] (unsigned char ucModifiers, const unsigned char RawKeys[6])
-			{ s_RawAdapter[3].Invoke (ucModifiers, RawKeys); };
-
-	default:
-		return 0;
-	}
+	CUSBAtariKeyboard::DeviceReport (nSlot, ucModifiers, RawKeys);
 }
 
-void CUSBAtariKeyboard::KeyReport (CUSBKeyboardDevice *pKeyboard,
-				   unsigned char ucModifiers,
-				   const unsigned char RawKeys[6])
+static void DeviceListener (void *pContext, unsigned nSlot, boolean bPresent)
+{
+	(void) pContext;
+
+	CUSBAtariKeyboard::DeviceChanged (nSlot, bPresent);
+}
+
+void CUSBAtariKeyboard::DeviceReport (unsigned nSlot,
+				      unsigned char ucModifiers,
+				      const unsigned char RawKeys[6])
 {
 	/*
-	 * Interrupt context: no logging, no allocation, no blocking, and no
-	 * more work than the report needs.  Everything shared with the main
-	 * thread is behind the spin lock.
+	 * Interrupt context: no logging, no allocation, no blocking.  Everything
+	 * shared with the main thread is behind the spin lock.
 	 */
 	s_SpinLock.Acquire ();
 
 	/*
-	 * The callback carries only the keyboard pointer, so that is what the
-	 * slot is looked up by.  A keyboard unplugged at this instant has
-	 * already had its slot cleared, and then this report is simply dropped.
+	 * The slot comes from the listener, so there is nothing to look up.  A
+	 * report for a slot that is no longer ours -- the keyboard went away between
+	 * the interrupt and this call -- is dropped.
 	 */
-	unsigned nEvent = (unsigned) -1;
-	for (unsigned i = 0; i < USB_KEYBOARD_MAX_DEVICES; i++)
+	if (nSlot < USB_KEYBOARD_MAX_DEVICES && s_Report[nSlot].bActive)
 	{
-		if (s_Report[i].bActive && s_Report[i].pKeyboard == pKeyboard)
-		{
-			nEvent = i;
-			break;
-		}
+		HandleReport (nSlot, ucModifiers, RawKeys);
 	}
 
-	if (nEvent != (unsigned) -1)
+	s_SpinLock.Release ();
+}
+
+/*
+ * A keyboard has appeared in, or left, a slot.
+ *
+ * The empty report CUSBKeyReports sends for a departing keyboard releases the
+ * keys; this forgets the slot itself, so that a different keyboard taking the
+ * same slot starts from a clean state.
+ */
+void CUSBAtariKeyboard::DeviceChanged (unsigned nSlot, boolean bPresent)
+{
+	if (nSlot >= USB_KEYBOARD_MAX_DEVICES)
 	{
-		HandleReport (nEvent, ucModifiers, RawKeys);
+		return;
+	}
+
+	s_SpinLock.Acquire ();
+
+	s_Report[nSlot].bActive = bPresent;
+	s_Report[nSlot].bF12Down = FALSE;
+	s_Report[nSlot].Held.Clear ();
+
+	if (!bPresent)
+	{
+		memset (&s_Event[nSlot], 0, sizeof s_Event[nSlot]);
 	}
 
 	s_SpinLock.Release ();
@@ -919,7 +908,8 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
  * ------------------------------------------------------------------------- */
 
 CUSBAtariKeyboard::CUSBAtariKeyboard (CUSBHCIDevice *pUSBHCI, unsigned nTimeoutMs)
-:	m_bNumpadAsCursor (FALSE),
+:	m_bRegistered (FALSE),
+	m_bNumpadAsCursor (FALSE),
 	m_bMenuActive (FALSE),
 	m_pUSBHCI (pUSBHCI),
 	m_nTimeoutMs (nTimeoutMs)
@@ -927,7 +917,6 @@ CUSBAtariKeyboard::CUSBAtariKeyboard (CUSBHCIDevice *pUSBHCI, unsigned nTimeoutM
 	for (unsigned i = 0; i < USB_KEYBOARD_MAX_DEVICES; i++)
 	{
 		s_Report[i].bActive = FALSE;
-		s_Report[i].pKeyboard = 0;
 		s_Report[i].bF12Down = FALSE;
 		s_Report[i].Held.Clear ();
 
@@ -955,10 +944,8 @@ CUSBAtariKeyboard::~CUSBAtariKeyboard (void)
 	for (unsigned i = 0; i < USB_KEYBOARD_MAX_DEVICES; i++)
 	{
 		s_Report[i].bActive = FALSE;
-		s_Report[i].pKeyboard = 0;
 		s_Report[i].Held.Clear ();
 		s_Event[i].bActive = FALSE;
-		s_RawAdapter[i].Detach ();
 	}
 
 	s_SpinLock.Release ();
@@ -1033,7 +1020,7 @@ boolean CUSBAtariKeyboard::Initialize (void)
 		 * plug-and-play is left to Update() from the frame loop, where a device
 		 * that misbehaves can at worst cost frames rather than the boot.
 		 */
-		ScanDevices ();
+		RegisterListeners ();
 
 		if (IsPresent ())
 		{
@@ -1070,147 +1057,37 @@ void CUSBAtariKeyboard::Update (void)
 	}
 
 	/*
-	 * Only the scan happens here.  USB enumeration is driven once per frame by
-	 * the kernel, so that it happens whether or not a USB keyboard is the
-	 * selected keyboard -- with a GPIO keyboard selected, a joystick plugged in
-	 * later still has to be noticed.
+	 * The scan lives in CUSBKeyReports, because that is what owns the keyboard
+	 * devices.  Enumeration has to be driven once per frame whether or not a USB
+	 * keyboard is the selected keyboard, or one plugged in later would never be
+	 * noticed; the kernel already calls this every frame.
 	 */
-	ScanDevices ();
+	CUSBKeyReports::Get ()->Update ();
 }
 
-void CUSBAtariKeyboard::ScanDevices (void)
+/*
+ * Registers the two callbacks with the report source.  Idempotent, because
+ * Initialize() may be called more than once.
+ */
+void CUSBAtariKeyboard::RegisterListeners (void)
 {
-	for (unsigned nIndex = 1; nIndex <= USB_KEYBOARD_MAX_INDEX; nIndex++)
-	{
-		CDevice *pDevice =
-			CDeviceNameService::Get ()->GetDevice ("ukbd", nIndex, FALSE);
-		if (pDevice == 0)
-		{
-			continue;
-		}
-
-		CUSBKeyboardDevice *pKeyboard = (CUSBKeyboardDevice *) pDevice;
-
-		/* Nothing to do if we are already listening to this one. */
-		boolean bKnown = FALSE;
-
-		s_SpinLock.Acquire ();
-		for (unsigned i = 0; i < USB_KEYBOARD_MAX_DEVICES; i++)
-		{
-			if (s_Report[i].bActive && s_Report[i].pKeyboard == pKeyboard)
-			{
-				bKnown = TRUE;
-				break;
-			}
-		}
-
-		unsigned nFree = (unsigned) -1;
-		if (!bKnown)
-		{
-			/*
-			 * Claim a slot.  With more keyboards attached than there
-			 * are slots the extra ones are ignored rather than
-			 * mishandled: an untracked keyboard contributes no keys.
-			 */
-			for (unsigned i = 0; i < USB_KEYBOARD_MAX_DEVICES; i++)
-			{
-				if (!s_Report[i].bActive)
-				{
-					nFree = i;
-					break;
-				}
-			}
-
-			if (nFree != (unsigned) -1)
-			{
-				s_Report[nFree].bActive = TRUE;
-				s_Report[nFree].pKeyboard = pKeyboard;
-				s_Report[nFree].bF12Down = FALSE;
-				s_Report[nFree].Held.Clear ();
-			}
-		}
-		s_SpinLock.Release ();
-
-		if (bKnown || nFree == (unsigned) -1)
-		{
-			continue;
-		}
-
-		/*
-		 * A keyboard can be unplugged at any time, and the handler has
-		 * to find our slot again: it gets the index, because the slot
-		 * array is fixed and never moves.
-		 */
-		pKeyboard->RegisterRemovedHandler (KeyboardRemovedHandler,
-						   (void *) (uintptr) nFree);
-
-		/*
-		 * Raw mode, not cooked: HID usage codes are needed to tell one
-		 * physical key from another, and a report arrives on every
-		 * change instead of as characters.  The adapter holds the
-		 * keyboard so that its report can be attributed to it.
-		 */
-		TKeyStatusHandlerRaw *pHandler = CUSBKeyboardRawAdapter::Handler (nFree);
-		if (pHandler == 0)
-		{
-			KeyboardRemovedHandler (pKeyboard, (void *) (uintptr) nFree);
-
-			continue;
-		}
-
-		s_RawAdapter[nFree].Attach (pKeyboard);
-
-		pKeyboard->RegisterKeyStatusHandlerRaw (pHandler, FALSE);
-	}
-}
-
-void CUSBAtariKeyboard::KeyboardRemovedHandler (CDevice *pDevice, void *pContext)
-{
-	(void) pDevice;
-
-	unsigned nEvent = (unsigned) (uintptr) pContext;
-	if (nEvent >= USB_KEYBOARD_MAX_DEVICES)
+	if (m_bRegistered)
 	{
 		return;
 	}
 
-	s_SpinLock.Acquire ();
+	CUSBKeyReports *pReports = CUSBKeyReports::Get ();
 
-	/*
-	 * Release everything this keyboard was holding.  If it was the last one
-	 * to report, the machine now sees a keyboard with no keys down, which
-	 * is what unplugging one should look like.
-	 */
-	s_Report[nEvent].bActive = FALSE;
-	s_Report[nEvent].pKeyboard = 0;
-	s_Report[nEvent].bF12Down = FALSE;
-	s_Report[nEvent].Held.Clear ();
+	m_bRegistered = pReports->AddListener (ReportListener, 0, "keyboard");
+	m_bRegistered = pReports->AddDeviceListener (DeviceListener, 0, "keyboard")
+			&& m_bRegistered;
 
-	/*
-	 * Stop the adapter too: the keyboard may still complete one report on
-	 * its way out, and that report must not be attributed to whoever takes
-	 * the slot next.
-	 */
-	s_RawAdapter[nEvent].Detach ();
-
-	s_Event[nEvent].bActive = FALSE;
-	s_Event[nEvent].nKeyCode = ATARI_KEY_NONE;
-	s_Event[nEvent].bShift = FALSE;
-	s_Event[nEvent].bControl = FALSE;
-	s_Event[nEvent].bStart = FALSE;
-	s_Event[nEvent].bSelect = FALSE;
-	s_Event[nEvent].bOption = FALSE;
-
-	s_nMenuHead[nEvent] = 0;
-	s_nMenuTail[nEvent] = 0;
-
-	if (s_nLastEvent == nEvent)
-	{
-		s_nLastEvent = (unsigned) -1;
-	}
-
-	s_SpinLock.Release ();
+	pReports->Update ();
 }
+
+
+
+
 
 /* ---------------------------------------------------------------------------
  * The Atari keyboard state

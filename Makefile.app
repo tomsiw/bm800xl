@@ -74,10 +74,12 @@ MODULE_SRCS := \
 	src/storage/storage.cpp \
 	src/input/usb_keyboard.cpp \
 	src/input/usb_keymap.cpp \
+	src/input/usb_key_reports.cpp \
 	src/input/gpio_keyboard.cpp \
 	src/input/joystick.cpp \
 	src/input/usb_joystick.cpp \
 	src/input/gpio_joystick.cpp \
+	src/input/keyboard_joystick.cpp \
 	src/audio/audio_out.cpp \
 	src/osd/osd_menu.cpp \
 	src/osd/atari_font.cpp

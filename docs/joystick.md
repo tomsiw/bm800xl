@@ -1,9 +1,10 @@
 # Joysticks and controllers
 
-The emulator can feed its two Atari joystick ports from either of two interfaces:
+The emulator can feed its two Atari joystick ports from any of three interfaces:
 
 - **two USB gamepads**, plugged into any USB port;
-- **two real 9-pin Atari joysticks**, wired to the Raspberry Pi's GPIO header.
+- **two real 9-pin Atari joysticks**, wired to the Raspberry Pi's GPIO header;
+- **keys on the USB keyboard**, bound in usbkeys.cfg — a joystick made of keys.
 
 One interface at a time. They would be competing for the same two ports, and the
 9-pin ports need the header pins the GPIO keyboard uses, so mixing them has no
@@ -24,7 +25,7 @@ rather than a fault.
 
 | Row | Values | Effect |
 |---|---|---|
-| Interface | `USB gamepads` / `9-pin GPIO ports` | which controllers feed the two ports |
+| Interface | `USB gamepads` / `9-pin GPIO ports` / `USB keyboard keys` | which controller feeds the two ports |
 | Swap ports | `Off` / `On` | exchanges the two |
 
 **Swapping applies immediately.** It is only a question of which controller the
@@ -37,6 +38,44 @@ moves *that* controller to the other Atari port.
 **Changing the interface needs a restart** — the controllers are created before
 the emulator runs, so the menu stores the choice and tells you to switch the Pi
 off and on. The next start comes up with the interface you chose.
+
+---
+
+## The keyboard as a joystick
+
+Choose `USB keyboard keys` as the interface and the two Atari joysticks are driven
+by keys on the USB keyboard, bound in `usbkeys.cfg`:
+
+```ini
+U(NUM_8) = A(Joy1_Up)
+U(NUM_4) = A(Joy1_Left)
+U(NUM_5) = A(Joy1_Down)
+U(NUM_6) = A(Joy1_Right)
+U(NUM_0) = A(Joy1_Fire)
+```
+
+The ten names are `Joy1_Up`, `Joy1_Down`, `Joy1_Left`, `Joy1_Right`, `Joy1_Fire`
+and the same for `Joy2`, which drives the second Atari port. They are listed with
+the rest of the Atari functions in [the keyboard map](usbkeys.md).
+
+Three things are worth knowing before using it:
+
+- **Nothing is bound by default.** A direction works only if the file names it, so
+  a keyboard that is also a joystick does not start steering the moment the
+  interface is selected. Bind only what you need: with just `Joy1_Up` and
+  `Joy1_Down` mapped, only those two directions exist.
+- **A key bound to a joystick action stops typing.** The stroke has one meaning,
+  and it is now the joystick. Two or more keys bound to the same direction all
+  work, and the same key may also be bound to a Shift or Control variant
+  separately: `U(Shift+NUM_8) = A(Joy1_Up)` is a stroke of its own.
+- **This interface needs the USB keyboard.** With `KEYBOARD=1` (the GPIO
+  keyboard) selected the kernel refuses it and says so in the log, because that
+  driver produces Atari scan codes and never touches the USB reports.
+
+The keys are read by a driver of their own, which listens to the same USB reports
+as the keyboard. So the keyboard keeps working while the joystick does: a game
+that asks for both — a typist's joystick, a racing game's steering keys — gets
+both, as long as the bindings do not overlap.
 
 ---
 

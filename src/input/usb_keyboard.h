@@ -133,16 +133,22 @@ public:
 	void SetMenuActive (boolean bActive) override;
 
 	/*
-	 * Entry point for one raw HID report.
+	 * Entry points from CUSBKeyReports.
 	 *
-	 * Circle's raw handler carries no context, so the adapters in
-	 * usb_keyboard.cpp call this with the keyboard they belong to.  It runs
-	 * in interrupt context and only records what the report says.  Public
-	 * because the adapter is not part of this class.
+	 * It owns each keyboard device's single raw handler and forwards reports,
+	 * so these two are what connect this driver to the key stream.  They run in
+	 * interrupt context and only record what the report says.  Public because
+	 * the trampolines that call them are free functions -- a registered raw
+	 * handler carries no context of its own.
 	 */
-	static void KeyReport (CUSBKeyboardDevice *pKeyboard,
-			       unsigned char ucModifiers,
-			       const unsigned char RawKeys[6]);
+	static void DeviceReport (unsigned nSlot, unsigned char ucModifiers,
+				  const unsigned char RawKeys[6]);
+
+	/* A keyboard has appeared in, or left, a slot. */
+	static void DeviceChanged (unsigned nSlot, boolean bPresent);
+
+	/* Hands CUSBKeyReports the two callbacks above.  Idempotent. */
+	void RegisterListeners (void);
 
 private:
 	/* HID usage codes fit in one byte, so one bit each. */
@@ -212,12 +218,6 @@ private:
 	static void HandleReport (unsigned nEvent, unsigned char ucModifiers,
 				  const unsigned char RawKeys[6]);
 
-	/* Called by the name service when a keyboard goes away. */
-	static void KeyboardRemovedHandler (CDevice *pDevice, void *pContext);
-
-	/* Registers every "ukbd<N>" we are not listening to yet. */
-	void ScanDevices (void);
-
 	/*
 	 * The state behind the spin lock.  Static, because Circle's raw key
 	 * handler is a plain function pointer: each keyboard registers a
@@ -251,7 +251,7 @@ private:
 	 * from the interrupt handler, which has no object.  It is written once by
 	 * SetKeyMap() before any keyboard is registered, and only read afterwards.
 	 */
-	static CUSBKeyMap	s_KeyMap;
+	static CUSBKeyMap	&s_KeyMap;
 
 	/* Latched by the interrupt handler, taken by ConsumeMenuRequest(). */
 	static boolean		s_bMenuRequest;
@@ -264,6 +264,9 @@ private:
 	static boolean		s_bMenuActive;
 
 	/* Only the main thread touches these two, so they need no lock. */
+	/* TRUE once the two callbacks are registered with CUSBKeyReports. */
+	boolean	m_bRegistered;
+
 	boolean	m_bNumpadAsCursor;
 	boolean	m_bMenuActive;
 

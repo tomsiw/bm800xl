@@ -284,6 +284,27 @@ static const TFunctionName s_AtariNames[] =
 	{ "CTRL",	UsbKeyActionCtrlLine, 0,			USB_KEYMAP_KEY_CTRL, 0 },
 	{ "NONE",	UsbKeyActionNone, 0,				0,    0 },
 
+	/*
+	 * The joystick actions.
+	 *
+	 * Nothing is bound to these by default and nothing can be: a direction works
+	 * only when usbkeys.cfg names it, which is the point -- a keyboard that is
+	 * also a joystick should not start steering the moment the interface is
+	 * selected.  The keyboard driver ignores them, so a stroke bound to one
+	 * types nothing; the keyboard joystick driver reads them from the same
+	 * reports.  Code is (port << 8) | bit.
+	 */
+	{ "JOY1_UP",	UsbKeyActionJoystick, USB_KEYMAP_JOY_UP,			0, 0 },
+	{ "JOY1_DOWN",	UsbKeyActionJoystick, USB_KEYMAP_JOY_DOWN,		0, 0 },
+	{ "JOY1_LEFT",	UsbKeyActionJoystick, USB_KEYMAP_JOY_LEFT,		0, 0 },
+	{ "JOY1_RIGHT",	UsbKeyActionJoystick, USB_KEYMAP_JOY_RIGHT,		0, 0 },
+	{ "JOY1_FIRE",	UsbKeyActionJoystick, USB_KEYMAP_JOY_FIRE,		0, 0 },
+	{ "JOY2_UP",	UsbKeyActionJoystick, (1 << USB_KEYMAP_JOY_PORT_SHIFT) | USB_KEYMAP_JOY_UP,	0, 0 },
+	{ "JOY2_DOWN",	UsbKeyActionJoystick, (1 << USB_KEYMAP_JOY_PORT_SHIFT) | USB_KEYMAP_JOY_DOWN,	0, 0 },
+	{ "JOY2_LEFT",	UsbKeyActionJoystick, (1 << USB_KEYMAP_JOY_PORT_SHIFT) | USB_KEYMAP_JOY_LEFT,	0, 0 },
+	{ "JOY2_RIGHT",	UsbKeyActionJoystick, (1 << USB_KEYMAP_JOY_PORT_SHIFT) | USB_KEYMAP_JOY_RIGHT,	0, 0 },
+	{ "JOY2_FIRE",	UsbKeyActionJoystick, (1 << USB_KEYMAP_JOY_PORT_SHIFT) | USB_KEYMAP_JOY_FIRE,	0, 0 },
+
 	/* Punctuation with a position of its own. */
 	{ ",",		UsbKeyActionKey, ATARI_KEY_COMMA,		0x36, 0 },
 	{ ".",		UsbKeyActionKey, ATARI_KEY_FULLSTOP,		0x37, 0 },
@@ -417,6 +438,41 @@ static boolean ResolveAtariName (const char *pName, TFunction *pFunction,
 CUSBKeyMap::CUSBKeyMap (void)
 {
 	Reset ();
+}
+
+CUSBKeyMap &CUSBKeyMap::Get (void)
+{
+	/*
+	 * One map, in static storage, constructed on first use.
+	 *
+	 * It has to be shared: usbkeys.cfg is one file describing strokes, and both
+	 * the keyboard and the keyboard joystick resolve strokes through it.  It is
+	 * written once by Load() at start-up and only read afterwards, so a
+	 * function-local static costs nothing at run time.
+	 */
+	static CUSBKeyMap Instance;
+
+	return Instance;
+}
+
+unsigned CUSBKeyMap::CountJoystickMappings (int nPort) const
+{
+	unsigned nCount = 0;
+
+	for (unsigned i = 0; i < m_nBindings; i++)
+	{
+		if (m_Binding[i].Action != UsbKeyActionJoystick)
+		{
+			continue;
+		}
+
+		if ((m_Binding[i].Code >> USB_KEYMAP_JOY_PORT_SHIFT) == nPort)
+		{
+			nCount++;
+		}
+	}
+
+	return nCount;
 }
 
 void CUSBKeyMap::Reset (void)

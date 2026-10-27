@@ -1074,6 +1074,7 @@ void CAtariKernel::InitializeJoysticks (void)
 {
 	boolean bGPIOKeyboard = m_Settings.nKeyboardMode == AtariKeyboardModeGPIO;
 	boolean bGPIO = m_Settings.nJoystickInterface == AtariJoystickInterfaceGPIO;
+	boolean bKeyboard = m_Settings.nJoystickInterface == AtariJoystickInterfaceKeyboard;
 
 	/*
 	 * A start-up record of the controller configuration.  The driver's own log
@@ -1082,7 +1083,9 @@ void CAtariKernel::InitializeJoysticks (void)
 	 * joysticks were never created.
 	 */
 	CBootLog::Get ()->RecordRuntimef ("joysticks: %s, ports %s",
-					 bGPIO ? "9-pin GPIO" : "USB gamepads",
+					 bGPIO ? "9-pin GPIO"
+					 : bKeyboard ? "USB keyboard keys"
+					 : "USB gamepads",
 					 m_Settings.bSwapJoystickPorts ? "swapped" : "normal");
 
 	for (unsigned n = 0; n < ATARI_JOYSTICK_COUNT; n++)
@@ -1103,11 +1106,26 @@ void CAtariKernel::InitializeJoysticks (void)
 		return;
 	}
 
+	/*
+	 * The keyboard joystick reads USB key reports, so it needs the USB
+	 * keyboard to be the selected one: the GPIO keyboard driver produces
+	 * Atari scan codes and never touches the USB path.
+	 */
+	if (bKeyboard && bGPIOKeyboard)
+	{
+		m_Logger.Write (FromKernel, LogWarning,
+				"The keyboard joystick needs the USB keyboard: it is off "
+				"while the GPIO keyboard is selected");
+		return;
+	}
+
 	for (unsigned n = 1; n <= ATARI_JOYSTICK_COUNT; n++)
 	{
 		CAtariJoystick *pJoystick = bGPIO
 			? ATARI_CreateGPIOJoystick (n)
-			: ATARI_CreateUSBJoystick (&m_USBHCI, n);
+			: bKeyboard
+				? ATARI_CreateKeyboardJoystick (n)
+				: ATARI_CreateUSBJoystick (&m_USBHCI, n);
 		if (pJoystick == 0)
 		{
 			continue;
@@ -1117,7 +1135,9 @@ void CAtariKernel::InitializeJoysticks (void)
 		{
 			m_Logger.Write (FromKernel, LogWarning,
 					"%s %u did not initialise",
-					bGPIO ? "GPIO joystick port" : "USB gamepad",
+					bGPIO ? "GPIO joystick port"
+					       : bKeyboard ? "Keyboard joystick"
+					       : "USB gamepad",
 					n);
 			continue;
 		}
@@ -1132,7 +1152,7 @@ void CAtariKernel::InitializeJoysticks (void)
 
 	BindJoysticks ();
 
-	if (!bGPIO)
+	if (!bGPIO && !bKeyboard)
 	{
 		unsigned nAttached = 0;
 

@@ -597,6 +597,7 @@ const char *CAtariMenu::JoystickInterfaceName (int nInterface)
 	{
 	case AtariJoystickInterfaceUSB:  return "USB gamepads";
 	case AtariJoystickInterfaceGPIO: return "9-pin GPIO ports";
+	case AtariJoystickInterfaceKeyboard: return "USB keyboard keys";
 	default:                         return "?";
 	}
 }
@@ -1005,9 +1006,18 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			 * the next start applies it, and the menu says so rather than leaving
 			 * the row looking as if it had taken effect.
 			 */
-			S.nJoystickInterface = S.nJoystickInterface == AtariJoystickInterfaceUSB
-				? AtariJoystickInterfaceGPIO
-				: AtariJoystickInterfaceUSB;
+			switch (S.nJoystickInterface)
+			{
+			case AtariJoystickInterfaceUSB:
+				S.nJoystickInterface = AtariJoystickInterfaceGPIO;
+				break;
+			case AtariJoystickInterfaceGPIO:
+				S.nJoystickInterface = AtariJoystickInterfaceKeyboard;
+				break;
+			default:
+				S.nJoystickInterface = AtariJoystickInterfaceUSB;
+				break;
+			}
 
 			snprintf (m_Message, sizeof m_Message,
 				  "%s: switch the Pi off and on",

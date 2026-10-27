@@ -51,6 +51,7 @@ enum TAtariJoystickInterface
 {
 	AtariJoystickInterfaceUSB = 0,	///< two USB gamepads
 	AtariJoystickInterfaceGPIO,	///< the two 9-pin ports on the GPIO header
+	AtariJoystickInterfaceKeyboard,	///< keys on the USB keyboard, bound in usbkeys.cfg
 	AtariJoystickInterfaceUnknown
 };
 

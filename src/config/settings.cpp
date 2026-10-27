@@ -364,6 +364,10 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 		{
 			pSettings->nJoystickInterface = AtariJoystickInterfaceGPIO;
 		}
+		else if (EqualsIgnoreCase (pValue, "KEYBOARD") || strcmp (pValue, "2") == 0)
+		{
+			pSettings->nJoystickInterface = AtariJoystickInterfaceKeyboard;
+		}
 	}
 	else if (strcmp (pKey, "JOY_SWAP") == 0)
 	{
@@ -579,7 +583,9 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 		    Settings.bStaticOSD ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "JOY_INTERFACE=%s\n",
 		    Settings.nJoystickInterface == AtariJoystickInterfaceGPIO
-			? "GPIO" : "USB");
+			? "GPIO"
+		    : Settings.nJoystickInterface == AtariJoystickInterfaceKeyboard
+			? "KEYBOARD" : "USB");
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "JOY_SWAP=%d\n",
 		    Settings.bSwapJoystickPorts ? 1 : 0);
 

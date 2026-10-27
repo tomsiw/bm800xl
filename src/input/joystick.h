@@ -91,5 +91,16 @@ CAtariJoystick *ATARI_CreateUSBJoystick (CUSBHCIDevice *pUSBHCI, unsigned nIndex
  */
 CAtariJoystick *ATARI_CreateGPIOJoystick (unsigned nPort);
 
+/*
+ * A joystick whose directions and fire button are keys on the USB keyboard,
+ * bound in usbkeys.cfg as Joy1_Up, Joy2_Fire and so on.
+ *
+ * \param nIndex 1 or 2 -- which Atari joystick the keys drive.
+ * \note Independent of the keyboard driver: it reads the same key reports
+ *	 through CUSBKeyReports, so the keyboard keeps working, and a key bound to
+ *	 a joystick action types nothing.
+ */
+CAtariJoystick *ATARI_CreateKeyboardJoystick (unsigned nIndex);
+
 #endif
 

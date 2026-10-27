@@ -57,9 +57,11 @@ drive with an image is selected, Left/Right toggles its read-only flag, shown as
 **Cartridge** — Load a cartridge image (CAR or ROM).
 
 **Joysticks** — Which interface feeds the two Atari joystick ports: **USB
-gamepads**, or the two **9-pin ports** on the GPIO header. One or the other, never
-both, because they would be competing for the same two ports -- and the 9-pin
-ports need the header pins the GPIO keyboard uses. The second row, **Swap ports**,
+gamepads**, the two **9-pin ports** on the GPIO header, or keys on the **USB
+keyboard** (bound in `usbkeys.cfg` as `Joy1_Up` and so on). One at a time, never
+more, because they would be competing for the same two ports -- and the 9-pin
+ports need the header pins the GPIO keyboard uses, while the keyboard interface
+needs the USB keyboard. The second row, **Swap ports**,
 exchanges the two: gamepad 1 then drives joystick 2 and gamepad 2 drives joystick
 1, or the same for the two 9-pin ports. Swapping applies at once; changing the
 interface needs the Pi switched off and on, because the controllers are created
@@ -373,7 +375,7 @@ SYSTEM_DIR=SD:/ATARI
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
 | `STATIC_OSD` | 0 or 1 — 1 draws the menu over a frozen picture on an opaque panel; 0 (the default) repaints and dims the picture behind it |
-| `JOY_INTERFACE` | `USB` or `GPIO` — which interface feeds the two joystick ports; the same setting as the menu's Joysticks → Interface, and it takes effect the next time the Pi is switched off and on |
+| `JOY_INTERFACE` | `USB`, `GPIO` or `KEYBOARD` — which interface feeds the two joystick ports; the same setting as the menu's Joysticks → Interface, and it takes effect the next time the Pi is switched off and on |
 | `JOY_SWAP` | 0 or 1 — 1 exchanges the two joystick ports, and takes effect immediately |
 | `DISK1_PATH` … `DISK4_PATH` | a path, or empty for "no disk in this drive" |
 | `DISK1_READONLY` … `DISK4_READONLY` | 0 or 1 |
