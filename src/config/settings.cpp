@@ -387,6 +387,10 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 		{
 			pSettings->nAspect = AtariAspect3x;
 		}
+		else if (EqualsIgnoreCase (pValue, "4X") || strcmp (pValue, "4") == 0)
+		{
+			pSettings->nAspect = AtariAspect4x;
+		}
 	}
 	else if (strcmp (pKey, "JOY_SWAP") == 0)
 	{
@@ -603,6 +607,7 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "ASPECT=%s\n",
 		    Settings.nAspect == AtariAspect2x ? "2X"
 		    : Settings.nAspect == AtariAspect3x ? "3X"
+		    : Settings.nAspect == AtariAspect4x ? "4X"
 		    : "4:3");
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "JOY_INTERFACE=%s\n",
 		    Settings.nJoystickInterface == AtariJoystickInterfaceGPIO

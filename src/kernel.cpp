@@ -766,6 +766,13 @@ boolean CAtariKernel::Initialize (void)
 			"display: %d is too large for %ux%u, using %ux instead",
 			m_Settings.nAspect, m_Video.GetWidth (), m_Video.GetHeight (),
 			m_Video.GetPixelScale ());
+
+		/*
+		 * The menu and the settings file should say what is in use, not what was
+		 * asked for: a factor the display cannot hold is reduced here, and a row
+		 * that read 4x while the picture was 3x would be misleading.
+		 */
+		m_Settings.nAspect = (int) m_Video.GetPixelScale ();
 	}
 
 	/*

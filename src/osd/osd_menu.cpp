@@ -630,12 +630,29 @@ const char *CAtariMenu::JoystickInterfaceName (int nInterface)
 	}
 }
 
+/*
+ * Whether this scale fits the framebuffer that was actually created.
+ *
+ * Asked of the video layer rather than of the RESOLUTION setting, because a
+ * display that refuses 1080p falls back to 720p, and 4x would not fit there.
+ */
+boolean CAtariMenu::FitsAspect (int nAspect) const
+{
+	if (m_pVideo == 0 || nAspect < 2)
+	{
+		return TRUE;		/* the 4:3 fit always fits */
+	}
+
+	return    m_pVideo->GetWidth ()  >= (unsigned) (336 * nAspect)
+	       && m_pVideo->GetHeight () >= (unsigned) (240 * nAspect);
+}
 const char *CAtariMenu::AspectName (int nAspect)
 {
 	switch (nAspect)
 	{
 	case AtariAspect2x: return "2x";
 	case AtariAspect3x: return "3x";
+	case AtariAspect4x: return "4x";
 	default:            return "4:3";
 	}
 }
@@ -943,6 +960,16 @@ void CAtariMenu::AdjustSetting (int nDelta)
 				break;
 			case AtariAspect2x:
 				S.nAspect = AtariAspect3x;
+				break;
+			case AtariAspect3x:
+				/*
+				 * 4x is 1344x960, so it exists only on a display that can hold
+				 * it -- in practice 1080p.  It is left OUT of the cycle rather
+				 * than offered and reduced, because a row that reads 4x while the
+				 * picture is 3x is worse than a row that does not offer it.
+				 */
+				S.nAspect = FitsAspect (AtariAspect4x)
+					? AtariAspect4x : AtariAspect43;
 				break;
 			default:
 				S.nAspect = AtariAspect43;

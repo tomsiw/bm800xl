@@ -321,6 +321,7 @@ private:
 	static const char *JoystickInterfaceName (int nInterface);
 	static const char *AspectName (int nAspect);
 	static const char *BaseName (const char *pPath);
+	boolean FitsAspect (int nAspect) const;
 
 private:
 	CAtariVideoOut *m_pVideo;

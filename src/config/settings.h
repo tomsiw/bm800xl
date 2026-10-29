@@ -56,7 +56,8 @@ enum TAtariAspect
 {
 	AtariAspect43 = 0,	///< fit a 4:3 picture to the framebuffer height
 	AtariAspect2x = 2,	///< every pixel a 2x2 block
-	AtariAspect3x = 3	///< every pixel a 3x3 block
+	AtariAspect3x = 3,	///< every pixel a 3x3 block
+	AtariAspect4x = 4	///< every pixel a 4x4 block, which needs 1080p
 };
 
 /* Where the two Atari joystick ports are fed from. */

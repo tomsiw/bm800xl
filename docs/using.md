@@ -93,7 +93,8 @@ television showed it: 336x240 fitted to the screen height, every pixel
 stretched a little unevenly to 4:3. **`2x`** and **`3x`** scale the original
 resolution by an integer instead -- 672x480 and 1008x720, every Atari pixel a
 square block of two or three -- so the picture is pixel-exact but smaller, and
-sits in a border. The integer modes are also cheaper to draw, which is what
+sits in a border. `4x` -- 1344x960 -- is offered only when the display
+can hold it, which in practice means 1080p. The integer modes are also cheaper to draw, which is what
 makes `3x` a good choice at 1080p on a slow board: it is 1008x720 whatever the
 output resolution is.
 
@@ -385,6 +386,7 @@ SYSTEM_DIR=SD:/ATARI
 | `VOLUME` | 0 to 100 |
 | `STEREO` | 0 or 1 — two POKEYs |
 | `RESOLUTION` | 0 = 1280x720, 1 = 1920x1080 — the same setting as the menu's Display → Resolution; it takes effect the next time the Pi is switched off and on |
+| `ASPECT` | `4:3`, `2X`, `3X` or `4X` -- the same setting as the menu's Display -> Aspect ratio, applied at once; `4X` needs a display that can hold 1344x960, so in practice 1080p |
 | `KEYBOARD` | 0 = USB, 1 = GPIO |
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
