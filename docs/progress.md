@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `820a6f7`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `a8ee26e`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
