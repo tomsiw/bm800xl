@@ -164,6 +164,12 @@ private:
 
 	void OpenScreen (TMenuScreen Screen);
 	void MoveSelection (int nDelta);
+	/*
+	 * Positions the panel from the picture rectangle.  Called at start-up and
+	 * again when the aspect ratio changes the picture's shape.
+	 */
+	void Layout (void);
+
 	void AdjustSetting (int nDelta);
 	void ActivateSelection (void);
 
@@ -313,6 +319,7 @@ private:
 	static const char *KeyboardName (int nMode);
 	static const char *ResolutionName (int nResolution);
 	static const char *JoystickInterfaceName (int nInterface);
+	static const char *AspectName (int nAspect);
 	static const char *BaseName (const char *pPath);
 
 private:

@@ -52,6 +52,9 @@ CAtariVideoOut::CAtariVideoOut (void)
 	m_nWidth (0),
 	m_nHeight (0),
 	m_nPitchPixels (0),
+	m_nScaleRequest (0),
+	m_nScale (0),
+	m_bClearPending (FALSE),
 	m_nDestLeft (0),
 	m_nDestWidth (0),
 	m_nColumnMapSize (0),
@@ -186,6 +189,35 @@ void CAtariVideoOut::ComputeGeometry (void)
 	m_nDestHeight = m_nHeight;
 	m_nDestWidth = m_nHeight * 4 / 3;
 
+	/*
+	 * Integer scaling, when that is what was asked for.
+	 *
+	 * The two modes give every source pixel a square block: 336x240 becomes
+	 * 672x480 or 1008x720, so the picture is smaller than the framebuffer and
+	 * sits in a border rather than filling it.  The result is pixel-exact, but it
+	 * is not 4:3 -- 336/240 is 1.4 -- which is the trade the setting offers.
+	 *
+	 * The factor is reduced until it fits rather than clipping, and the factor
+	 * actually used is left in m_nScale so the caller can report it.
+	 */
+	m_nScale = 0;
+
+	if (m_nScaleRequest >= 2)
+	{
+		unsigned nScale = m_nScaleRequest;
+
+		while (   nScale > 1
+		       && (   ScreenVisibleWidth * nScale > m_nWidth
+			   || ScreenHeight * nScale > m_nHeight))
+		{
+			nScale--;
+		}
+
+		m_nScale = nScale;
+		m_nDestWidth  = ScreenVisibleWidth * nScale;
+		m_nDestHeight = ScreenHeight * nScale;
+	}
+
 	/* Never exceed the framebuffer; a tall narrow display could run out. */
 	if (m_nDestWidth > m_nWidth)
 	{
@@ -236,6 +268,36 @@ void CAtariVideoOut::ComputeGeometry (void)
 			nSource = ScreenHeight - 1;
 		}
 		m_RowMap[nY] = (u16) nSource;
+	}
+
+	/*
+	 * Integer scaling needs no maps at all: every source column owns exactly
+	 * m_nScale destination columns and every source row exactly m_nScale
+	 * destination rows, so the runs are written straight out.  The rest of this
+	 * function exists for the 4:3 mapping, where the scale is 2.86 by 3 and the
+	 * runs vary.
+	 */
+	if (m_nScale >= 2)
+	{
+		m_nColumnMapSize = m_nDestWidth;
+		m_nRowMapSize = m_nDestHeight;
+
+		m_nColumnRuns = ScreenVisibleWidth;
+		for (unsigned nX = 0; nX < m_nColumnRuns; nX++)
+		{
+			m_ColumnRunSource[nX] = (u16) nX;
+			m_ColumnRunLength[nX] = (u8) m_nScale;
+		}
+
+		m_nRowRuns = ScreenHeight;
+		for (unsigned nY = 0; nY < m_nRowRuns; nY++)
+		{
+			m_RowRunSource[nY] = (u16) nY;
+			m_RowRunFirst[nY] = (u16) (nY * m_nScale);
+			m_RowRunLength[nY] = (u8) m_nScale;
+		}
+
+		return;
 	}
 
 	/*
@@ -306,6 +368,85 @@ void CAtariVideoOut::ComputeGeometry (void)
 	}
 }
 
+/*
+ * Applies a pixel scale.
+ *
+ * Live, and deliberately cheap: the geometry is arithmetic and the run maps are
+ * rebuilt in the same pass, so nothing of the framebuffer changes and no frame is
+ * lost.  The one thing that has to follow is the black margins -- they are
+ * cleared once and remembered, so a change to the picture rectangle makes them
+ * stale and they must be cleared again on the next fill.
+ */
+void CAtariVideoOut::SetAspect (int nScale)
+{
+	if (nScale == m_nScaleRequest)
+	{
+		return;
+	}
+
+	m_nScaleRequest = nScale;
+
+	ComputeGeometry ();
+
+	/*
+	 * Both halves are blacked, not just the margins of the one being drawn.
+	 *
+	 * The margins are normally cleared once and remembered, which is fine while
+	 * the picture rectangle never changes.  It changes here, and the half that is
+	 * not currently being composed still holds the previous picture: its rows
+	 * reached further sideways, so the sides would alternate between that older
+	 * picture and black on every flip -- visible as a flickering border with the
+	 * middle of the screen perfectly steady.
+	 *
+	 * The blanking is DEFERRED to the next fill rather than done here.  While the
+	 * menu is open the picture behind it is not being repainted -- with
+	 * STATIC_OSD it is not repainted at all -- so blanking now would leave the
+	 * screen empty until the menu closed.  The first frame that draws the picture
+	 * again does it, which is the first frame after the OSD closes.
+	 */
+	m_bPaddingCleared = FALSE;
+	m_bClearPending = TRUE;
+}
+
+/*
+ * Makes the black margins be cleared again on the next fill.
+ *
+ * Called when the OSD closes.  A panel wider than the picture -- which an integer
+ * scale produces -- is drawn over the margins, and the margins are otherwise only
+ * ever written once, so without this the strips where the panel was would keep
+ * its pixels.
+ */
+void CAtariVideoOut::InvalidatePadding (void)
+{
+	m_bPaddingCleared = FALSE;
+}
+
+/*
+ * Blacks both halves of the double buffer and shows the first one.
+ *
+ * The virtual offset is set as well, so that what is displayed is the half that
+ * was just cleared rather than the other one.
+ */
+void CAtariVideoOut::ClearBuffers (void)
+{
+	assert (m_pFrameBuffer != 0);
+
+	u16 *pBuffer = (u16 *) (uintptr) m_pFrameBuffer->GetBuffer ();
+	size_t nBytes = (size_t) m_nPitchPixels * m_nHeight * sizeof (u16);
+
+	memset (pBuffer, 0, nBytes);
+
+	if (m_bDoubleBuffered)
+	{
+		memset (pBuffer + (uintptr) m_nPitchPixels * m_nHeight, 0, nBytes);
+
+		m_bFrontIsFirst = TRUE;
+		m_pFrameBuffer->SetVirtualOffset (0, 0);
+	}
+
+	m_pBackBuffer = BackBuffer ();
+}
+
 u16 *CAtariVideoOut::BackBuffer (void) const
 {
 	assert (m_pFrameBuffer != 0);
@@ -347,6 +488,18 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 	assert (m_bInitialized);
 	assert (pScreen != 0);
 	assert (pPalette != 0);
+
+	/*
+	 * A pending aspect change blanks both halves first, so that the half which
+	 * still holds the previous picture -- with its wider rows -- becomes black
+	 * margins rather than a flickering border.
+	 */
+	if (m_bClearPending)
+	{
+		ClearBuffers ();
+		m_bPaddingCleared = TRUE;
+		m_bClearPending = FALSE;
+	}
 
 	u16 *pFrame = BackBuffer ();
 
@@ -412,6 +565,7 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 	 * same row.
 	 */
 	static u16 s_RowBuffer[MaxDestinationWidth];
+
 
 	const bool bStage = m_nColumnMapSize <= MaxDestinationWidth;
 

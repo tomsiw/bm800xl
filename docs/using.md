@@ -71,7 +71,8 @@ before the emulator starts, and the menu says so when you change it.
 the video standard, and a "restore defaults" item that resets the machine
 settings without losing your mounted media.
 
-**Display** — PAL or NTSC, the artifacting mode, and the output resolution
+**Display** — PAL or NTSC, the artifacting mode, the output resolution, and the
+aspect ratio
 (1280x720 or 1920x1080). Changing the resolution stores the new value but cannot
 take effect until the Raspberry Pi is switched off and on again, because the
 framebuffer is created before the emulator is: the menu says so, and the next time
@@ -86,6 +87,18 @@ other way round: it is satisfied by that same *Power cycle* item.
 
 **Snapshots** — Save, load or erase a machine snapshot. Warm reset, cold reset and
 power cycle are separate items on the main screen.
+
+`Aspect ratio` is worth its own note. **`4:3`** is the picture as a
+television showed it: 336x240 fitted to the screen height, every pixel
+stretched a little unevenly to 4:3. **`2x`** and **`3x`** scale the original
+resolution by an integer instead -- 672x480 and 1008x720, every Atari pixel a
+square block of two or three -- so the picture is pixel-exact but smaller, and
+sits in a border. The integer modes are also cheaper to draw, which is what
+makes `3x` a good choice at 1080p on a slow board: it is 1008x720 whatever the
+output resolution is.
+
+Changing it applies at once; a factor the framebuffer cannot hold is reduced
+until it fits and the menu says which one it used.
 
 ### Changing something takes effect immediately
 
@@ -344,6 +357,7 @@ SOUND=1
 VOLUME=80
 STEREO=0
 RESOLUTION=0
+ASPECT=4:3
 KEYBOARD=0
 NUMPAD_CURSOR=1
 CONTINUE_ON_BRK=1

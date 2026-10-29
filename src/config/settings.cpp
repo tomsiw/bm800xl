@@ -77,6 +77,8 @@ void Settings_SetDefaults (TAtariSettings *pSettings)
 	 * the same two ports.  A USB gamepad plugged in later still works, which is
 	 * why USB is the default.
 	 */
+	pSettings->nAspect = AtariAspect43;
+
 	pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
 	pSettings->bSwapJoystickPorts = FALSE;
 
@@ -358,7 +360,9 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 	{
 		if (EqualsIgnoreCase (pValue, "USB") || strcmp (pValue, "0") == 0)
 		{
-			pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
+			pSettings->nAspect = AtariAspect43;
+
+	pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
 		}
 		else if (EqualsIgnoreCase (pValue, "GPIO") || strcmp (pValue, "1") == 0)
 		{
@@ -367,6 +371,21 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 		else if (EqualsIgnoreCase (pValue, "KEYBOARD") || strcmp (pValue, "2") == 0)
 		{
 			pSettings->nJoystickInterface = AtariJoystickInterfaceKeyboard;
+		}
+	}
+	else if (strcmp (pKey, "ASPECT") == 0)
+	{
+		if (EqualsIgnoreCase (pValue, "4:3") || strcmp (pValue, "0") == 0)
+		{
+			pSettings->nAspect = AtariAspect43;
+		}
+		else if (EqualsIgnoreCase (pValue, "2X") || strcmp (pValue, "2") == 0)
+		{
+			pSettings->nAspect = AtariAspect2x;
+		}
+		else if (EqualsIgnoreCase (pValue, "3X") || strcmp (pValue, "3") == 0)
+		{
+			pSettings->nAspect = AtariAspect3x;
 		}
 	}
 	else if (strcmp (pKey, "JOY_SWAP") == 0)
@@ -581,6 +600,10 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 		    Settings.bContinueOnBrk ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "STATIC_OSD=%d\n",
 		    Settings.bStaticOSD ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "ASPECT=%s\n",
+		    Settings.nAspect == AtariAspect2x ? "2X"
+		    : Settings.nAspect == AtariAspect3x ? "3X"
+		    : "4:3");
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "JOY_INTERFACE=%s\n",
 		    Settings.nJoystickInterface == AtariJoystickInterfaceGPIO
 			? "GPIO"

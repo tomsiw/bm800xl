@@ -47,7 +47,7 @@ static const unsigned CartridgeItemCount	= 2;	// insert, eject
 static const unsigned CassetteItemCount		= 2;	// insert, eject
 static const unsigned JoystickItemCount		= 2;	// interface, swap ports
 static const unsigned MachineItemCount		= 3;	// machine, RAM, restore defaults
-static const unsigned VideoItemCount		= 3;	// standard, artifacting, resolution
+static const unsigned VideoItemCount		= 4;	// standard, artifacting, resolution, aspect
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
 
@@ -172,12 +172,24 @@ void CAtariMenu::Initialize (CAtariVideoOut *pVideo, CAtariStorage *pStorage,
 	 * Clamped at the plain margins so that a display where the picture does fill
 	 * the framebuffer -- or a panel too small for the menu -- still looks right.
 	 */
-	if (pVideo != 0)
+	Layout ();
+}
+
+/*
+ * Positions the panel from the picture rectangle.
+ *
+ * Called at start-up and whenever the picture changes shape -- the aspect ratio
+ * is applied live, and an integer mode makes the picture narrower than the panel,
+ * so a stale position would leave the menu hanging over the black border.
+ */
+void CAtariMenu::Layout (void)
+{
+	if (m_pVideo != 0)
 	{
-		unsigned nPictureLeft = pVideo->GetPictureLeft ();
-		unsigned nPictureWidth = pVideo->GetPictureWidth ();
-		unsigned nPictureTop = pVideo->GetPictureTop ();
-		unsigned nPictureHeight = pVideo->GetPictureHeight ();
+		unsigned nPictureLeft = m_pVideo->GetPictureLeft ();
+		unsigned nPictureWidth = m_pVideo->GetPictureWidth ();
+		unsigned nPictureTop = m_pVideo->GetPictureTop ();
+		unsigned nPictureHeight = m_pVideo->GetPictureHeight ();
 
 		/*
 		 * Centre the panel in the picture, and put it against the picture's
@@ -191,26 +203,30 @@ void CAtariMenu::Initialize (CAtariVideoOut *pVideo, CAtariStorage *pStorage,
 		 * pixels short on the right.  That is the offset that looked like a
 		 * panel leaning left.  1080p has a wide enough margin that the fault
 		 * never showed there.
+		 *
+		 * A panel WIDER than the picture is centred on the picture's centre, not
+		 * pushed against its left edge: an integer scale makes the picture
+		 * narrower than 900 pixels, and aligning to the left edge moved the whole
+		 * menu to the right of the screen.  The picture is centred in the
+		 * framebuffer, so its centre is the framebuffer's, and the panel lands
+		 * where it does in every other mode.  The margin is computed signed for
+		 * that, and floored at zero so it cannot step off the left edge.
 		 */
-		if (nPictureWidth > MenuPanelWidth)
+		int nMarginX = (int) nPictureLeft
+			     + ((int) nPictureWidth - (int) MenuPanelWidth) / 2;
+		if (nMarginX < 0)
 		{
-			MenuMarginX = nPictureLeft
-				    + (nPictureWidth - MenuPanelWidth) / 2;
+			nMarginX = 0;
 		}
-		else
-		{
-			MenuMarginX = nPictureLeft;
-		}
+		MenuMarginX = (unsigned) nMarginX;
 
-		if (nPictureHeight > MenuPanelHeight)
+		int nMarginY = (int) nPictureTop
+			     + ((int) nPictureHeight - (int) MenuPanelHeight) / 2;
+		if (nMarginY < 0)
 		{
-			MenuMarginY = nPictureTop
-				    + (nPictureHeight - MenuPanelHeight) / 2;
+			nMarginY = 0;
 		}
-		else
-		{
-			MenuMarginY = nPictureTop;
-		}
+		MenuMarginY = (unsigned) nMarginY;
 	}
 }
 
@@ -293,6 +309,17 @@ void CAtariMenu::Close (void)
 	m_nSelected = 0;
 	m_BrowseTarget = BrowseNone;
 	ClearPendingErase (FALSE);
+
+	/*
+	 * The panel is drawn over the black margins when the picture is narrower than
+	 * it is -- which every integer scale makes it -- and those margins are
+	 * otherwise written once and forgotten.  Asking for them again is what stops
+	 * the strips where the panel was from staying on screen after the menu goes.
+	 */
+	if (m_pVideo != 0)
+	{
+		m_pVideo->InvalidatePadding ();
+	}
 
 	/*
 	 * Logged here rather than in each exit: F12, Escape, Close menu, the three
@@ -510,6 +537,7 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 0: return "Video standard";
 		case 1: return "Artifacting";
 		case 2: return "Resolution";
+		case 3: return "Aspect ratio";
 		}
 		break;
 
@@ -602,6 +630,16 @@ const char *CAtariMenu::JoystickInterfaceName (int nInterface)
 	}
 }
 
+const char *CAtariMenu::AspectName (int nAspect)
+{
+	switch (nAspect)
+	{
+	case AtariAspect2x: return "2x";
+	case AtariAspect3x: return "3x";
+	default:            return "4:3";
+	}
+}
+
 const char *CAtariMenu::ResolutionName (int nResolution)
 {
 	switch (nResolution)
@@ -664,9 +702,10 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 				  MachineName (S.nMachine), RamName (S.nRamKB));
 			return Text;
 		case 5:
-			snprintf (Text, sizeof Text, "%s, %s",
+			snprintf (Text, sizeof Text, "%s, %s, %s",
 				  VideoName (S.nVideoStandard),
-				  ResolutionName (S.nResolution));
+				  ResolutionName (S.nResolution),
+				  AspectName (S.nAspect));
 			return Text;
 		case 6:
 			if (!S.bSoundEnabled)
@@ -753,6 +792,7 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 		case 0: return VideoName (S.nVideoStandard);
 		case 1: return ArtifactName (S.nArtifact);
 		case 2: return ResolutionName (S.nResolution);
+		case 3: return AspectName (S.nAspect);
 		}
 		break;
 
@@ -869,7 +909,7 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			if (nValue > ATARI_ARTIFACT_PAL_BLEND) nValue = ATARI_ARTIFACT_NONE;
 			S.nArtifact = nValue;
 		}
-		else
+		else if (m_nSelected == 2)
 		{
 			/*
 			 * The output mode is chosen when the framebuffer is created, which
@@ -887,6 +927,52 @@ void CAtariMenu::AdjustSetting (int nDelta)
 				  "%s: switch the Pi off and on",
 				  ResolutionName (S.nResolution));
 			m_nMessageFrames = MESSAGE_FRAMES;
+		}
+		else
+		{
+			/*
+			 * The aspect ratio is live: the same framebuffer, drawn in a
+			 * different rectangle, so the geometry is recomputed once and the
+			 * next frame uses it.  The panel is re-laid out because an integer
+			 * mode makes the picture narrower than the panel is.
+			 */
+			switch (S.nAspect)
+			{
+			case AtariAspect43:
+				S.nAspect = AtariAspect2x;
+				break;
+			case AtariAspect2x:
+				S.nAspect = AtariAspect3x;
+				break;
+			default:
+				S.nAspect = AtariAspect43;
+				break;
+			}
+
+			if (m_pVideo != 0)
+			{
+				/*
+				 * No re-layout: the picture is centred in the framebuffer in
+				 * every mode, so the panel's position does not depend on the
+				 * aspect.  Moving the panel about when nothing moved would be
+				 * visible for no reason.
+				 */
+				m_pVideo->SetAspect (S.nAspect);
+
+				/*
+				 * A factor the framebuffer cannot hold is reduced, and the row
+				 * would then show a mode that is not the one in use -- so say
+				 * which one it is.
+				 */
+				if (m_pVideo->GetPixelScale () != (unsigned) S.nAspect)
+				{
+					snprintf (m_Message, sizeof m_Message,
+						  "%s does not fit; using %ux",
+						  AspectName (S.nAspect),
+						  m_pVideo->GetPixelScale ());
+					m_nMessageFrames = MESSAGE_FRAMES;
+				}
+			}
 		}
 		break;
 

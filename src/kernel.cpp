@@ -754,6 +754,21 @@ boolean CAtariKernel::Initialize (void)
 	}
 
 	/*
+	 * The pixel scale, before anything is drawn: the display was created for a
+	 * video mode, and how the picture is fitted into it is a separate choice that
+	 * can be changed while the machine runs.
+	 */
+	m_Video.SetAspect (m_Settings.nAspect);
+
+	if (m_Video.GetPixelScale () != (unsigned) m_Settings.nAspect)
+	{
+		CBootLog::Get ()->RecordRuntimef (
+			"display: %d is too large for %ux%u, using %ux instead",
+			m_Settings.nAspect, m_Video.GetWidth (), m_Video.GetHeight (),
+			m_Video.GetPixelScale ());
+	}
+
+	/*
 	 * The framebuffer now exists, so the boot log can be seen.  From here the
 	 * stage colours are painted on the screen the emulator will use, which is
 	 * what makes a hang identifiable.

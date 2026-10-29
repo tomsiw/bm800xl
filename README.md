@@ -26,7 +26,9 @@ unmodified.
 - PAL and NTSC, switchable while running
 - Upscaled to 1280x720 by default
 - Original Atari aspect ratio preserved: the picture fills the screen height and
-  is padded left and right with black rather than stretched to 16:9
+  is padded left and right with black rather than stretched to 16:9 — or, at the
+  press of a menu key, scaled by an exact 2x or 3x for square, pixel-perfect
+  output in a border
 - PAL colour blending and NTSC artifacting, selectable
 
 **Sound**

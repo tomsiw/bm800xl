@@ -46,6 +46,19 @@ enum TAtariResolution
 	AtariResolutionUnknown
 };
 
+/*
+ * How the emulated picture is scaled up to the framebuffer.
+ *
+ * The values are the scale factor, so they can be handed to the video layer as
+ * they are; 0 is the aspect-correct fit rather than an integer block.
+ */
+enum TAtariAspect
+{
+	AtariAspect43 = 0,	///< fit a 4:3 picture to the framebuffer height
+	AtariAspect2x = 2,	///< every pixel a 2x2 block
+	AtariAspect3x = 3	///< every pixel a 3x3 block
+};
+
 /* Where the two Atari joystick ports are fed from. */
 enum TAtariJoystickInterface
 {
@@ -69,7 +82,8 @@ struct TAtariSettings
 	boolean		bSoundStereo;
 
 	// Display
-	int		nResolution;		///< TAtariResolution
+	int		nResolution;
+	int		nAspect;		///< TAtariAspect
 
 	// Input
 	int		nKeyboardMode;		///< TAtariKeyboardMode

@@ -84,6 +84,29 @@ public:
 	unsigned GetPictureTop (void) const	{ return m_nDestTop; }
 
 	/*
+	 * Pixel scaling.
+	 *
+	 * 0 fits a 4:3 picture to the framebuffer height, which is how the display
+	 * has always been scaled; 2 and 3 give every source pixel a square block of
+	 * that size instead.  The choice is applied immediately: recomputing the
+	 * geometry is arithmetic, and the margins are cleared again on the next fill.
+	 *
+	 * A factor that does not fit the framebuffer is reduced until it does, so
+	 * GetPixelScale() may return less than was asked for; 0 means the 4:3 fit.
+	 */
+	void SetAspect (int nScale);
+
+	/*
+	 * Makes the black margins be cleared again on the next fill.
+	 *
+	 * Called when the OSD closes: a panel wider than the picture is drawn over the
+	 * margins, and those are otherwise written once and never revisited, so the
+	 * strips where the panel was would keep its pixels.
+	 */
+	void InvalidatePadding (void);
+	unsigned GetPixelScale (void) const	{ return m_nScale; }
+
+	/*
 	 * Presentation
 	 */
 
@@ -181,6 +204,9 @@ private:
 	// Screen geometry
 	void ComputeGeometry (void);
 
+	/* Blacks both halves, for a change that moves the picture rectangle. */
+	void ClearBuffers (void);
+
 	// Raw framebuffer access for the current composition buffer
 	u16 *BackBuffer (void) const;
 	u16 *FrontBuffer (void) const;
@@ -252,6 +278,15 @@ private:
 	 * wasted work -- about a quarter of the pixels in a frame.  Reset by
 	 * anything that repaints the whole buffer.
 	 */
+	/* Requested pixel scale: 0 for the 4:3 fit, 2 or 3 for integer blocks. */
+	int		m_nScaleRequest;
+
+	/* TRUE when both halves have to be blanked by the next fill. */
+	boolean		m_bClearPending;
+
+	/* The scale actually in use, after fitting: 0 for the 4:3 fit. */
+	unsigned	m_nScale;
+
 	boolean m_bPaddingCleared;
 
 	// The font all text is drawn with; see SetFont().
