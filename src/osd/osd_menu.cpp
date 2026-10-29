@@ -870,6 +870,20 @@ void CAtariMenu::MoveSelection (int nDelta)
  * Left and right change the value of the selected item, where the item has a
  * value that can be stepped.  Actions ignore this.
  */
+/*
+ * Steps the selected row.
+ *
+ * NDELTA is -1 for Left and +1 for Right, and every row that offers more than
+ * two values has to step by it: Right goes to the next value, Left to the
+ * previous one.  A switch of fixed cases can only ever go one way, which is the
+ * fault that made Left advance instead of retreat on the aspect ratio and the
+ * joystick interface -- so those rows walk an array and step the index, and any
+ * row added later should do the same.
+ *
+ * Two-valued rows -- video standard, resolution, sound on and off, stereo,
+ * write protection, port swap -- are toggles, where next and previous are the
+ * same value and the direction has no meaning.
+ */
 void CAtariMenu::AdjustSetting (int nDelta)
 {
 	TAtariSettings &S = *m_pSettings;
@@ -953,28 +967,35 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			 * next frame uses it.  The panel is re-laid out because an integer
 			 * mode makes the picture narrower than the panel is.
 			 */
-			switch (S.nAspect)
+			/*
+			 * Walked as a list rather than switched, so that Right goes forward
+			 * and Left goes back; a switch of cases can only ever go one way.
+			 *
+			 * 4x is 1344x960, so it exists only on a display that can hold it --
+			 * in practice 1080p.  It is left OUT of the list rather than offered
+			 * and reduced, because a row that reads 4x while the picture is 3x is
+			 * worse than a row that does not offer it.
+			 */
+			static const int Aspects[] =
+				{ AtariAspect43, AtariAspect2x, AtariAspect3x, AtariAspect4x };
+			const int nAspectCount = FitsAspect (AtariAspect4x) ? 4 : 3;
+
+			int nIndex = 0;
+			for (int i = 0; i < nAspectCount; i++)
 			{
-			case AtariAspect43:
-				S.nAspect = AtariAspect2x;
-				break;
-			case AtariAspect2x:
-				S.nAspect = AtariAspect3x;
-				break;
-			case AtariAspect3x:
-				/*
-				 * 4x is 1344x960, so it exists only on a display that can hold
-				 * it -- in practice 1080p.  It is left OUT of the cycle rather
-				 * than offered and reduced, because a row that reads 4x while the
-				 * picture is 3x is worse than a row that does not offer it.
-				 */
-				S.nAspect = FitsAspect (AtariAspect4x)
-					? AtariAspect4x : AtariAspect43;
-				break;
-			default:
-				S.nAspect = AtariAspect43;
-				break;
+				if (Aspects[i] == S.nAspect)
+				{
+					nIndex = i;
+					break;
+				}
 			}
+			if (nIndex >= nAspectCount)
+			{
+				nIndex = 0;
+			}
+
+			nIndex = (nIndex + nDelta + nAspectCount) % nAspectCount;
+			S.nAspect = Aspects[nIndex];
 
 			if (m_pVideo != 0)
 			{
@@ -1119,18 +1140,27 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			 * the next start applies it, and the menu says so rather than leaving
 			 * the row looking as if it had taken effect.
 			 */
-			switch (S.nJoystickInterface)
+			static const int Interfaces[] =
 			{
-			case AtariJoystickInterfaceUSB:
-				S.nJoystickInterface = AtariJoystickInterfaceGPIO;
-				break;
-			case AtariJoystickInterfaceGPIO:
-				S.nJoystickInterface = AtariJoystickInterfaceKeyboard;
-				break;
-			default:
-				S.nJoystickInterface = AtariJoystickInterfaceUSB;
-				break;
+				AtariJoystickInterfaceUSB,
+				AtariJoystickInterfaceGPIO,
+				AtariJoystickInterfaceKeyboard
+			};
+			const int nInterfaceCount =
+				(int) (sizeof Interfaces / sizeof Interfaces[0]);
+
+			int nIndex = 0;
+			for (int i = 0; i < nInterfaceCount; i++)
+			{
+				if (Interfaces[i] == S.nJoystickInterface)
+				{
+					nIndex = i;
+					break;
+				}
 			}
+
+			nIndex = (nIndex + nDelta + nInterfaceCount) % nInterfaceCount;
+			S.nJoystickInterface = Interfaces[nIndex];
 
 			snprintf (m_Message, sizeof m_Message,
 				  "%s: switch the Pi off and on",
