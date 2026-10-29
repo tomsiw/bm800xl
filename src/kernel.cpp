@@ -18,6 +18,8 @@
 //
 #include "kernel.h"
 
+#include "led_activity.h"
+
 #include <circle/logger.h>
 #include <circle/memory.h>
 #include <circle/string.h>
@@ -310,7 +312,11 @@ CKernel::CKernel (void)
 	 */
 	m_Logger (LogWarning, &m_Timer)
 {
-	m_ActLED.Blink (5);	// show we are alive
+	/*
+	 * Two blinks and then lit: the LED's resting state is on from here, and only
+	 * file access or a failure changes it.  See src/led_activity.cpp.
+	 */
+	ATARI_LED_Start ();
 }
 
 CKernel::~CKernel (void)
@@ -380,7 +386,12 @@ boolean CKernel::Initialize (void)
 CAtariKernel::CAtariKernel (void)
 :	m_pBootLog (0),
 	m_USBHCI (&m_Interrupt, &m_Timer, TRUE),
-	m_EMMC (&m_Interrupt, &m_Timer, &m_ActLED),
+	/*
+	 * No LED for the SD driver: it blinks around every block transfer, and the
+	 * LED is driven by led_activity.cpp instead -- off while a file is being
+	 * read, on when it is not.  Circle's constructor takes 0 for exactly this.
+	 */
+	m_EMMC (&m_Interrupt, &m_Timer, 0),
 	m_pKeyboard (0),
 	m_pAudioSink (0),
 	m_pJoystickHandle{0, 0},
@@ -938,6 +949,12 @@ boolean CAtariKernel::Initialize (void)
  */
 void CAtariKernel::ReportStartupFailure (const char *pWhat)
 {
+	/*
+	 * Every start-up PANIC comes through here, so this is the one place the LED
+	 * has to learn that the machine will not be running.  The blink outlives the
+	 * picture, which is the point: a black screen with a steady LED says nothing.
+	 */
+	ATARI_LED_Error ();
 	m_pBootLog->Recordf ("FAILED: %s", pWhat);
 
 	/*
@@ -1368,6 +1385,12 @@ void CAtariKernel::UpdateKeyboardStatus (void)
 
 void CAtariKernel::RunFrame (void)
 {
+	/*
+	 * The LED's only regular job: come back on once a burst of file access is
+	 * over.  Cheap -- one tick comparison when nothing is happening.
+	 */
+	ATARI_LED_Poll ();
+
 	/*
 	 * USB enumeration is driven here, from the frame loop, and nowhere else.
 	 *

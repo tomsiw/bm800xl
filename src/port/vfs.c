@@ -27,6 +27,13 @@
 
 #include "ff.h"
 
+/*
+ * Declared here rather than included: this file is built into the emulation
+ * core, whose include paths do not reach src/, and the definition in
+ * src/led_activity.cpp is extern "C", so the two agree.
+ */
+extern void ATARI_LED_Activity (void);
+
 #include <string.h>
 #include <stdlib.h>
 
@@ -528,6 +535,8 @@ size_t ATARI_VFS_Read(void *buffer, size_t size, size_t count, FILE *handle)
 		                 (unsigned long)requested);
 	}
 
+	ATARI_LED_Activity ();
+
 	if (f_read(&file->fil, buffer, requested, &got) != FR_OK) {
 		file->error = 1;
 		s_read_errors++;
@@ -564,6 +573,8 @@ size_t ATARI_VFS_Write(const void *buffer, size_t size, size_t count, FILE *hand
 		count = (size_t)0xFFFFFFFFu / size;
 	}
 	requested = (UINT)(size * count);
+
+	ATARI_LED_Activity ();
 
 	if (f_write(&file->fil, buffer, requested, &put) != FR_OK) {
 		file->error = 1;
@@ -674,6 +685,8 @@ int ATARI_VFS_Flush(FILE *handle)
 		ATARI_RuntimeLog("file flush error - invalid handle");
 		return -1;
 	}
+	ATARI_LED_Activity ();
+
 	if (f_sync(&file->fil) != FR_OK) {
 		ATARI_RuntimeLog("file flush error - f_sync failed");
 		return -1;

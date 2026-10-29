@@ -65,7 +65,8 @@ OBJDIR := obj
 APP_SRCS := \
 	src/main.cpp \
 	src/kernel.cpp \
-	src/bootlog.cpp
+	src/bootlog.cpp \
+	src/led_activity.cpp
 
 MODULE_SRCS := \
 	src/port/vfs.c \
