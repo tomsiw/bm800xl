@@ -44,6 +44,7 @@ a Pi 400 and a Zero 2 W.
 | Keyboard | USB verified direct; `usbkeys.cfg` remapping verified; **hub unsupported on Zero 2 W** |
 | Snapshots | save, save-as-new, load and erase **verified on hardware** |
 | OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker; `STATIC_OSD` for boards where the picture fill will not fit beside the emulation |
+| Activity LED | lit while the machine runs, dark while a file is read or written, 1 Hz blink after a failure; replaces the SD driver's per-transfer blinking |
 | Pixel scaling | 4:3 aspect fit, or exact 2x/3x in a border, chosen in the menu and applied live; 2x costs under half the fill, 3x at 1080p costs what 720p 4:3 used to; 4x (1344x960) is offered only where it fits, i.e. 1080p |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
