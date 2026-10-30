@@ -111,6 +111,17 @@ public:
 
 	// --- CAtariMenuHost ---------------------------------------------------
 	boolean ApplySettings (const TAtariSettings &Settings);
+
+	/*
+	 * What the running machine is configured for.
+	 *
+	 * ApplySettings() compares against this and applies only what differs, so
+	 * an unchanged setting costs one comparison instead of a call into the core
+	 * -- and, for RAM and the machine type, instead of a restart of the emulated
+	 * machine.
+	 */
+	TAtariSettings	m_AppliedSettings;
+	boolean		m_bSettingsApplied;
 	boolean MountDisk (int nDrive, const char *pPath, boolean bReadOnly);
 	boolean MountCartridge (const char *pPath);
 	boolean MountCassette (const char *pPath, boolean bReadOnly);

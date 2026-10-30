@@ -394,6 +394,7 @@ CAtariKernel::CAtariKernel (void)
 	m_EMMC (&m_Interrupt, &m_Timer, 0),
 	m_pKeyboard (0),
 	m_pAudioSink (0),
+	m_bSettingsApplied (FALSE),
 	m_pJoystickHandle{0, 0},
 	m_bInitialized (FALSE),
 	m_bAudioOpen (FALSE),
@@ -1791,72 +1792,253 @@ void CAtariKernel::MakeEmulatorConfig (const atari_config_t *&pConfig)
 	m_EmulatorConfig.sound_sample_rate = 44100;
 	m_EmulatorConfig.rom_directory = "SD:/ROMS";
 
+	/*
+	 * The machine is now configured for these settings, so they are the baseline
+	 * ApplySettings() compares against.
+	 *
+	 * Without this the snapshot would start zeroed, every field would look
+	 * changed on the first menu key press, and the RAM and machine rows would
+	 * restart the emulated machine for no reason.
+	 */
+	m_AppliedSettings = m_Settings;
+	m_bSettingsApplied = TRUE;
+
 	pConfig = &m_EmulatorConfig;
+}
+
+/*
+ * Names for the log.
+ *
+ * The same words the menu uses, so a log line and a screen can be read together
+ * without a translation table in the reader's head.
+ */
+static const char *VideoName (int nVideo)
+{
+	return nVideo == ATARI_VIDEO_NTSC ? "NTSC" : "PAL";
+}
+
+static const char *MachineName (int nMachine)
+{
+	switch (nMachine)
+	{
+	case ATARI_MACHINE_XE:	return "XE";
+	case ATARI_MACHINE_XEGS:	return "XEGS";
+	default:		return "XL";
+	}
+}
+
+static const char *ArtifactName (int nArtifact)
+{
+	switch (nArtifact)
+	{
+	case ATARI_ARTIFACT_NTSC_OLD:	return "NTSC old";
+	case ATARI_ARTIFACT_NTSC_NEW:	return "NTSC new";
+	case ATARI_ARTIFACT_PAL_SIMPLE:	return "PAL simple";
+	case ATARI_ARTIFACT_PAL_BLEND:	return "PAL accurate";
+	default:			return "off";
+	}
+}
+
+static const char *ResolutionName (int nResolution)
+{
+	return nResolution == AtariResolution1080p ? "1080p" : "720p";
+}
+
+static const char *AspectName (int nAspect)
+{
+	switch (nAspect)
+	{
+	case AtariAspect2x:	return "2x";
+	case AtariAspect3x:	return "3x";
+	case AtariAspect4x:	return "4x";
+	default:		return "4:3";
+	}
+}
+
+static const char *InterfaceName (int nInterface)
+{
+	switch (nInterface)
+	{
+	case AtariJoystickInterfaceGPIO:	return "9-pin GPIO ports";
+	case AtariJoystickInterfaceKeyboard:	return "USB keyboard keys";
+	default:				return "USB gamepads";
+	}
+}
+
+static const char *OnOff (boolean bOn)
+{
+	return bOn ? "on" : "off";
 }
 
 boolean CAtariKernel::ApplySettings (const TAtariSettings &Settings)
 {
+	/*
+	 * Only what changed is applied, and each change says so in the log.
+	 *
+	 * Two things follow.  The log reads as a list of what the user did, instead
+	 * of a list of everything the emulator knows.  And a setting that has not
+	 * changed is not applied again -- which matters most for RAM and the machine
+	 * type, because applying those restarts the emulated machine: the menu used
+	 * to reach here twice per key press, so a RAM change restarted it twice.
+	 *
+	 * The lines are written BEFORE the call they describe, so a hang names the
+	 * step that hung: that is what this log was originally for.
+	 */
+	boolean bRunning = m_bSettingsApplied;
+
+	if (bRunning
+	    && memcmp (&m_AppliedSettings, &Settings, sizeof Settings) == 0)
+	{
+		return TRUE;
+	}
+
 	m_Settings = Settings;
 
-	/*
-	 * Traced step by step because changing any setting halts the whole system,
-	 * with no exception and with the timer heartbeat stopping too.  A hang with
-	 * interrupts dead is not a fault we can catch afterwards, so each step says
-	 * which one it reached: the last line before silence names the culprit.
-	 */
-	CBootLog::Get ()->RecordRuntime ("apply: start");
-
-	// The emulation core applies each of these directly; none of them requires
-	// the machine to be restarted, which is why changing the video standard or
-	// the volume in the menu takes effect at once.
-	ATARI_SetVideoStandard ((atari_video_standard_t) Settings.nVideoStandard);
-	CBootLog::Get ()->RecordRuntime ("apply: video standard set");
-
-	ATARI_SetArtifact ((atari_artifact_t) Settings.nArtifact);
-	CBootLog::Get ()->RecordRuntime ("apply: artifact set");
-
-	ATARI_SetSoundEnabled (Settings.bSoundEnabled);
-	CBootLog::Get ()->RecordRuntime ("apply: sound enabled set");
-
-	ATARI_SetVolume (Settings.nSoundVolume);
-
-	if (m_pAudioSink != 0)
+	if (Settings.nVideoStandard != m_AppliedSettings.nVideoStandard)
 	{
-		ATARI_AudioSinkSetVolume (m_pAudioSink, Settings.nSoundVolume);
-	}
-	CBootLog::Get ()->RecordRuntime ("apply: volume set");
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: video standard set to %s",
+							  VideoName (Settings.nVideoStandard));
+		}
 
-	ATARI_SetStereo (Settings.bSoundStereo);
-	CBootLog::Get ()->RecordRuntime ("apply: stereo set");
-
-	// Changing the amount of RAM or the machine personality does restart the
-	// emulated machine; the core does that itself.
-	CBootLog::Get ()->RecordRuntime ("apply: setting ram size");
-	if (!ATARI_SetRamSize ((atari_ram_kb_t) Settings.nRamKB))
-	{
-		return FALSE;
-	}
-	CBootLog::Get ()->RecordRuntime ("apply: ram size done");
-
-	CBootLog::Get ()->RecordRuntime ("apply: setting machine");
-	if (!ATARI_SetMachine ((atari_machine_t) Settings.nMachine))
-	{
-		return FALSE;
-	}
-	CBootLog::Get ()->RecordRuntime ("apply: machine done");
-
-	if (m_pKeyboard != 0)
-	{
-		m_pKeyboard->SetNumpadAsCursor (Settings.bNumpadAsCursor);
+		ATARI_SetVideoStandard ((atari_video_standard_t) Settings.nVideoStandard);
 	}
 
-	/*
-	 * Not a menu item: this one is set in the settings file, because it is a
-	 * diagnostic rather than something to switch while playing.
-	 */
-	ATARI_SetContinueOnBrk (Settings.bContinueOnBrk);
+	if (Settings.nArtifact != m_AppliedSettings.nArtifact)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: artifacting set to %s",
+							  ArtifactName (Settings.nArtifact));
+		}
 
-	CBootLog::Get ()->RecordRuntime ("apply: complete");
+		ATARI_SetArtifact ((atari_artifact_t) Settings.nArtifact);
+	}
+
+	if (Settings.nAspect != m_AppliedSettings.nAspect)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: aspect ratio set to %s",
+							  AspectName (Settings.nAspect));
+		}
+
+		m_Video.SetAspect (Settings.nAspect);
+	}
+
+	if (Settings.nResolution != m_AppliedSettings.nResolution)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef (
+				"apply: resolution set to %s (at next start)",
+				ResolutionName (Settings.nResolution));
+		}
+	}
+
+	if (Settings.bSoundEnabled != m_AppliedSettings.bSoundEnabled)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: sound set to %s",
+							  OnOff (Settings.bSoundEnabled));
+		}
+
+		ATARI_SetSoundEnabled (Settings.bSoundEnabled);
+	}
+
+	if (Settings.nSoundVolume != m_AppliedSettings.nSoundVolume)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: volume set to %d%%",
+							  Settings.nSoundVolume);
+		}
+
+		if (m_pAudioSink != 0)
+		{
+			ATARI_AudioSinkSetVolume (m_pAudioSink, Settings.nSoundVolume);
+		}
+	}
+
+	if (Settings.bSoundStereo != m_AppliedSettings.bSoundStereo)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: stereo set to %s",
+							  Settings.bSoundStereo
+								? "stereo" : "mono");
+		}
+
+		ATARI_SetStereo (Settings.bSoundStereo);
+	}
+
+	if (Settings.nRamKB != m_AppliedSettings.nRamKB)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: RAM set to %d kB",
+							  Settings.nRamKB);
+		}
+
+		if (!ATARI_SetRamSize ((atari_ram_kb_t) Settings.nRamKB))
+		{
+			return FALSE;
+		}
+	}
+
+	if (Settings.nMachine != m_AppliedSettings.nMachine)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: machine set to %s",
+							  MachineName (Settings.nMachine));
+		}
+
+		if (!ATARI_SetMachine ((atari_machine_t) Settings.nMachine))
+		{
+			return FALSE;
+		}
+	}
+
+	if (Settings.bNumpadAsCursor != m_AppliedSettings.bNumpadAsCursor)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: keypad as cursor set to %s",
+							  OnOff (Settings.bNumpadAsCursor));
+		}
+
+		if (m_pKeyboard != 0)
+		{
+			m_pKeyboard->SetNumpadAsCursor (Settings.bNumpadAsCursor);
+		}
+	}
+
+	/* A diagnostic, set in the file rather than in the menu. */
+	if (Settings.bContinueOnBrk != m_AppliedSettings.bContinueOnBrk)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: continue on BRK set to %s",
+							  OnOff (Settings.bContinueOnBrk));
+		}
+
+		ATARI_SetContinueOnBrk (Settings.bContinueOnBrk);
+	}
+
+	/* Read at start-up only: recorded, not applied. */
+	if (Settings.nJoystickInterface != m_AppliedSettings.nJoystickInterface
+	    && bRunning)
+	{
+		CBootLog::Get ()->RecordRuntimef (
+			"apply: joystick interface set to %s (at next start)",
+			InterfaceName (Settings.nJoystickInterface));
+	}
+
+	m_AppliedSettings = Settings;
+	m_bSettingsApplied = TRUE;
 
 	return TRUE;
 }
