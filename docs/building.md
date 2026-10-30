@@ -146,7 +146,7 @@ forth is safe rather than a source of confusing link errors.
 A healthy build prints, at the end:
 
 ```
-    OK   kernel8.img  (824.6 KiB)
+    OK   kernel8.img  (839.1 KiB)
 ```
 
 Then confirm the images really are what they claim to be:
@@ -156,9 +156,9 @@ pwsh -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
 ```
-  OK   kernel64        kernel8.img           824.6 KiB  Pi Zero 2 W, Pi 3, Pi 4, Pi 400, CM3/CM4
-  OK   kernel64-pi5    kernel_2712.img       845.3 KiB  Raspberry Pi 5 (AArch64, Cortex-A76, RP1)
-  OK   kernel64-pi4    kernel8-rpi4.img        843 KiB  Pi 4, Pi 400, CM4 (AArch64, Cortex-A72 optimised)
+  OK   kernel64        kernel8.img           839.1 KiB  Pi Zero 2 W, Pi 3, Pi 4, Pi 400, CM3/CM4
+  OK   kernel64-pi5    kernel_2712.img       859.8 KiB  Raspberry Pi 5 (AArch64, Cortex-A76, RP1)
+  OK   kernel64-pi4    kernel8-rpi4.img      857.5 KiB  Pi 4, Pi 400, CM4 (AArch64, Cortex-A72 optimised)
 
   All built images verified.
 ```

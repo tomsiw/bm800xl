@@ -199,7 +199,7 @@ pwsh -ExecutionPolicy Bypass -File scripts\build.ps1 -Profile kernel64-pi5
 pwsh -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-Both build to about 820 KiB, comfortably inside Circle's **2 MiB** kernel limit.
+Both build to about 840 KiB, comfortably inside Circle's **2 MiB** kernel limit.
 Then follow [Building](docs/building.md), or jump straight to
 [docs/sd-card-setup.md](docs/sd-card-setup.md) if you already have the images.
 
@@ -341,7 +341,7 @@ This matters, so it is stated plainly rather than buried.
 **Verified in this repository (build-time):**
 
 - All kernel images build cleanly and link as AArch64
-  (`aarch64-none-elf`), about 820–845 KiB each.
+  (`aarch64-none-elf`), about 835-860 KiB each.
 - `scripts/verify.ps1` confirms each image is ELF64/AArch64, has its entry point
   at 0x80000, contains `_start`, carries the filename the firmware looks for on
   that board, and that its `.bss` ends before Circle's 2 MiB kernel region.
@@ -391,11 +391,25 @@ This matters, so it is stated plainly rather than buried.
 - The USB keyboard works **connected directly**. Through a USB hub it is not
   enumerated — see below.
 
+**Verified on hardware (the same image, five boards):**
+
+`kernel8.img` — the `kernel64` build — runs on a **Zero 2 W, a 3B, a 3B+, a 4 and
+a 400**, at **720p or 1080p**, and works on all of them: it boots to BASIC, the
+picture is correct, the keyboard and menu work, and images load and play.  The two
+lists above are what was exercised in detail on the boards used for the feature
+work; on the others the check was that the machine runs and is playable.
+
+The frame rate was not measured on the Pi 3 pair, so what is claimed for them is
+that they work, not how much room they have.  The A72-optimised build
+(`kernel8-rpi4.img`) is a separate question — see below.
+
 **NOT yet verified:**
 
-- Pi 3 and Pi 5. The Pi 400 covers the Pi 4 class; the other two have not been
-  run, and the Pi 5 image in particular has a page-flip branch that has never
-  executed.
+- **Pi 5 (and Pi 500).** Its image builds and verifies, but it has never been
+  run, and it is the only platform whose page-flip branch has never executed.
+- **`kernel8-rpi4.img` against `kernel8.img` on the same board.** Both run on a
+  Pi 4 / 400 class machine, but the A72-optimised build has never been compared
+  with the A53 one.
 - The GPIO keyboard matrix, the 9-pin joystick ports, and hot-plugging USB
   storage.
 - Cassette writing. Reading is verified for both standard and turbo tapes.

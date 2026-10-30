@@ -49,7 +49,8 @@ a Pi 400 and a Zero 2 W.
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
 | Joystick ports | two inputs (`STICK(0)`, `STICK(1)`); one interface at a time, chosen in the OSD as USB gamepads, the two 9-pin GPIO ports, or keys on the USB keyboard (`Joy1_Up` .. `Joy2_Fire` in `usbkeys.cfg`, nothing bound by default), with the ports swappable live; the 9-pin path has never been run on hardware |
-| Pi 3 / Pi 5 | images build; never run |
+| Pi 3, Pi 4 / 400 | `kernel8.img` runs on a Zero 2 W, 3B, 3B+, 4 and 400 at 720p or 1080p; the A72 build has not been compared against it |
+| Pi 5 | image builds; never run |
 
 ---
 
@@ -395,8 +396,9 @@ failures. They are listed because they are invisible until they bite.
   worth repainting at all.
 - **The `stereo change deferred` message** is now accurate, but the underlying
   inability remains.
-- **Pi 3 and Pi 5 unverified.** The Pi 5 image has a page-flip branch that has
-  never executed.
+- **The Pi 5 is unverified.** Its image has a page-flip branch that has never
+  executed.  The A53 image, by contrast, has run on a Zero 2 W, a 3B, a 3B+, a 4
+  and a 400, at 720p or 1080p.
 - **The OSD font is the one piece of this repository that is not ours to
   license.** `src/osd/atari_font.cpp` holds the XL/XE character shapes, extracted
   from an OS image. The ROM images themselves are excluded from version control,
@@ -425,7 +427,7 @@ order surviving a power cycle; the keyboard interface — `Joy1_*` keys moving `
 
 Not verified: GPIO keyboard, 9-pin GPIO joysticks, the second keyboard mode, the
 128/192/320/321 kB RAM configurations in use, cassette writing, hot-plugging USB
-storage, sound on the Zero 2 W, Pi 3/Pi 5.
+storage, sound on the Zero 2 W, the Pi 5.
 
 BASIC's `STICK(n)` / `STRIG(n)` are the cheapest joystick test:
 `15` = centred, `1` = no fire.
@@ -621,7 +623,8 @@ with a crafted `usbkeys.cfg`, and behaved as specified.
 
 ### 4. Verification debt
 
-- Pi 3 and Pi 5 (the Pi 5 page-flip branch has never run).
+- The Pi 5 (its page-flip branch has never run), and the A72 image against the
+  A53 one on the same board.
 - GPIO keyboard and 9-pin joysticks.
 - The larger RAM configurations.
 
