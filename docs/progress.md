@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `a8ee26e`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `9ba8610`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -380,6 +380,10 @@ failures. They are listed because they are invisible until they bite.
 
 ## 6. Known limitations
 
+- **The volume is applied in the audio sink, not in POKEY.** Changing it used to
+  re-initialise the mixer, which reset the serial timing the cassette is read
+  through and broke a tape load until the Pi was power-cycled; the sink scales the
+  samples instead, so the cost is nothing at 100% and about 5 us a frame below it.
 - **Stereo needs a restart.** The channel count is a property of the open device,
   and reopening the HDMI sink hangs on this hardware. Reported honestly in the log.
 - **The OSD redraw still costs ~18–30 ms** when it happens. Mitigated by redrawing
