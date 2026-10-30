@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `9ba8610`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `887164c`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -380,6 +380,11 @@ failures. They are listed because they are invisible until they bite.
 
 ## 6. Known limitations
 
+- **Settings are applied, and logged, only when they change.** `ApplySettings()` diffs the
+  incoming settings against the ones the machine is configured for: one line per field that
+  actually moved, nothing at all when nothing did.  The old behaviour re-applied every
+  setting on every menu key press, which filled the log and restarted the emulated
+  machine twice for a RAM or machine change.
 - **The volume is applied in the audio sink, not in POKEY.** Changing it used to
   re-initialise the mixer, which reset the serial timing the cassette is read
   through and broke a tape load until the Pi was power-cycled; the sink scales the
