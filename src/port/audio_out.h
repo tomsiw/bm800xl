@@ -108,6 +108,9 @@ audio_sink_t *ATARI_CreateAudioSink (CInterruptSystem *pInterrupt);
  */
 void ATARI_AudioSinkSetMuted (audio_sink_t *sink, int muted);
 
+/* Output gain from a 0..100 volume; applied to the samples, not to the core. */
+void ATARI_AudioSinkSetVolume (audio_sink_t *sink, int volume);
+
 #ifdef __cplusplus
 }
 #endif

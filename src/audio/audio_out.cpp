@@ -48,6 +48,7 @@ enum
 	AudioChunkWords		= 1920,		// 32-bit words per DMA chunk
 	AudioQueueMsecs		= 100,		// size of Circle's output queue
 	AudioZeroChunkBytes	= 256,		// silence is fed in chunks of this size
+	AudioGainChunkBytes	= 512,		// attenuation is applied in chunks of this size
 	AudioCancelTimeout	= CLOCKHZ	// how long close() waits for the DMA
 };
 
@@ -82,6 +83,15 @@ public:
 	 */
 	void SetMuted (boolean bMuted)	{ m_bMuted = bMuted; }
 
+	/*
+	 * Output gain, 0..256 with 256 meaning "as loud as the emulation produces".
+	 *
+	 * 0..100 in the menu maps to 0..256 here by multiplying by 256 and dividing
+	 * by 100, so 100% is a bit-exact passthrough and the loop below is skipped
+	 * entirely -- which is the default.
+	 */
+	void SetGain (unsigned nGain)	{ m_nGain = nGain > 256 ? 256 : nGain; }
+
 private:
 	/// \return Bytes of silence accepted, at most COUNT
 	unsigned WriteSilence (unsigned nCount);
@@ -90,6 +100,7 @@ private:
 	u32		m_nSilence;
 	boolean		m_bSwapChannels;
 	boolean		m_bMuted;
+	unsigned	m_nGain;	/* 0..256, 256 = passthrough */
 };
 
 CAtariAudioDevice::CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSampleRate,
@@ -111,6 +122,7 @@ CAtariAudioDevice::CAtariAudioDevice (CInterruptSystem *pInterrupt, unsigned nSa
 	m_nSilence = 0;
 	m_bSwapChannels = FALSE;
 	m_bMuted = FALSE;
+	m_nGain = 256;
 }
 
 //
@@ -156,9 +168,70 @@ unsigned CAtariAudioDevice::WriteStream (const void *pData, unsigned nCount)
 		return WriteSilence (nCount);
 	}
 
-	int nResult = Write (pData, nCount);
+	if (m_nGain >= 256)
+	{
+		/* Full volume: the buffer goes out untouched, which is the usual case. */
+		int nResult = Write (pData, nCount);
 
-	return nResult > 0 ? (unsigned) nResult : 0;
+		return nResult > 0 ? (unsigned) nResult : 0;
+	}
+
+	/*
+	 * Attenuation, applied here rather than in the emulation core.
+	 *
+	 * The core's own volume has to be set by re-initialising POKEY's mixer, and
+	 * doing that while the machine runs resets the serial timing the cassette
+	 * loads through.  Scaling the samples on their way to the sink changes
+	 * nothing the emulated machine can see.
+	 */
+	static s16 Buffer[AudioGainChunkBytes / sizeof (s16)];
+
+	const s16 *pSource = (const s16 *) pData;
+	unsigned nDone = 0;
+	int nResult = 0;
+
+	while (nDone < nCount)
+	{
+		/*
+		 * The source is advanced by what has already been written, not by the
+		 * chunk size.
+		 *
+		 * Without that, the loop scaled the opening chunk of the buffer again for
+		 * every chunk it wrote: one frame of audio went out as its first few
+		 * milliseconds repeated, which is heard as severe distortion at any
+		 * volume below 100%.
+		 */
+		const s16 *pChunk = pSource + nDone / sizeof (s16);
+
+		unsigned nChunk = nCount - nDone;
+		if (nChunk > sizeof Buffer)
+		{
+			nChunk = (unsigned) sizeof Buffer;
+		}
+
+		/* Whole frames only, so the channels cannot slip against each other. */
+		nChunk -= nChunk % (m_nChannels * sizeof (s16));
+		if (nChunk == 0)
+		{
+			break;
+		}
+
+		unsigned nSamples = nChunk / sizeof (s16);
+		for (unsigned i = 0; i < nSamples; i++)
+		{
+			Buffer[i] = (s16) (((int) pChunk[i] * (int) m_nGain) / 256);
+		}
+
+		nResult = Write (Buffer, nSamples * sizeof (s16));
+		if (nResult <= 0)
+		{
+			break;
+		}
+
+		nDone += (unsigned) nResult;
+	}
+
+	return nDone;
 }
 
 unsigned CAtariAudioDevice::WriteSilence (unsigned nCount)
@@ -229,6 +302,16 @@ u8 s_DeviceMemory[sizeof (CAtariAudioDevice)]
 	__attribute__ ((aligned (alignof (CAtariAudioDevice))));
 
 CAtariAudioDevice *s_pDevice;		// 0 while the output is closed
+
+/*
+ * The volume the settings asked for, 0..100.
+ *
+ * A device is rebuilt whenever the sink is opened -- a stereo change does it --
+ * and it starts at full scale unless told otherwise.  Keeping the value here makes
+ * every new device come up at the right volume, which is also what a power-on
+ * needs: the settings are applied before the first device exists.
+ */
+static unsigned s_nGainPercent = 100;
 CInterruptSystem *s_pInterrupt;		// handed over by the factory
 
 CAtariAudioDevice *DeviceOf (audio_sink_t *pSelf)
@@ -278,6 +361,14 @@ unsigned SinkOpen (audio_sink_t *pSelf, unsigned nSampleRate,
 
 	s_pDevice = new (s_DeviceMemory) CAtariAudioDevice (s_pInterrupt, nSampleRate,
 							    nChannels);
+
+	/*
+	 * The volume the settings asked for, applied before a sample is written.
+	 *
+	 * This is the power-on path: the settings are applied while no device exists
+	 * yet, so the gain has to be set here as well as when the menu changes it.
+	 */
+	s_pDevice->SetGain (s_nGainPercent * 256 / 100);
 
 	// The queue is the buffer the emulator is told about, and the one the
 	// samples themselves travel through.
@@ -364,4 +455,41 @@ extern "C" void ATARI_AudioSinkSetMuted (audio_sink_t *pSink, int bMuted)
 	}
 
 	DeviceOf (pSink)->SetMuted (bMuted != 0);
+}
+
+/*
+ * Sets the output gain from a 0..100 volume.
+ *
+ * Separate from the sink's function table on purpose: the table is the core's
+ * contract for moving samples, and this is a decision the emulator makes.
+ */
+extern "C" void ATARI_AudioSinkSetVolume (audio_sink_t *pSink, int nVolume)
+{
+	if (nVolume < 0)
+	{
+		nVolume = 0;
+	}
+	if (nVolume > 100)
+	{
+		nVolume = 100;
+	}
+
+	/*
+	 * Remembered FIRST, applied if there is a device.
+	 *
+	 * At power-on this is called before the audio device exists -- the settings
+	 * are applied while the sink is only an object -- so the value has to be kept
+	 * even when there is nothing to set it on.  SinkOpen() then gives it to the
+	 * device it builds, which is how the first sound already has the right
+	 * volume.  Returning early here, as this did, meant the volume was never
+	 * stored at start-up and every boot came up at full scale.
+	 */
+	s_nGainPercent = (unsigned) nVolume;
+
+	if (s_pDevice == 0 || pSink == 0)
+	{
+		return;
+	}
+
+	DeviceOf (pSink)->SetGain (s_nGainPercent * 256 / 100);
 }

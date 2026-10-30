@@ -981,6 +981,12 @@ boolean CAtariKernel::InitializeAudio (void)
 	}
 
 	ATARI_SetHostAudioSink (m_pAudioSink);
+
+	/*
+	 * The volume the settings asked for, handed over now: the device does not
+	 * exist yet, and this is what SinkOpen() will give it.
+	 */
+	ATARI_AudioSinkSetVolume (m_pAudioSink, m_Settings.nSoundVolume);
 	m_bAudioOpen = TRUE;
 
 	return TRUE;
@@ -1775,7 +1781,12 @@ void CAtariKernel::MakeEmulatorConfig (const atari_config_t *&pConfig)
 	m_EmulatorConfig.ram_kb = (atari_ram_kb_t) m_Settings.nRamKB;
 	m_EmulatorConfig.artifact = (atari_artifact_t) m_Settings.nArtifact;
 	m_EmulatorConfig.sound_enabled = m_Settings.bSoundEnabled && m_bAudioOpen;
-	m_EmulatorConfig.sound_volume = m_Settings.nSoundVolume;
+	/*
+	 * The core runs at full scale and the sink applies the volume: POKEY's mixer
+	 * can only take a new gain by being re-initialised, and that disturbs the
+	 * serial timing the cassette loads through.
+	 */
+	m_EmulatorConfig.sound_volume = 100;
 	m_EmulatorConfig.sound_stereo = m_Settings.bSoundStereo;
 	m_EmulatorConfig.sound_sample_rate = 44100;
 	m_EmulatorConfig.rom_directory = "SD:/ROMS";
@@ -1808,6 +1819,11 @@ boolean CAtariKernel::ApplySettings (const TAtariSettings &Settings)
 	CBootLog::Get ()->RecordRuntime ("apply: sound enabled set");
 
 	ATARI_SetVolume (Settings.nSoundVolume);
+
+	if (m_pAudioSink != 0)
+	{
+		ATARI_AudioSinkSetVolume (m_pAudioSink, Settings.nSoundVolume);
+	}
 	CBootLog::Get ()->RecordRuntime ("apply: volume set");
 
 	ATARI_SetStereo (Settings.bSoundStereo);

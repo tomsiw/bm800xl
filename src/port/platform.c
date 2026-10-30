@@ -2079,24 +2079,18 @@ void ATARI_SetVolume(int volume_0_100)
 	if (!s_initialised) {
 		return;
 	}
-	POKEYSND_SetVolume(s_config.sound_volume);
 
 	/*
-	 * The mixer has to be re-initialised for the new volume to be heard.
+	 * The volume is NOT applied here.
 	 *
-	 * POKEY's mixer copies POKEYSND_volume into its own gain tables when it is
-	 * initialised (mzpokeysnd.c: "volume.s16 = POKEYSND_volume * 0xffff / 256.0"),
-	 * so setting the variable alone changes nothing on the mixer that is already
-	 * running.  That is why changing the volume in the menu used to do nothing
-	 * until the sound was switched off and on again -- switching it re-ran the
-	 * whole set-up and re-initialised the mixer as a side effect.
-	 *
-	 * POKEYSND_DoInit() repeats POKEY's initialisation with the parameters it
-	 * already holds.  It touches no device, which matters here: reopening the
-	 * audio sink hangs on this hardware, so re-initialising the mixer is the only
-	 * way to make a volume change audible without a restart.
+	 * POKEY's mixer takes its gain from POKEYSND_volume at init time, so the only
+	 * way to make a change audible through the core is POKEYSND_DoInit() -- and
+	 * that rebuilds the mixer and resets the serial timing mid-stream, which broke
+	 * cassette loading after a volume change.  The sink scales the samples
+	 * instead; see ATARI_AudioSinkSetVolume() and the kernel's ApplySettings().
 	 */
-	POKEYSND_DoInit();
+	(void) 0;
+
 }
 
 void ATARI_SetSoundEnabled(int enabled)
