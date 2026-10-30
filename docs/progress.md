@@ -425,9 +425,12 @@ and erase from the Erase snapshot screen; the Joysticks screen — opening it,
 stepping the interface and the swap row, the footer messages, and the two-port
 order surviving a power cycle; the keyboard interface — `Joy1_*` keys moving `STICK(0)` while the rest of the keyboard still types, and a mapped key no longer typing its character.
 
-Not verified: GPIO keyboard, 9-pin GPIO joysticks, the second keyboard mode, the
-128/192/320/321 kB RAM configurations in use, cassette writing, hot-plugging USB
-storage, sound on the Zero 2 W, the Pi 5.
+Not verified: GPIO keyboard, 9-pin GPIO joysticks, the second keyboard mode,
+cassette writing, hot-plugging USB storage, sound on the Zero 2 W, the Pi 5.
+
+Verified since, on a Zero 2 W, a 3B, a 3B+, a 4 and a 400: every RAM
+configuration -- 64 / 128 / 192 / 320 (RAMBO) / 320 (Compy Shop) kB -- and NTSC
+as well as PAL on the 4 / 400 class.  Those two were the last doubts on that list.
 
 BASIC's `STICK(n)` / `STRIG(n)` are the cheapest joystick test:
 `15` = centred, `1` = no fire.
@@ -626,7 +629,6 @@ with a crafted `usbkeys.cfg`, and behaved as specified.
 - The Pi 5 (its page-flip branch has never run), and the A72 image against the
   A53 one on the same board.
 - GPIO keyboard and 9-pin joysticks.
-- The larger RAM configurations.
 
 ### 5. Longer term
 

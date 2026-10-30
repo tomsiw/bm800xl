@@ -399,6 +399,9 @@ picture is correct, the keyboard and menu work, and images load and play.  The t
 lists above are what was exercised in detail on the boards used for the feature
 work; on the others the check was that the machine runs and is playable.
 
+Every RAM configuration -- 64 / 128 / 192 / 320 (RAMBO) / 320 (Compy Shop) kB --
+and both video standards, PAL and NTSC, were exercised across these boards.
+
 The frame rate was not measured on the Pi 3 pair, so what is claimed for them is
 that they work, not how much room they have.  The A72-optimised build
 (`kernel8-rpi4.img`) is a separate question — see below.
@@ -415,8 +418,6 @@ that they work, not how much room they have.  The A72-optimised build
 - Cassette writing. Reading is verified for both standard and turbo tapes.
 - Sound on the Zero 2 W: the test display had no speakers, so the sound device
   refused to open, which is the correct behaviour on such a display.
-- NTSC on the Pi 400 class. NTSC was verified on the Zero 2 W, which is the
-  slower board; the Pi 400 has run only in PAL.
 
 ### A USB hub is not enumerated on the Zero 2 W
 
