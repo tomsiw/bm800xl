@@ -33,6 +33,16 @@
  */
 static const unsigned LED_IDLE_FRAMES = 6;
 
+/*
+ * While a load continues, the LED blinks slowly rather than staying dark.
+ *
+ * A load that reads one sector per emulated transfer -- a disk image in normal
+ * ROM mode -- never leaves a six-frame gap, so "off while busy" would mean dark
+ * for the whole load, indistinguishable from a machine that has hung.
+ */
+static const unsigned LED_ACTIVE_BLINK_FRAMES = 25;
+static const unsigned LED_ACTIVE_ON_FRAMES = 3;
+
 /* How often the idle state is put back on the pin, in frames. */
 static const unsigned LED_REASSERT_FRAMES = 6;
 
@@ -49,6 +59,9 @@ static volatile boolean s_bAccess;
 
 /* Frames since the last file operation. */
 static unsigned s_nSinceActivity;
+
+/* Frames spent in the current burst, for the slow blink while it lasts. */
+static unsigned s_nAccessFrames;
 
 /* Frames since the idle state was last put on the pin. */
 static unsigned s_nSinceOn;
@@ -135,6 +148,11 @@ void ATARI_LED_Activity (void)
 
 	pLED->Off ();
 
+	if (!s_bAccess)
+	{
+		s_nAccessFrames = 0;
+	}
+
 	s_bAccess = TRUE;
 }
 
@@ -156,6 +174,29 @@ void ATARI_LED_Poll (void)
 			if (pLED != 0)
 			{
 				pLED->On ();
+			}
+
+			s_nAccessFrames = 0;
+		}
+		else
+		{
+			/*
+			 * The burst continues: blink slowly so a long load looks like work
+			 * rather than like a hung machine.
+			 */
+			unsigned nPhase = ++s_nAccessFrames % LED_ACTIVE_BLINK_FRAMES;
+
+			CActLED *pLED = LED ();
+			if (pLED != 0)
+			{
+				if (nPhase == 0)
+				{
+					pLED->On ();
+				}
+				else if (nPhase == LED_ACTIVE_ON_FRAMES)
+				{
+					pLED->Off ();
+				}
 			}
 		}
 
