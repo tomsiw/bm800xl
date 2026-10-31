@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `b8c2d1d`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `39210cc`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -385,6 +385,9 @@ failures. They are listed because they are invisible until they bite.
   actually moved, nothing at all when nothing did.  The old behaviour re-applied every
   setting on every menu key press, which filled the log and restarted the emulated
   machine twice for a RAM or machine change.
+- **Snapshots are named after the media they hold**, and `STATIC_OSD` is on by
+  default: `Snap_<disk 1>_<cassette>_<cartridge>_<n>.sav`, every part optional, so a
+  card of snapshots can be read without loading them.
 - **A snapshot is a container, not just the core's state.**  Ahead of the core's blob it
   carries the host block: the machine settings and the mounted media with their flags.
   Loading applies that first -- a 320 kB snapshot has to go back into a 320 kB machine --
