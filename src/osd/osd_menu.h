@@ -190,6 +190,9 @@ private:
 	 */
 	void SaveNewSnapshot (void);
 
+	/* The media part of a snapshot name; returns its length. */
+	unsigned BuildSnapshotMedia (char *pBuffer, unsigned nSize) const;
+
 	/*
 	 * Removes the image loaded in whatever the current screen has selected.
 	 *

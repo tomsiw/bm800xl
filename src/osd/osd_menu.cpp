@@ -47,6 +47,10 @@ static const unsigned CartridgeItemCount	= 2;	// insert, eject
 static const unsigned CassetteItemCount		= 2;	// insert, eject
 static const unsigned JoystickItemCount		= 2;	// interface, swap ports
 static const unsigned MachineItemCount		= 3;	// machine, RAM, restore defaults
+/* Snapshot names: characters taken from each media name, and the whole media part. */
+static const unsigned MAX_SNAPSHOT_NAME_PART	= 8;
+static const unsigned MAX_SNAPSHOT_MEDIA	= 24;
+
 static const unsigned VideoItemCount		= 4;	// standard, artifacting, resolution, aspect
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
@@ -1204,6 +1208,113 @@ void CAtariMenu::AdjustSetting (int nDelta)
 	}
 }
 
+/*
+ * Builds the media part of a snapshot's name: the disk in drive 1, the cassette and
+ * the cartridge, in that order, each included only if it is mounted and joined by
+ * underscores.
+ *
+ * Each part is reduced to letters, digits, dash and underscore, capped at eight
+ * characters, so a name that would not fit a file system or a shell stays usable
+ * on a PC later.  An extension is dropped: "Bruce Lee.atr" contributes
+ * "BruceLee".
+ */
+static void AppendNamePart (char *pBuffer, unsigned nSize, const char *pPath)
+{
+	if (pPath == 0 || pPath[0] == '\0')
+	{
+		return;
+	}
+
+	const char *pBase = pPath;
+	for (const char *p = pPath; *p != '\0'; p++)
+	{
+		if (*p == '/' || *p == '\\' || *p == ':')
+		{
+			pBase = p + 1;
+		}
+	}
+
+	unsigned nUsed = strlen (pBuffer);
+	if (nUsed > 0 && nUsed + 1 < nSize)
+	{
+		pBuffer[nUsed++] = '_';
+		pBuffer[nUsed] = '\0';
+	}
+
+	unsigned nAdded = 0;
+
+	for (const char *p = pBase; *p != '\0' && nAdded < MAX_SNAPSHOT_NAME_PART; p++)
+	{
+		char c = *p;
+
+		if (c == '.')
+		{
+			break;			/* the extension is not part of the name */
+		}
+
+		if (   (c >= 'a' && c <= 'z')
+		    || (c >= '0' && c <= '9')
+		    || c == '-')
+		{
+			if (nUsed + 1 >= nSize)
+			{
+				break;
+			}
+
+			pBuffer[nUsed++] = c;
+			pBuffer[nUsed] = '\0';
+			nAdded++;
+		}
+		else if (c >= 'A' && c <= 'Z')
+		{
+			if (nUsed + 1 >= nSize)
+			{
+				break;
+			}
+
+			pBuffer[nUsed++] = c;
+			pBuffer[nUsed] = '\0';
+			nAdded++;
+		}
+		else if (nAdded > 0)
+		{
+			/* Spaces and punctuation become one underscore, not several. */
+			if (pBuffer[nUsed - 1] != '_' && nUsed + 1 < nSize)
+			{
+				pBuffer[nUsed++] = '_';
+				pBuffer[nUsed] = '\0';
+			}
+		}
+	}
+}
+
+unsigned CAtariMenu::BuildSnapshotMedia (char *pBuffer, unsigned nSize) const
+{
+	if (pBuffer == 0 || nSize == 0 || m_pSettings == 0)
+	{
+		return 0;
+	}
+
+	pBuffer[0] = '\0';
+
+	if (m_pSettings->DiskPath[0][0] != '\0')
+	{
+		AppendNamePart (pBuffer, nSize, m_pSettings->DiskPath[0]);
+	}
+
+	if (m_pSettings->CassettePath[0] != '\0')
+	{
+		AppendNamePart (pBuffer, nSize, m_pSettings->CassettePath);
+	}
+
+	if (m_pSettings->CartridgePath[0] != '\0')
+	{
+		AppendNamePart (pBuffer, nSize, m_pSettings->CartridgePath);
+	}
+
+	return (unsigned) strlen (pBuffer);
+}
+
 void CAtariMenu::SaveNewSnapshot (void)
 {
 	if (m_pHost == 0 || m_pStorage == 0)
@@ -1212,20 +1323,35 @@ void CAtariMenu::SaveNewSnapshot (void)
 	}
 
 	/*
-	 * Saves under the first unused SNAPSHOTn.SAV.
+	 * Saves under the first unused name built from what is mounted.
 	 *
 	 * The browser can only offer files that already exist, so on a fresh card
 	 * it has nothing to offer and the first snapshot could never be created.
 	 * This item is the way out of that: a name is chosen here rather than typed,
 	 * because there is no text entry in the menu and adding one would need a
 	 * full key-entry widget for a once-per-card operation.
+	 *
+	 * The name says what the snapshot is of: disk 1, the cassette and the cartridge,
+	 * each if mounted, then a number.  "Bruce Lee" in drive 1 alone is
+	 * Snap_Bruce_Lee_1.sav; a tape on its own is Snap_Tape_1.sav.
+	 * So a card with a dozen snapshots can be read without loading them.
 	 */
 	char Name[STORAGE_NAME_MAX];
 	char Path[SETTINGS_PATH_MAX];
+	char Media[MAX_SNAPSHOT_MEDIA];
+	unsigned nMedia = BuildSnapshotMedia (Media, sizeof Media);
 
 	for (unsigned n = 1; n <= 99; n++)
 	{
-		snprintf (Name, sizeof Name, "SNAPSHOT%u.SAV", n);
+		if (nMedia > 0)
+		{
+			snprintf (Name, sizeof Name, "Snap_%s_%u.sav", Media, n);
+		}
+		else
+		{
+			snprintf (Name, sizeof Name, "Snap_%u.sav", n);
+		}
+
 		m_pStorage->MakeSystemPath (Path, sizeof Path, Name);
 
 		if (!m_pStorage->FileExists (Path))

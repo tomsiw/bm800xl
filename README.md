@@ -56,7 +56,7 @@ unmodified.
 **Other**
 - OSD menu (F12, or Shift+Help on an Atari keyboard), drawn in the Atari
   character set, with a power cycle for the cases a reset cannot fix
-- `STATIC_OSD=1` for slow boards: the menu is drawn over the frame already on
+- `STATIC_OSD=1` by default (the right setting for a slow board): the menu is drawn over the frame already on
   screen instead of repainting the picture under it
 - Adaptive fill: if a frame cannot be drawn within its deadline, the picture is
   skipped rather than the emulation, and the skip is reported in the log

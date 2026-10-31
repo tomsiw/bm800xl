@@ -122,11 +122,14 @@ of it, so you can see the machine carrying on while the OSD is open. Repainting 
 2 W, and the machine misses its frame deadline — games that depend on 50 Hz timing
 can crash.
 
-Set `STATIC_OSD=1` in `settings.cfg` and the menu is drawn over the frame that is
-already on screen, on an opaque panel instead — the picture underneath stops
-updating while the menu is open, and closing the menu repaints as usual. That is one
-line in the settings file, not a menu item: it describes the board rather than the
-session. The default, `0`, is the dimmed-picture behaviour.
+`STATIC_OSD` is on by default. With it, the menu is drawn over the frame that is
+already on screen, on an opaque panel: the picture underneath stops updating while
+the menu is open, and closing it repaints as usual. That is one line in the settings
+file, not a menu item, because it describes the board rather than the session.
+
+Set `STATIC_OSD=0` to have the menu sit on a dimmed, live picture instead — the
+machine keeps moving behind it, which is pleasant on a Pi 4 and costly on a Zero 2 W,
+where the redraw competes with the emulation for the frame.
 
 The picture *outside* the menu is no longer the reason to need this: the fill was
 made about four times faster in `e2773e4`, from 18 ms to 4.8 ms on a Zero 2 W, so
@@ -292,8 +295,24 @@ drives and no way to tell. They are refused with a message that says so.
 
 **Save snapshot** opens a file browser rooted at `SD:/ATARI`, listing the `.SAV`
 files that are already there; picking one overwrites it. **Save as new
-snapshot** is the other half: it writes to the first unused `SNAPSHOT1.SAV`,
-`SNAPSHOT2.SAV` and so on, so a snapshot can be taken on a card that has none.
+snapshot** is the other half: it writes to the first unused name built from what
+is mounted, so a snapshot can be taken on a card that has none and the name says
+what it holds. The parts are, in this order, **the disk in drive 1, the cassette
+and the cartridge**, each included only if that media is mounted, so every part
+can be missing:
+
+| Mounted | Name |
+|---|---|
+| disk `Bruce Lee.atr` | `Snap_Bruce_Lee_1.sav` |
+| cassette `C.cas` only | `Snap_C_1.sav` |
+| disk and cassette | `Snap_A_C_1.sav` |
+| disk and cartridge | `Snap_A_K_1.sav` |
+| all three | `Snap_A_C_K_1.sav` |
+| nothing | `Snap_1.sav` |
+
+Each media name contributes up to eight letters and digits, with spaces and
+punctuation collapsed to one underscore and the extension dropped, and a number
+is added so a second snapshot of the same game does not overwrite the first.
 
 The menu has no text entry, so names are generated rather than typed. That is a
 deliberate trade: typing would need a whole on-screen keyboard for something
@@ -379,7 +398,7 @@ ASPECT=4:3
 KEYBOARD=0
 NUMPAD_CURSOR=1
 CONTINUE_ON_BRK=1
-STATIC_OSD=0
+STATIC_OSD=1
 JOY_INTERFACE=USB
 JOY_SWAP=0
 DISK1_PATH=USB:/disks/BOUNTYBOB.ATR
@@ -407,7 +426,7 @@ SYSTEM_DIR=SD:/ATARI
 | `KEYBOARD` | 0 = USB, 1 = GPIO |
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
-| `STATIC_OSD` | 0 or 1 — 1 draws the menu over a frozen picture on an opaque panel; 0 (the default) repaints and dims the picture behind it |
+| `STATIC_OSD` | 0 or 1 — 1 (the default) draws the menu over a frozen picture on an opaque panel; 0 repaints and dims the picture behind it, which costs noticeably more |
 | `JOY_INTERFACE` | `USB`, `GPIO` or `KEYBOARD` — which interface feeds the two joystick ports; the same setting as the menu's Joysticks → Interface, and it takes effect the next time the Pi is switched off and on |
 | `JOY_SWAP` | 0 or 1 — 1 exchanges the two joystick ports, and takes effect immediately |
 | `DISK1_PATH` … `DISK4_PATH` | a path, or empty for "no disk in this drive" |
@@ -542,5 +561,5 @@ If it struggles:
   the pixels of 720p, and on a Pi Zero 2 W that difference is the whole frame
   budget — the picture fill alone goes from about 4.8 ms to about 10.8 ms, and
   the adaptive skip starts leaving every second picture undrawn.
-- On a slow board, set `STATIC_OSD=1` so that opening the menu does not have to
+- On a slow board, leave `STATIC_OSD=1` (the default) so that opening the menu does not have to
   repaint the picture behind it.

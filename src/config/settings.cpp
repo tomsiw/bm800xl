@@ -79,6 +79,16 @@ void Settings_SetDefaults (TAtariSettings *pSettings)
 	 */
 	pSettings->nAspect = AtariAspect43;
 
+	/*
+	 * The OSD is drawn over a frozen picture, on an opaque panel.
+	 *
+	 * That is the better default: the panel is legible over any game, the
+	 * redraw cost disappears from the frame budget, and it is what the option
+	 * was built for.  Drawing over a live picture is still available for anyone
+	 * who wants to see the machine keep moving behind the menu.
+	 */
+	pSettings->bStaticOSD = TRUE;
+
 	pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
 	pSettings->bSwapJoystickPorts = FALSE;
 
