@@ -45,8 +45,33 @@
 // Bytes of digital silence written at a time when the stream runs dry.
 enum
 {
-	AudioChunkWords		= 1920,		// 32-bit words per DMA chunk
-	AudioQueueMsecs		= 100,		// size of Circle's output queue
+	/*
+	 * Latency budget.
+	 *
+	 * Everything here sits between POKEY and the speaker, and it all adds up: a
+	 * real Atari has none of it, so the key click and every note arrive at once
+	 * there and late here.  Measured against a real machine, the original values
+	 * put two buffers in series:
+	 *
+	 *     DMA chunk 1920 words = 1920 stereo frames at 44.1 kHz = 43.5 ms each,
+	 *     and the DMA is cyclic with two of them, so 87 ms of buffer;
+	 *     plus a 100 ms output queue;
+	 *
+	 * roughly 90-100 ms of delay in use, up to 187 ms.  That is what was heard.
+	 *
+	 * Now: 384 words = 8.7 ms per DMA buffer, 17.4 ms for the pair, and a 35 ms
+	 * queue -- about 26 ms in total.  The queue is still larger than one frame
+	 * (20 ms) plus an OSD redraw (up to 30 ms), which is what it has to survive
+	 * without underrunning: below that the emulator pads silence into a gap and
+	 * the delay is traded for a click, which is worse.
+	 *
+	 * The chunk is not a free choice: the HDMI device asserts that it is a multiple
+	 * of IEC958_SUBFRAMES_PER_BLOCK, which is 2 * 192 = 384 words.  384 is the
+	 * smallest that satisfies it, and the previous 1920 was a multiple by luck
+	 * rather than by design -- 480, the first value tried here, aborted the boot.
+	 */
+	AudioChunkWords		= 384,		// 32-bit words per DMA chunk
+	AudioQueueMsecs		= 35,		// size of Circle's output queue
 	AudioZeroChunkBytes	= 256,		// silence is fed in chunks of this size
 	AudioGainChunkBytes	= 512,		// attenuation is applied in chunks of this size
 	AudioCancelTimeout	= CLOCKHZ	// how long close() waits for the DMA
