@@ -404,15 +404,12 @@ and both video standards, PAL and NTSC, were exercised across these boards.
 
 The frame rate was not measured on the Pi 3 pair, so what is claimed for them is
 that they work, not how much room they have.  The A72-optimised build
-(`kernel8-rpi4.img`) is a separate question — see below.
+(`kernel8-rpi4.img`) has been run on the 4 / 400 class as well and works.
 
 **NOT yet verified:**
 
 - **Pi 5 (and Pi 500).** Its image builds and verifies, but it has never been
   run, and it is the only platform whose page-flip branch has never executed.
-- **`kernel8-rpi4.img` against `kernel8.img` on the same board.** Both run on a
-  Pi 4 / 400 class machine, but the A72-optimised build has never been compared
-  with the A53 one.
 - The GPIO keyboard matrix, the 9-pin joystick ports, and hot-plugging USB
   storage.
 - Cassette writing. Reading is verified for both standard and turbo tapes.

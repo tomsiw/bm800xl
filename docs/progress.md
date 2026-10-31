@@ -49,7 +49,7 @@ a Pi 400 and a Zero 2 W.
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
 | Joystick ports | two inputs (`STICK(0)`, `STICK(1)`); one interface at a time, chosen in the OSD as USB gamepads, the two 9-pin GPIO ports, or keys on the USB keyboard (`Joy1_Up` .. `Joy2_Fire` in `usbkeys.cfg`, nothing bound by default), with the ports swappable live; the 9-pin path has never been run on hardware |
-| Pi 3, Pi 4 / 400 | `kernel8.img` runs on a Zero 2 W, 3B, 3B+, 4 and 400 at 720p or 1080p; the A72 build has not been compared against it |
+| Pi 3, Pi 4 / 400 | `kernel8.img` runs on a Zero 2 W, 3B, 3B+, 4 and 400 at 720p or 1080p, and so does the A72 build on the 4 / 400 |
 | Pi 5 | image builds; never run |
 
 ---
@@ -385,6 +385,12 @@ failures. They are listed because they are invisible until they bite.
   actually moved, nothing at all when nothing did.  The old behaviour re-applied every
   setting on every menu key press, which filled the log and restarted the emulated
   machine twice for a RAM or machine change.
+
+  The duplicated `apply:` blocks that prompted this were **not** a fault in the key
+  path: one menu action that changes several settings at once calls in more than once,
+  which is correct, and it only looked wrong while every call printed the whole list.
+  With the diff, the second call prints only the fields that the first had not already
+  applied, and nothing at all when they are the same.
 - **Snapshots are named after the media they hold**, and `STATIC_OSD` is on by
   default: `Snap_<disk 1>_<cassette>_<cartridge>_<n>.sav`, every part optional, so a
   card of snapshots can be read without loading them.
@@ -643,14 +649,15 @@ with a crafted `usbkeys.cfg`, and behaved as specified.
 
 ### 4. Verification debt
 
-- The Pi 5 (its page-flip branch has never run), and the A72 image against the
-  A53 one on the same board.
+- The Pi 5 (its page-flip branch has never run).
 - GPIO keyboard and 9-pin joysticks.
 
 ### 5. Longer term
 
-- **circle-stdlib migration** (requested early, not started). Worth doing only with
-  a specific motivation, since the current `_sbrk` approach works.
+- ~~**circle-stdlib migration**~~ — **decided against**, and not to be revisited
+  without a concrete problem to solve. The `_sbrk` approach works, and a port of
+  the whole standard library for its own sake would be a large change with no
+  failure to justify it.
 - Understand **why reopening the HDMI sink hangs** — that single answer would
   unlock stereo and sample-rate changes without a reboot.
 
