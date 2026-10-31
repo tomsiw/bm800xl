@@ -524,6 +524,60 @@ atari_video_standard_t ATARI_GetVideoStandard(void);
  *
  * Returns 1 on success.
  */
+/*
+ * Snapshots carry the host's state as well as the machine's.
+ *
+ * The core serialises the emulated machine, including the SIO layer, so a
+ * restored snapshot really does have the right disks in the drives.  What it
+ * cannot carry is the host's record of that -- the paths the menu shows, their
+ * write protection, and the machine settings the snapshot was taken with.  That
+ * block is written by us, ahead of the core's state, and applied before the core
+ * state is restored.
+ *
+ * Files written before this existed have no block and are refused: the version
+ * in the magic makes that a clear message rather than a corrupt load.
+ */
+#define ATARI_SNAPSHOT_MAGIC		0x314D5342u	/* "BSM1" */
+#define ATARI_SNAPSHOT_VERSION		1
+#define ATARI_SNAPSHOT_DRIVES		4
+#define ATARI_SNAPSHOT_PATH_MAX		256
+
+typedef struct atari_snapshot_host {
+	uint32_t magic;
+	uint32_t version;
+
+	/* The machine the snapshot was taken on. */
+	int32_t machine;
+	int32_t ram_kb;
+	int32_t video;
+	int32_t artifact;
+
+	/* Sound, as the settings had it. */
+	int32_t sound_enabled;
+	int32_t sound_volume;
+	int32_t sound_stereo;
+
+	/* What was mounted, and how. */
+	int32_t disk_read_only[ATARI_SNAPSHOT_DRIVES];
+	char disk[ATARI_SNAPSHOT_DRIVES][ATARI_SNAPSHOT_PATH_MAX];
+	int32_t cassette_read_only;
+	char cartridge[ATARI_SNAPSHOT_PATH_MAX];
+	char cassette[ATARI_SNAPSHOT_PATH_MAX];
+	char user_dir[ATARI_SNAPSHOT_PATH_MAX];
+} atari_snapshot_host_t;
+
+/* Writes the block above, then the core's state. */
+int ATARI_SaveSnapshot(const char *path, const atari_snapshot_host_t *host);
+
+/*
+ * Reads and validates the block.  Returns 0 if the file is not one of ours, or
+ * was written by a different version.
+ */
+int ATARI_ReadSnapshotHost(const char *path, atari_snapshot_host_t *host);
+
+/* Restores the machine, skipping the block that has already been read. */
+int ATARI_LoadSnapshotCore(const char *path);
+
 int ATARI_MountDisk(int drive, const char *path, int read_only);
 
 /* Ejects the image in DRIVE.  Returns 1 on success. */
@@ -636,8 +690,6 @@ int ATARI_BootFile(const char *path);
  *
  * Returns 1 on success.
  */
-int ATARI_SaveSnapshot(const char *path);
-int ATARI_LoadSnapshot(const char *path);
 
 /* ---------------------------------------------------------------------------
  * Diagnostics

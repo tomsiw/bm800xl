@@ -69,6 +69,14 @@ public:
 	virtual boolean SaveSnapshot (const char *pPath) = 0;
 	virtual boolean LoadSnapshot (const char *pPath) = 0;
 
+	/*
+	 * A one-line notice about the last snapshot load, or an empty string.  A load
+	 * can succeed and still leave something behind: an image it names that is no
+	 * longer on the card cannot be mounted, and the menu has to say so rather than
+	 * show a drive that is not there.
+	 */
+	virtual const char *GetSnapshotNotice (void) = 0;
+
 	virtual void ColdReset (void) = 0;
 	virtual void WarmReset (void) = 0;
 

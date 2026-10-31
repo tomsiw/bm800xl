@@ -2630,13 +2630,13 @@ static emulator_state_t *SnapshotBuffer(void)
 	return s_snapshot_buffer;
 }
 
-int ATARI_SaveSnapshot(const char *path)
+int ATARI_SaveSnapshot(const char *path, const atari_snapshot_host_t *host)
 {
 	emulator_state_t *state;
 	FILE *file;
 	uint32_t length;
 
-	if (!s_initialised || path == 0 || path[0] == '\0') {
+	if (!s_initialised || path == 0 || path[0] == '\0' || host == 0) {
 		return 0;
 	}
 
@@ -2673,7 +2673,9 @@ int ATARI_SaveSnapshot(const char *path)
 		return 0;
 	}
 
-	if (ATARI_VFS_Write(&state->tags, 1, sizeof state->tags, file) != sizeof state->tags
+	if (ATARI_VFS_Write(&length, 1, sizeof length, file) != sizeof length
+	    || ATARI_VFS_Write((void *) host, 1, sizeof *host, file) != sizeof *host
+	    || ATARI_VFS_Write(&state->tags, 1, sizeof state->tags, file) != sizeof state->tags
 	    || ATARI_VFS_Write(&state->flags, 1, sizeof state->flags, file) != sizeof state->flags
 	    || ATARI_VFS_Write(state->state, 1, length, file) != length) {
 		SetError("writing the snapshot to %s failed", path);
@@ -2688,11 +2690,64 @@ int ATARI_SaveSnapshot(const char *path)
 	return 1;
 }
 
-int ATARI_LoadSnapshot(const char *path)
+int ATARI_ReadSnapshotHost(const char *path, atari_snapshot_host_t *host)
+{
+	FILE *file;
+	uint32_t length;
+
+	if (path == 0 || path[0] == '\0' || host == 0) {
+		return 0;
+	}
+
+	file = ATARI_VFS_Open(path, "rb");
+	if (file == 0) {
+		SetError("cannot open %s", path);
+		return 0;
+	}
+
+	if (ATARI_VFS_Read(&length, 1, sizeof length, file) != sizeof length
+	    || length == 0 || length > (uint32_t)STATESAV_MAX_SIZE) {
+		SetError("%s is not a snapshot file", path);
+		ATARI_VFS_Close(file);
+		return 0;
+	}
+
+	if (ATARI_VFS_Read(host, 1, sizeof *host, file) != sizeof *host) {
+		SetError("%s is truncated", path);
+		ATARI_VFS_Close(file);
+		return 0;
+	}
+
+	ATARI_VFS_Close(file);
+
+	if (host->magic != ATARI_SNAPSHOT_MAGIC) {
+		SetError("%s was written by an older version of the emulator and cannot "
+			 "be loaded", path);
+		return 0;
+	}
+
+	if (host->version != ATARI_SNAPSHOT_VERSION) {
+		SetError("%s was written by a different version of the emulator", path);
+		return 0;
+	}
+
+	/* Paths are read from a file: make sure they end where they should. */
+	for (int i = 0; i < ATARI_SNAPSHOT_DRIVES; i++) {
+		host->disk[i][ATARI_SNAPSHOT_PATH_MAX - 1] = '\0';
+	}
+	host->cartridge[ATARI_SNAPSHOT_PATH_MAX - 1] = '\0';
+	host->cassette[ATARI_SNAPSHOT_PATH_MAX - 1] = '\0';
+	host->user_dir[ATARI_SNAPSHOT_PATH_MAX - 1] = '\0';
+
+	return 1;
+}
+
+int ATARI_LoadSnapshotCore(const char *path)
 {
 	emulator_state_t *state;
 	FILE *file;
 	uint32_t length;
+	atari_snapshot_host_t host;
 
 	if (!s_initialised || path == 0 || path[0] == '\0') {
 		return 0;
@@ -2708,6 +2763,13 @@ int ATARI_LoadSnapshot(const char *path)
 	file = ATARI_VFS_Open(path, "rb");
 	if (file == 0) {
 		SetError("cannot open %s", path);
+		return 0;
+	}
+
+	if (ATARI_VFS_Read(&length, 1, sizeof length, file) != sizeof length
+	    || ATARI_VFS_Read(&host, 1, sizeof host, file) != sizeof host) {
+		SetError("%s is not a snapshot file", path);
+		ATARI_VFS_Close(file);
 		return 0;
 	}
 

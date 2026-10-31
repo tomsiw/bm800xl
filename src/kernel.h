@@ -120,6 +120,9 @@ public:
 	 * -- and, for RAM and the machine type, instead of a restart of the emulated
 	 * machine.
 	 */
+	/* One line about the last snapshot load, shown by the menu. */
+	char		m_SnapshotNotice[96];
+
 	TAtariSettings	m_AppliedSettings;
 	boolean		m_bSettingsApplied;
 	boolean MountDisk (int nDrive, const char *pPath, boolean bReadOnly);
@@ -130,6 +133,16 @@ public:
 	const char *GetCassetteModeMessage (void);
 	boolean SaveSnapshot (const char *pPath);
 	boolean LoadSnapshot (const char *pPath);
+
+	/*
+	 * What the last snapshot load wants to say beyond "loaded" -- an image it
+	 * needed that is no longer on the card, for instance.  Empty when there is
+	 * nothing to say.
+	 */
+	const char *GetSnapshotNotice (void);
+
+	/* Adds one item to that notice. */
+	void AppendSnapshotNotice (const char *pFormat, ...);
 	void ColdReset (void);
 	void WarmReset (void);
 	boolean PowerCycle (void);

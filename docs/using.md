@@ -273,6 +273,23 @@ A snapshot captures the whole emulated machine: all of its RAM including the
 extended memory banks, the chip state (ANTIC, GTIA, POKEY, PIA) and the CPU
 registers. Loading one puts the machine back exactly where it was.
 
+It also captures **what was mounted and how the machine was configured** -- the
+disk images and their write protection, the cartridge, the cassette, the machine
+type, the RAM size, the video standard and the sound settings. That is what makes
+a snapshot a complete picture rather than just a memory dump: load one taken while
+game A was in drive 1 and drive 1 has game A again, in the menu as well as in the
+machine, even if game B was mounted in the meantime. A drive whose image has
+since been deleted from the card is left empty and the log says so; the rest of
+the snapshot still loads.
+
+The machine settings are applied *before* the memory is restored, because a
+snapshot taken on a machine with more RAM has to be put back into a machine of
+that shape.
+
+Snapshots written by older builds of the emulator cannot be loaded: they carry no
+record of the media, so the machine would come back with the wrong disks in the
+drives and no way to tell. They are refused with a message that says so.
+
 **Save snapshot** opens a file browser rooted at `SD:/ATARI`, listing the `.SAV`
 files that are already there; picking one overwrites it. **Save as new
 snapshot** is the other half: it writes to the first unused `SNAPSHOT1.SAV`,

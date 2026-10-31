@@ -1740,6 +1740,22 @@ void CAtariMenu::BrowserChoose (void)
 		const char *pNotice = m_pHost != 0
 				    ? m_pHost->GetCassetteModeMessage () : 0;
 
+		/*
+		 * A snapshot can load and still leave something behind: an image it names
+		 * that is no longer on the card.  Its own notice outranks the tape one,
+		 * because the image was just dropped from the menu and the user needs to
+		 * know why that drive is empty.
+		 */
+		if (m_BrowseTarget == BrowseSnapshotLoad && m_pHost != 0)
+		{
+			const char *pSnapshotNotice = m_pHost->GetSnapshotNotice ();
+
+			if (pSnapshotNotice != 0 && pSnapshotNotice[0] != '\0')
+			{
+				pNotice = pSnapshotNotice;
+			}
+		}
+
 		if (pNotice != 0)
 		{
 			snprintf (m_Message, sizeof m_Message, "%s", pNotice);

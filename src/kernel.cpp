@@ -2073,14 +2073,236 @@ const char *CAtariKernel::GetCassetteModeMessage (void)
 	return ATARI_CassetteModeMessage ();
 }
 
+/*
+ * Snapshots: what the machine was, as well as what it contained.
+ *
+ * The core's state carries the emulated machine, including the SIO layer, so a
+ * restored snapshot really does have the right disks in the drives.  What it
+ * cannot carry is the host's record of that -- which paths the menu shows, their
+ * write protection, and the machine settings the snapshot was taken with.  Those
+ * go in a block of our own ahead of the core's state, and are applied before it.
+ */
+
+/* Appends one item to the snapshot notice, keeping it to a single line. */
+void CAtariKernel::AppendSnapshotNotice (const char *pFormat, ...)
+{
+	unsigned nUsed = strlen (m_SnapshotNotice);
+
+	if (nUsed >= sizeof m_SnapshotNotice - 4)
+	{
+		return;
+	}
+
+	if (nUsed > 0)
+	{
+		m_SnapshotNotice[nUsed++] = ';';
+		m_SnapshotNotice[nUsed++] = ' ';
+		m_SnapshotNotice[nUsed] = '\0';
+	}
+
+	va_list Args;
+	va_start (Args, pFormat);
+	vsnprintf (m_SnapshotNotice + nUsed, sizeof m_SnapshotNotice - nUsed,
+		   pFormat, Args);
+	va_end (Args);
+
+	m_SnapshotNotice[sizeof m_SnapshotNotice - 1] = '\0';
+}
+
+const char *CAtariKernel::GetSnapshotNotice (void)
+{
+	return m_SnapshotNotice;
+}
+
+static void FillSnapshotHost (const TAtariSettings &Settings,
+			      atari_snapshot_host_t *pHost)
+{
+	memset (pHost, 0, sizeof *pHost);
+
+	pHost->magic = ATARI_SNAPSHOT_MAGIC;
+	pHost->version = ATARI_SNAPSHOT_VERSION;
+
+	pHost->machine = Settings.nMachine;
+	pHost->ram_kb = Settings.nRamKB;
+	pHost->video = Settings.nVideoStandard;
+	pHost->artifact = Settings.nArtifact;
+
+	pHost->sound_enabled = Settings.bSoundEnabled ? 1 : 0;
+	pHost->sound_volume = Settings.nSoundVolume;
+	pHost->sound_stereo = Settings.bSoundStereo ? 1 : 0;
+
+	for (unsigned i = 0; i < ATARI_SNAPSHOT_DRIVES; i++)
+	{
+		pHost->disk_read_only[i] = Settings.DiskReadOnly[i] ? 1 : 0;
+
+		strncpy (pHost->disk[i], Settings.DiskPath[i],
+			 ATARI_SNAPSHOT_PATH_MAX - 1);
+	}
+
+	pHost->cassette_read_only = Settings.bCassetteReadOnly ? 1 : 0;
+
+	strncpy (pHost->cartridge, Settings.CartridgePath,
+		 ATARI_SNAPSHOT_PATH_MAX - 1);
+	strncpy (pHost->cassette, Settings.CassettePath,
+		 ATARI_SNAPSHOT_PATH_MAX - 1);
+	strncpy (pHost->user_dir, Settings.UserDirectory,
+		 ATARI_SNAPSHOT_PATH_MAX - 1);
+}
+
 boolean CAtariKernel::SaveSnapshot (const char *pPath)
 {
-	return ATARI_SaveSnapshot (pPath) ? TRUE : FALSE;
+	atari_snapshot_host_t Host;
+	FillSnapshotHost (m_Settings, &Host);
+
+	return ATARI_SaveSnapshot (pPath, &Host) ? TRUE : FALSE;
 }
 
 boolean CAtariKernel::LoadSnapshot (const char *pPath)
 {
-	return ATARI_LoadSnapshot (pPath) ? TRUE : FALSE;
+	atari_snapshot_host_t Host;
+
+	if (!ATARI_ReadSnapshotHost (pPath, &Host))
+	{
+		return FALSE;
+	}
+
+	/*
+	 * The machine the snapshot was taken on comes first, because a different
+	 * RAM size or machine type makes the core restart the emulated machine --
+	 * and the state has to be restored into a machine of the right shape.
+	 */
+	TAtariSettings Target = m_Settings;
+
+	Target.nMachine = Host.machine;
+	Target.nRamKB = Host.ram_kb;
+	Target.nVideoStandard = Host.video;
+	Target.nArtifact = Host.artifact;
+	Target.bSoundEnabled = Host.sound_enabled != 0;
+	Target.nSoundVolume = Host.sound_volume;
+	Target.bSoundStereo = Host.sound_stereo != 0;
+
+	if (!ApplySettings (Target))
+	{
+		return FALSE;
+	}
+
+	if (!ATARI_LoadSnapshotCore (pPath))
+	{
+		return FALSE;
+	}
+
+	/*
+	 * Now the media, which the core has already re-opened from its own state.
+	 *
+	 * Every recorded image is checked against the card first.  One that has gone
+	 * is not claimed: the drive is emptied in the settings, so the menu shows it
+	 * empty, and the notice says which file is missing.  The rest of the
+	 * snapshot still loads -- half a restored machine is worth more than none.
+	 */
+	m_SnapshotNotice[0] = '\0';
+
+	for (unsigned i = 0; i < ATARI_SNAPSHOT_DRIVES; i++)
+	{
+		const char *pDisk = Host.disk[i];
+
+		if (pDisk[0] == '\0')
+		{
+			if (m_Settings.DiskPath[i][0] != '\0')
+			{
+				ATARI_UnmountDisk ((int) i + 1);
+			}
+
+			m_Settings.DiskPath[i][0] = '\0';
+			m_Settings.DiskReadOnly[i] = FALSE;
+
+			continue;
+		}
+
+		if (!CAtariStorage::FileExists (pDisk))
+		{
+			ATARI_UnmountDisk ((int) i + 1);
+
+			m_Settings.DiskPath[i][0] = '\0';
+			m_Settings.DiskReadOnly[i] = FALSE;
+
+			AppendSnapshotNotice ("drive %u: %s is missing", i + 1,
+					      CAtariStorage::BaseName (pDisk));
+
+			CBootLog::Get ()->RecordRuntimef (
+				"snapshot: drive %u wanted %s, which is not on the card",
+				i + 1, pDisk);
+
+			continue;
+		}
+
+		strncpy (m_Settings.DiskPath[i], pDisk, sizeof m_Settings.DiskPath[i] - 1);
+		m_Settings.DiskPath[i][sizeof m_Settings.DiskPath[i] - 1] = '\0';
+		m_Settings.DiskReadOnly[i] = Host.disk_read_only[i] != 0;
+
+		CBootLog::Get ()->RecordRuntimef ("snapshot: drive %u is %s",
+						  i + 1, pDisk);
+	}
+
+	m_Settings.CartridgePath[0] = '\0';
+
+	if (Host.cartridge[0] != '\0')
+	{
+		if (CAtariStorage::FileExists (Host.cartridge))
+		{
+			strncpy (m_Settings.CartridgePath, Host.cartridge,
+				 sizeof m_Settings.CartridgePath - 1);
+			m_Settings.CartridgePath[
+				sizeof m_Settings.CartridgePath - 1] = '\0';
+
+			CBootLog::Get ()->RecordRuntimef ("snapshot: cartridge is %s",
+							  Host.cartridge);
+		}
+		else
+		{
+			AppendSnapshotNotice ("cartridge: %s is missing",
+					      CAtariStorage::BaseName (Host.cartridge));
+
+			CBootLog::Get ()->RecordRuntimef (
+				"snapshot: cartridge wanted %s, which is not on the card",
+				Host.cartridge);
+		}
+	}
+
+	m_Settings.CassettePath[0] = '\0';
+	m_Settings.bCassetteReadOnly = FALSE;
+
+	if (Host.cassette[0] != '\0')
+	{
+		if (CAtariStorage::FileExists (Host.cassette))
+		{
+			strncpy (m_Settings.CassettePath, Host.cassette,
+				 sizeof m_Settings.CassettePath - 1);
+			m_Settings.CassettePath[
+				sizeof m_Settings.CassettePath - 1] = '\0';
+			m_Settings.bCassetteReadOnly = Host.cassette_read_only != 0;
+
+			CBootLog::Get ()->RecordRuntimef ("snapshot: cassette is %s",
+							  Host.cassette);
+		}
+		else
+		{
+			AppendSnapshotNotice ("cassette: %s is missing",
+					      CAtariStorage::BaseName (Host.cassette));
+
+			CBootLog::Get ()->RecordRuntimef (
+				"snapshot: cassette wanted %s, which is not on the card",
+				Host.cassette);
+		}
+	}
+
+	/*
+	 * The machine is now configured for what was restored, so this is the
+	 * baseline ApplySettings() compares against -- otherwise the next menu key
+	 * press would measure a change against a world that no longer exists.
+	 */
+	m_AppliedSettings = m_Settings;
+
+	return TRUE;
 }
 
 void CAtariKernel::ColdReset (void)
