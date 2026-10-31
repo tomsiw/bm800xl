@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `39210cc`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `5cbb7e2`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -391,6 +391,12 @@ failures. They are listed because they are invisible until they bite.
   which is correct, and it only looked wrong while every call printed the whole list.
   With the diff, the second call prints only the fields that the first had not already
   applied, and nothing at all when they are the same.
+- **Audio latency is two buffers, and both were too big.**  The HDMI DMA chunk is
+  a multiple of `IEC958_SUBFRAMES_PER_BLOCK` (384 words); at 1920 that is 43.5 ms per
+  buffer and there are two of them, and the output queue was another 100 ms, so a key
+  click arrived ~90-100 ms late against a real machine's nothing.  Now 384 words and a
+  35 ms queue: ~26 ms typical.  The chunk cannot be any multiple of anything -- 480
+  aborts the boot with an assertion.
 - **Snapshots are named after the media they hold**, and `STATIC_OSD` is on by
   default: `Snap_<disk 1>_<cassette>_<cartridge>_<n>.sav`, every part optional, so a
   card of snapshots can be read without loading them.
