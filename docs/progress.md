@@ -354,7 +354,18 @@ failures. They are listed because they are invisible until they bite.
     with no data blocks, or fsk blocks after the data has begun. A standard tape
     whose leader is an fsk block stays standard.
 
-20. **Circle's keyboard device has room for exactly one raw key handler.**  `m_pKeyStatusHandlerRaw`
+20. **The core can sleep inside a frame, and it is charged to emulation.**
+    `src/sound.c:405` — when the core's own staging buffer has no room for a frame's
+    audio it loops on `Util_sleep (buffer_frames / freq)`, one whole hardware buffer
+    per iteration, *inside* `Atari800_Frame()`.  Two iterations measured 21 ms of
+    "emulation" against a true 2.3 ms.  Whether it is reached depends on the sink's
+    queue depth at that instant, which depends on how long the previous frame's fill
+    and sleep were — so it appears and clears with the rendering cost, and looks
+    like a renderer fault.  Our sink never blocks and drops what it cannot take;
+    `PLATFORM_SoundAvailable()` reporting only the real free space is what lets the
+    core enter that loop.
+
+21. **Circle's keyboard device has room for exactly one raw key handler.**  `m_pKeyStatusHandlerRaw`
     is a single pointer in `CUSBKeyboardDevice`, and registering again replaces rather than adds;
     there is no getter for the held keys either, so a second driver cannot poll instead.  Two drivers
     here need those reports -- the Atari keyboard, and the keyboard joystick -- so neither owns the
@@ -658,7 +669,29 @@ with a crafted `usbkeys.cfg`, and behaved as specified.
 - The Pi 5 (its page-flip branch has never run).
 - GPIO keyboard and 9-pin joysticks.
 
-### 5. Longer term
+### 5. Scanlines  *(implemented)*
+
+Atari800's scanline simulation darkens alternate display lines to suggest a
+television.  Ours is a Display row (`Scanlines: off/on`) and a factor
+(`85%`/`90%`/`95%`), live, with `SCANLINES` and `SCANLINE_FACTOR` in the settings
+file.  Atari800's own implementation is in its SDL frontend only — neither the
+core nor `libatari800` has any scanline code — so there was nothing to adopt.
+
+The pattern repeats once per upscaled Atari line, not every second row: at 720p a
+line is three destination rows, so the period is
+`destHeight / 240` rows lit then the same number dark (5 at 1080p, 3 at 720p, 2 at
+2x).  Every second row was tried first and read as a fine comb.
+
+The renderer is the **dim row**: the scaled row is copied, and a darkened copy of
+it is built once per run for the dark blocks.  Cost measured on a 3B+ at 1080p:
+fill 14.4 ms against 7.3 ms off, so scanlines roughly double the fill there and
+are only free at `2x` and 720p.  A dimmed **palette** — 256 entries once per
+frame, dark rows written straight from the source columns — was tried twice and
+measured ~9.3 ms, but both attempts behaved in ways that could not be explained
+(a 21 ms stall inside `Atari800_Frame()`, and a skip count that did not match the
+budget), so the slower renderer whose behaviour is understood is the one kept.
+
+### 6. Longer term
 
 - ~~**circle-stdlib migration**~~ — **decided against**, and not to be revisited
   without a concrete problem to solve. The `_sbrk` approach works, and a port of

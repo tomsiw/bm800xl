@@ -51,7 +51,7 @@ static const unsigned MachineItemCount		= 3;	// machine, RAM, restore defaults
 static const unsigned MAX_SNAPSHOT_NAME_PART	= 8;
 static const unsigned MAX_SNAPSHOT_MEDIA	= 24;
 
-static const unsigned VideoItemCount		= 4;	// standard, artifacting, resolution, aspect
+static const unsigned VideoItemCount		= 6;	// standard, artifacting, resolution, aspect, scanlines, factor
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
 
@@ -542,6 +542,8 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 1: return "Artifacting";
 		case 2: return "Resolution";
 		case 3: return "Aspect ratio";
+		case 4: return "Scanlines";
+		case 5: return "Scanline factor";
 		}
 		break;
 
@@ -650,6 +652,16 @@ boolean CAtariMenu::FitsAspect (int nAspect) const
 	return    m_pVideo->GetWidth ()  >= (unsigned) (336 * nAspect)
 	       && m_pVideo->GetHeight () >= (unsigned) (240 * nAspect);
 }
+const char *CAtariMenu::ScanlineFactorName (int nPercent)
+{
+	switch (nPercent)
+	{
+	case 85: return "85%";
+	case 95: return "95%";
+	default: return "90%";
+	}
+}
+
 const char *CAtariMenu::AspectName (int nAspect)
 {
 	switch (nAspect)
@@ -814,6 +826,8 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 		case 1: return ArtifactName (S.nArtifact);
 		case 2: return ResolutionName (S.nResolution);
 		case 3: return AspectName (S.nAspect);
+		case 4: return S.bScanlines ? "on" : "off";
+		case 5: return ScanlineFactorName (S.nScanlineFactor);
 		}
 		break;
 
@@ -963,7 +977,7 @@ void CAtariMenu::AdjustSetting (int nDelta)
 				  ResolutionName (S.nResolution));
 			m_nMessageFrames = MESSAGE_FRAMES;
 		}
-		else
+		else if (m_nSelected == 3)
 		{
 			/*
 			 * The aspect ratio is live: the same framebuffer, drawn in a
@@ -1024,6 +1038,45 @@ void CAtariMenu::AdjustSetting (int nDelta)
 						  m_pVideo->GetPixelScale ());
 					m_nMessageFrames = MESSAGE_FRAMES;
 				}
+			}
+		}
+		else if (m_nSelected == 4)
+		{
+			/* Live, like the aspect ratio: it changes the next frame only. */
+			S.bScanlines = S.bScanlines ? FALSE : TRUE;
+
+			if (m_pVideo != 0)
+			{
+				m_pVideo->SetScanlines (S.bScanlines);
+			}
+		}
+		else
+		{
+			/*
+			 * Three fixed factors, all the same cost: the choice is the look.
+			 * Walked as a list so Right goes forward and Left goes back, as on
+			 * every other row with more than two values.
+			 */
+			static const int Factors[] = { 85, 90, 95 };
+			const int nFactorCount =
+				(int) (sizeof Factors / sizeof Factors[0]);
+
+			int nIndex = 0;
+			for (int i = 0; i < nFactorCount; i++)
+			{
+				if (Factors[i] == S.nScanlineFactor)
+				{
+					nIndex = i;
+					break;
+				}
+			}
+
+			nIndex = (nIndex + nDelta + nFactorCount) % nFactorCount;
+			S.nScanlineFactor = Factors[nIndex];
+
+			if (m_pVideo != 0)
+			{
+				m_pVideo->SetScanlineFactor (S.nScanlineFactor);
 			}
 		}
 		break;

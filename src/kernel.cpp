@@ -771,6 +771,8 @@ boolean CAtariKernel::Initialize (void)
 	 * can be changed while the machine runs.
 	 */
 	m_Video.SetAspect (m_Settings.nAspect);
+	m_Video.SetScanlines (m_Settings.bScanlines);
+	m_Video.SetScanlineFactor (m_Settings.nScanlineFactor);
 
 	if (m_Video.GetPixelScale () != (unsigned) m_Settings.nAspect)
 	{
@@ -1946,6 +1948,29 @@ boolean CAtariKernel::ApplySettings (const TAtariSettings &Settings)
 		}
 
 		m_Video.SetAspect (Settings.nAspect);
+	}
+
+	if (Settings.bScanlines != m_AppliedSettings.bScanlines)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef ("apply: scanlines set to %s",
+							  OnOff (Settings.bScanlines));
+		}
+
+		m_Video.SetScanlines (Settings.bScanlines);
+	}
+
+	if (Settings.nScanlineFactor != m_AppliedSettings.nScanlineFactor)
+	{
+		if (bRunning)
+		{
+			CBootLog::Get ()->RecordRuntimef (
+				"apply: scanline factor set to %d%%",
+				Settings.nScanlineFactor);
+		}
+
+		m_Video.SetScanlineFactor (Settings.nScanlineFactor);
 	}
 
 	if (Settings.nResolution != m_AppliedSettings.nResolution)

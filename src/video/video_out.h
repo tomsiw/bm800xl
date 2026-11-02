@@ -97,6 +97,18 @@ public:
 	void SetAspect (int nScale);
 
 	/*
+	 * Scanlines: each Atari line drawn as one lit block of destination rows and
+	 * one darkened block, as a television's line structure looks.
+	 *
+	 * Applied live.  Off costs nothing at all -- it is the fill this class had
+	 * before the option existed.
+	 */
+	void SetScanlines (boolean bEnabled);
+
+	/* Brightness of the dark blocks, as a percentage: 85, 90 or 95. */
+	void SetScanlineFactor (int nPercent);
+
+	/*
 	 * Makes the black margins be cleared again on the next fill.
 	 *
 	 * Called when the OSD closes: a panel wider than the picture is drawn over the
@@ -283,6 +295,15 @@ private:
 
 	/* TRUE when both halves have to be blanked by the next fill. */
 	boolean		m_bClearPending;
+
+	/* TRUE when the picture is drawn with alternate blocks darkened. */
+	boolean		m_bScanlines;
+
+	/* Numerator over 256 for the dark blocks: 218, 230 or 243. */
+	unsigned	m_nScanlineNumerator;
+
+	/* Destination rows per Atari line, which is the pattern's period. */
+	unsigned	m_nScanlinePeriod;
 
 	/* The scale actually in use, after fitting: 0 for the 4:3 fit. */
 	unsigned	m_nScale;

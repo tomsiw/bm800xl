@@ -331,6 +331,7 @@ private:
 	static const char *ResolutionName (int nResolution);
 	static const char *JoystickInterfaceName (int nInterface);
 	static const char *AspectName (int nAspect);
+	static const char *ScanlineFactorName (int nPercent);
 	static const char *BaseName (const char *pPath);
 	boolean FitsAspect (int nAspect) const;
 

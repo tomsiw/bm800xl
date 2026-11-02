@@ -89,6 +89,9 @@ void Settings_SetDefaults (TAtariSettings *pSettings)
 	 */
 	pSettings->bStaticOSD = TRUE;
 
+	pSettings->bScanlines = FALSE;
+	pSettings->nScanlineFactor = 90;
+
 	pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
 	pSettings->bSwapJoystickPorts = FALSE;
 
@@ -402,6 +405,18 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 			pSettings->nAspect = AtariAspect4x;
 		}
 	}
+	else if (strcmp (pKey, "SCANLINES") == 0)
+	{
+		pSettings->bScanlines = bValue != 0;
+	}
+	else if (strcmp (pKey, "SCANLINE_FACTOR") == 0)
+	{
+		/* Only the three offered factors; anything else keeps the default. */
+		if (bValue == 85 || bValue == 90 || bValue == 95)
+		{
+			pSettings->nScanlineFactor = bValue;
+		}
+	}
 	else if (strcmp (pKey, "JOY_SWAP") == 0)
 	{
 		if (ParseBool (pValue, &bValue))
@@ -614,6 +629,10 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 		    Settings.bContinueOnBrk ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "STATIC_OSD=%d\n",
 		    Settings.bStaticOSD ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "SCANLINES=%d\n",
+		    Settings.bScanlines ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "SCANLINE_FACTOR=%d\n",
+		    Settings.nScanlineFactor);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "ASPECT=%s\n",
 		    Settings.nAspect == AtariAspect2x ? "2X"
 		    : Settings.nAspect == AtariAspect3x ? "3X"

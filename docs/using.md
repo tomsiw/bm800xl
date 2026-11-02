@@ -71,8 +71,8 @@ before the emulator starts, and the menu says so when you change it.
 the video standard, and a "restore defaults" item that resets the machine
 settings without losing your mounted media.
 
-**Display** — PAL or NTSC, the artifacting mode, the output resolution, and the
-aspect ratio
+**Display** — PAL or NTSC, the artifacting mode, the output resolution, the aspect
+ratio, and the scanline effect with its strength
 (1280x720 or 1920x1080). Changing the resolution stores the new value but cannot
 take effect until the Raspberry Pi is switched off and on again, because the
 framebuffer is created before the emulator is: the menu says so, and the next time
@@ -97,6 +97,18 @@ sits in a border. `4x` -- 1344x960 -- is offered only when the display
 can hold it, which in practice means 1080p. The integer modes are also cheaper to draw, which is what
 makes `3x` a good choice at 1080p on a slow board: it is 1008x720 whatever the
 output resolution is.
+
+`Scanlines` draws each Atari line as a lit band and a darker one, the way a
+television's line structure looks. The pattern repeats once per Atari line, so at
+720p it is three rows lit and three dim, at 1080p five and five, and at `2x` two
+and two — not every second row, which at these magnifications reads as a fine
+comb. `Scanline factor` sets how dark the dim bands are: 85 %, 90 % or 95 % of
+full brightness, with 90 % the default. All three cost the same, so the choice is
+the look alone.
+
+The effect is not free at high resolution: at 1080p with `4:3` it roughly doubles
+the picture fill (7.3 ms to 14.4 ms on a Pi 3B+), which a Zero 2 W or a 3B+ cannot
+always spare. At `2x` and at 720p it fits comfortably. It is off by default.
 
 Changing it applies at once; a factor the framebuffer cannot hold is reduced
 until it fits and the menu says which one it used.
@@ -423,6 +435,8 @@ SYSTEM_DIR=SD:/ATARI
 | `STEREO` | 0 or 1 — two POKEYs |
 | `RESOLUTION` | 0 = 1280x720, 1 = 1920x1080 — the same setting as the menu's Display → Resolution; it takes effect the next time the Pi is switched off and on |
 | `ASPECT` | `4:3`, `2X`, `3X` or `4X` -- the same setting as the menu's Display -> Aspect ratio, applied at once; `4X` needs a display that can hold 1344x960, so in practice 1080p |
+| `SCANLINES` | 0 or 1 — the scanline effect; the same setting as the menu's Display → Scanlines, applied at once |
+| `SCANLINE_FACTOR` | 85, 90 or 95 — brightness of the dim bands in per cent; the same setting as Display → Scanline factor, applied at once |
 | `KEYBOARD` | 0 = USB, 1 = GPIO |
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |

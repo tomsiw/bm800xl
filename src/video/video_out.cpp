@@ -39,6 +39,19 @@ static const unsigned ScreenVisibleWidth = 336;
  */
 static const unsigned MaxDestinationWidth = 1920;
 
+/* The longest run of destination rows one source row owns, with room to spare. */
+static const unsigned MaxRunRows = 8;
+
+/*
+ * The scaled row darkened, built once per run.
+ *
+ * This is the renderer that is kept: it costs more than a darkened palette would
+ * (three multiplies per destination pixel of every dark row, 9.9 ms of fill at
+ * 1080p instead of ~9.3), and the palette version was tried twice.  It is kept
+ * because it is the one whose behaviour on hardware is understood.
+ */
+static u16 s_RowBufferDim[MaxDestinationWidth];
+
 /* Staging for one destination row, used to turn per-pixel uncached writes into
  * burst copies.  Shared by the screen scaler and the menu's dimming, which are
  * the two places that touch large numbers of framebuffer pixels. */
@@ -55,6 +68,9 @@ CAtariVideoOut::CAtariVideoOut (void)
 	m_nScaleRequest (0),
 	m_nScale (0),
 	m_bClearPending (FALSE),
+	m_bScanlines (FALSE),
+	m_nScanlineNumerator (230),
+	m_nScanlinePeriod (1),
 	m_nDestLeft (0),
 	m_nDestWidth (0),
 	m_nColumnMapSize (0),
@@ -232,6 +248,19 @@ void CAtariVideoOut::ComputeGeometry (void)
 	 */
 	m_nDestLeft = (m_nWidth - m_nDestWidth) / 2;
 	m_nDestTop = (m_nHeight - m_nDestHeight) / 2;
+
+	/*
+	 * How many destination rows one Atari line becomes: the period of the
+	 * scanline pattern.  A scanline is the gap between two of the machine's 240
+	 * lines, so the pattern repeats once per upscaled line -- three rows at 720p,
+	 * five at 1080p.  Rounded, because 1080/240 is 4.5 and the pattern has to be
+	 * a whole number of rows.
+	 */
+	m_nScanlinePeriod = (m_nDestHeight + ScreenHeight / 2) / ScreenHeight;
+	if (m_nScanlinePeriod < 1)
+	{
+		m_nScanlinePeriod = 1;
+	}
 
 	/*
 	 * The column map maps every visible source column onto a destination column,
@@ -416,9 +445,98 @@ void CAtariVideoOut::SetAspect (int nScale)
  * ever written once, so without this the strips where the panel was would keep
  * its pixels.
  */
+/*
+ * Turns the scanline effect on and off, live.
+ *
+ * Off is the code path that existed before this option: whole scaled rows,
+ * copied.  On adds one palette build per frame and a write per dark row.
+ */
+void CAtariVideoOut::SetScanlines (boolean bEnabled)
+{
+	if (bEnabled == m_bScanlines)
+	{
+		return;
+	}
+
+	m_bScanlines = bEnabled;
+}
+
+/* Brightness of the dark lines, as a percentage: 85, 90 or 95. */
+void CAtariVideoOut::SetScanlineFactor (int nPercent)
+{
+	if (nPercent < 50)
+	{
+		nPercent = 50;
+	}
+	if (nPercent > 100)
+	{
+		nPercent = 100;
+	}
+
+	m_nScanlineNumerator = (unsigned) (nPercent * 256 / 100);
+}
+
 void CAtariVideoOut::InvalidatePadding (void)
 {
-	m_bPaddingCleared = FALSE;
+	/*
+	 * Cleared in BOTH halves, now, rather than asking for it on the next fill.
+	 *
+	 * The next fill clears the margins of whichever half it happens to be
+	 * composing and then sets the once-only flag, so the other half keeps
+	 * whatever was in its margins until something repaints it whole.  That is
+	 * invisible while only the picture ever writes there -- and it is a real
+	 * fault once the OSD can: an integer scale makes the picture narrower than
+	 * the panel, the panel is drawn over the margins, and after the menu closed
+	 * the strips alternated between black and the panel's edges on every flip
+	 * while the middle of the screen was perfectly steady.
+	 *
+	 * One bounded pass over the margin pixels, on closing the menu.
+	 */
+	u16 *pFirst = (u16 *) (uintptr) m_pFrameBuffer->GetBuffer ();
+	unsigned nHalf = m_bDoubleBuffered
+		       ? m_nPitchPixels * m_nHeight : 0;
+	unsigned nHalves = m_bDoubleBuffered ? 2 : 1;
+
+	for (unsigned nBuffer = 0; nBuffer < nHalves; nBuffer++)
+	{
+		u16 *pFrame = pFirst + (uintptr) nHalf * nBuffer;
+
+		/* Above and below the picture: the full width. */
+		for (unsigned nY = 0; nY < m_nDestTop; nY++)
+		{
+			memset (pFrame + (uintptr) nY * m_nPitchPixels, 0,
+				m_nWidth * sizeof (u16));
+		}
+
+		for (unsigned nY = m_nDestTop + m_nDestHeight; nY < m_nHeight; nY++)
+		{
+			memset (pFrame + (uintptr) nY * m_nPitchPixels, 0,
+				m_nWidth * sizeof (u16));
+		}
+
+		/* Left and right of it. */
+		if (m_nDestLeft > 0)
+		{
+			u16 *pLeft = pFrame + (uintptr) m_nDestTop * m_nPitchPixels;
+			u16 *pRight = pLeft + m_nDestLeft + m_nColumnMapSize;
+			unsigned nRight = m_nWidth - m_nDestLeft - m_nColumnMapSize;
+
+			for (unsigned nY = 0; nY < m_nDestHeight; nY++)
+			{
+				memset (pLeft, 0, m_nDestLeft * sizeof (u16));
+
+				if (nRight > 0)
+				{
+					memset (pRight, 0, nRight * sizeof (u16));
+				}
+
+				pLeft += m_nPitchPixels;
+				pRight += m_nPitchPixels;
+			}
+		}
+	}
+
+	m_bPaddingCleared = TRUE;
 }
 
 /*
@@ -566,6 +684,14 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 	 */
 	static u16 s_RowBuffer[MaxDestinationWidth];
 
+	/*
+	 * Where the scanline pattern has got to: rows into the current block, and
+	 * whether that block is the dark one.  Frame state, so the blocks keep their
+	 * place from one row run to the next rather than restarting at each.
+	 */
+	static unsigned s_nScanlineRow;
+	static boolean s_bScanlineDark;
+
 
 	const bool bStage = m_nColumnMapSize <= MaxDestinationWidth;
 
@@ -626,6 +752,76 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 			pOut += nRun;
 		}
 
+		if (!m_bScanlines)
+		{
+			for (unsigned nRowIndex = 0; nRowIndex < nRunRows; nRowIndex++)
+			{
+				u16 *pRow = pFrame
+					  + (uintptr) (m_nDestTop + m_RowRunFirst[nRow]
+							+ nRowIndex) * m_nPitchPixels
+					  + m_nDestLeft;
+
+				memcpy (pRow, s_RowBuffer,
+					m_nColumnMapSize * sizeof (u16));
+			}
+
+			continue;
+		}
+
+		/*
+		 * Scanlines.
+		 *
+		 * The pattern repeats once per upscaled Atari line: m_nScanlinePeriod
+		 * destination rows lit, then the same number dark.  The state runs across
+		 * the frame (s_nScanlineRow, s_bScanlineDark) so the blocks keep their
+		 * place from one row run to the next instead of restarting.
+		 *
+		 * A lit row is the memcpy it always was.  A dark row is written from the
+		 * source columns through the darkened palette -- no intermediate buffer
+		 * to build, no per-destination-pixel multiply, and only the write the row
+		 * needed anyway.
+		 */
+		boolean bDark[MaxRunRows];
+		unsigned nProbeRow = s_nScanlineRow;
+		boolean bProbeDark = s_bScanlineDark;
+		boolean bNeedDim = FALSE;
+
+		for (unsigned nRowIndex = 0; nRowIndex < nRunRows; nRowIndex++)
+		{
+			bDark[nRowIndex] = bProbeDark;
+
+			if (bProbeDark)
+			{
+				bNeedDim = TRUE;
+			}
+
+			if (++nProbeRow >= m_nScanlinePeriod)
+			{
+				nProbeRow = 0;
+				bProbeDark = bProbeDark ? FALSE : TRUE;
+			}
+		}
+
+		if (bNeedDim)
+		{
+			for (unsigned nCol = 0; nCol < m_nColumnMapSize; nCol++)
+			{
+				unsigned nColour = s_RowBuffer[nCol];
+
+				unsigned nRed   = (nColour >> 11) & 0x1f;
+				unsigned nGreen = (nColour >> 5) & 0x3f;
+				unsigned nBlue  = nColour & 0x1f;
+
+				nRed   = (nRed * m_nScanlineNumerator) >> 8;
+				nGreen = (nGreen * m_nScanlineNumerator) >> 8;
+				nBlue  = (nBlue * m_nScanlineNumerator) >> 8;
+
+				s_RowBufferDim[nCol] = (u16) ((nRed << 11)
+							      | (nGreen << 5)
+							      | nBlue);
+			}
+		}
+
 		for (unsigned nRowIndex = 0; nRowIndex < nRunRows; nRowIndex++)
 		{
 			u16 *pRow = pFrame
@@ -633,7 +829,14 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 						+ nRowIndex) * m_nPitchPixels
 				  + m_nDestLeft;
 
-			memcpy (pRow, s_RowBuffer, m_nColumnMapSize * sizeof (u16));
+			memcpy (pRow, bDark[nRowIndex] ? s_RowBufferDim : s_RowBuffer,
+				m_nColumnMapSize * sizeof (u16));
+
+			if (++s_nScanlineRow >= m_nScanlinePeriod)
+			{
+				s_nScanlineRow = 0;
+				s_bScanlineDark = s_bScanlineDark ? FALSE : TRUE;
+			}
 		}
 	}
 

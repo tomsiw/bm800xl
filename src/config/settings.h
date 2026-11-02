@@ -86,6 +86,17 @@ struct TAtariSettings
 	int		nResolution;
 	int		nAspect;		///< TAtariAspect
 
+	/*
+	 * Scanline effect: alternate blocks of destination rows darkened, so the
+	 * picture has the line structure of a television.
+	 *
+	 * The factor is the brightness of the dark blocks.  Only three are offered,
+	 * and each is one multiply and a shift, so they cost the same -- the choice
+	 * is the look, not the price.
+	 */
+	boolean		bScanlines;
+	int		nScanlineFactor;	///< 85, 90 or 95
+
 	// Input
 	int		nKeyboardMode;		///< TAtariKeyboardMode
 	boolean		bNumpadAsCursor;
