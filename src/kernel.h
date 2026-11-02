@@ -123,6 +123,10 @@ public:
 	/* One line about the last snapshot load, shown by the menu. */
 	char		m_SnapshotNotice[96];
 
+	/* Microseconds the last frame spent in the fill and in the OSD. */
+	unsigned	m_nFillUs;
+	unsigned	m_nOsdUs;
+
 	TAtariSettings	m_AppliedSettings;
 	boolean		m_bSettingsApplied;
 	boolean MountDisk (int nDrive, const char *pPath, boolean bReadOnly);

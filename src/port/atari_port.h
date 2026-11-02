@@ -176,6 +176,14 @@ void ATARI_NoteFrameSkipped(void);
  *
  * The core buffers this internally; the pointer stays valid until ATARI_Exit().
  */
+/*
+ * What the host spent drawing the last frame: fill and OSD, in microseconds.
+ *
+ * Counted into the periodic stats line beside the emulation time, so a frame's
+ * budget can be read from the log instead of guessed at.
+ */
+void ATARI_NoteDrawCost(unsigned fill_us, unsigned osd_us);
+
 const uint8_t *ATARI_ScreenIndices(void);
 
 #define ATARI_SCREEN_STRIDE   384

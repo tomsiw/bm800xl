@@ -1654,16 +1654,37 @@ void CAtariKernel::RunFrame (void)
 			const u8 *pScreen = ATARI_ScreenIndices ();
 			if (pScreen != 0)
 			{
+				unsigned long long nStart = CTimer::Get ()->GetClockTicks64 ();
+
 				m_Video.FillScreen (pScreen, (const u32 *) ATARI_Palette ());
+
+				m_nFillUs = (unsigned) (CTimer::Get ()->GetClockTicks64 ()
+							- nStart);
 			}
+			else
+			{
+				m_nFillUs = 0;
+			}
+		}
+		else
+		{
+			m_nFillUs = 0;
 		}
 
 		m_bStaticOSDWasOpen = bStaticOSD;
 
+		m_nOsdUs = 0;
+
 		if (bMenuOpen)
 		{
+			unsigned long long nStart = CTimer::Get ()->GetClockTicks64 ();
+
 			m_Menu.Draw ();
+
+			m_nOsdUs = (unsigned) (CTimer::Get ()->GetClockTicks64 () - nStart);
 		}
+
+		ATARI_NoteDrawCost (m_nFillUs, m_nOsdUs);
 
 		if (bSkipped)
 		{

@@ -613,6 +613,28 @@ static int s_bFrameOverran;
 static unsigned s_frames_skipped;
 
 /*
+ * Budget accounting for the stats line.
+ *
+ * Four quantities, each measured where it happens and nowhere else:
+ *
+ *   emulation  around Atari800_Frame(), and only that call
+ *   fill, osd  handed in by the caller through ATARI_NoteDrawCost()
+ *   pace       around the sleep that holds the loop at the machine's frame rate
+ *
+ * The distinction matters.  An earlier version timed Atari800_Frame() together
+ * with the pacing sleep that follows it, and when a cheaper renderer left more
+ * time to sleep, the figure it printed as "emulation" grew by twenty
+ * milliseconds a frame -- a slowdown that did not exist, and one that was
+ * acted on before it was understood.  Nothing may be timed inside another
+ * figure.
+ */
+static unsigned long long s_emu_us_sum;
+static unsigned long long s_fill_us_sum;
+static unsigned long long s_osd_us_sum;
+static unsigned long long s_pace_us_sum;
+static unsigned s_budget_frames;
+
+/*
  * Boot watchdog.
  *
  * Armed by every cold reset.  For the first minute afterwards it writes a short
@@ -1617,8 +1639,20 @@ int ATARI_RunFrame(void)
 	 */
 	s_frame_error = setjmp(libatari800_cpu_crash);
 	if (s_frame_error == 0) {
-		 
+		/*
+		 * Only Atari800_Frame() is inside this window.  The pacing sleep, the
+		 * keyboard push and the caller's drawing are all outside it, so the
+		 * figure cannot be inflated by work that is not the emulation.
+		 */
+		uint64_t emu_start_us = s_host_clock != 0
+					? s_host_clock(s_host_context) : 0;
+
 		Atari800_Frame();
+
+		if (s_host_clock != 0) {
+			s_emu_us_sum += s_host_clock(s_host_context) - emu_start_us;
+		}
+		s_budget_frames++;
 
 		/*
 		 * One-shot state report, written to the boot log.
@@ -1734,7 +1768,17 @@ int ATARI_RunFrame(void)
 		s_bFrameOverran = 0;
 
 		if (now < s_next_frame_time) {
+			/*
+			 * The sleep is measured on its own, never inside the emulation
+			 * figure: this is the time the loop spends waiting to keep the
+			 * machine at its real frame rate, and it is the first thing a
+			 * cheaper renderer changes.
+			 */
+			uint64_t idle_start_us = s_host_clock(s_host_context);
+
 			s_host_idle(s_host_context, (uint32_t)(s_next_frame_time - now));
+
+			s_pace_us_sum += s_host_clock(s_host_context) - idle_start_us;
 		}
 		else if (s_next_frame_time < now) {
 			/*
@@ -1796,20 +1840,62 @@ int ATARI_RunFrame(void)
 			 * Skipped pictures are reported only when there were any: on a host
 			 * that keeps up, the line stays as short as it was.
 			 */
+			/*
+			 * The budget: what an average frame cost and where it went, in
+			 * milliseconds with one decimal.
+			 *
+			 *   frame  the work of a frame -- emulation, fill and OSD added up
+			 *   pace   the sleep that holds the loop at the machine's rate
+			 *
+			 * Against the target (20.0 ms at 50 fps, 16.7 at 60) the two
+			 * numbers together are the whole story, and they are kept apart
+			 * because they answer different questions: `frame` above the target
+			 * means the host cannot keep up, `pace` shrinking towards zero means
+			 * the same thing is beginning to happen.
+			 */
+			unsigned nCount = s_budget_frames ? s_budget_frames : 1;
+
+			unsigned long long nEmuMs10 = s_emu_us_sum / nCount / 100;
+			unsigned long long nFillMs10 = s_fill_us_sum / nCount / 100;
+			unsigned long long nOsdMs10 = s_osd_us_sum / nCount / 100;
+			unsigned long long nPaceMs10 = s_pace_us_sum / nCount / 100;
+			unsigned long long nWorkMs10 = nEmuMs10 + nFillMs10 + nOsdMs10;
+
 			if (s_frames_skipped != 0)
 			{
 				ATARI_RuntimeLog("stats: %u.%u fps, %u frames, "
-						 "%u skipped",
+						 "%u skipped, frame %llu.%llu ms "
+						 "(emulation %llu.%llu, fill %llu.%llu, "
+						 "osd %llu.%llu, pace %llu.%llu)",
 						 fps10 / 10, fps10 % 10, frames,
-						 s_frames_skipped);
+						 s_frames_skipped,
+						 nWorkMs10 / 10, nWorkMs10 % 10,
+						 nEmuMs10 / 10, nEmuMs10 % 10,
+						 nFillMs10 / 10, nFillMs10 % 10,
+						 nOsdMs10 / 10, nOsdMs10 % 10,
+						 nPaceMs10 / 10, nPaceMs10 % 10);
 
 				s_frames_skipped = 0;
 			}
 			else
 			{
-				ATARI_RuntimeLog("stats: %u.%u fps, %u frames",
-						 fps10 / 10, fps10 % 10, frames);
+				ATARI_RuntimeLog("stats: %u.%u fps, %u frames, "
+						 "frame %llu.%llu ms "
+						 "(emulation %llu.%llu, fill %llu.%llu, "
+						 "osd %llu.%llu, pace %llu.%llu)",
+						 fps10 / 10, fps10 % 10, frames,
+						 nWorkMs10 / 10, nWorkMs10 % 10,
+						 nEmuMs10 / 10, nEmuMs10 % 10,
+						 nFillMs10 / 10, nFillMs10 % 10,
+						 nOsdMs10 / 10, nOsdMs10 % 10,
+						 nPaceMs10 / 10, nPaceMs10 % 10);
 			}
+
+			s_emu_us_sum = 0;
+			s_fill_us_sum = 0;
+			s_osd_us_sum = 0;
+			s_pace_us_sum = 0;
+			s_budget_frames = 0;
 
 			/* Restart the measurement so each line covers its own window. */
 			s_rate_start_us = now;
@@ -1867,6 +1953,20 @@ int ATARI_RunFrame(void)
 /* ===========================================================================
  * Emulated screen and audio
  * ======================================================================== */
+
+/*
+ * What the host spent drawing the last frame.
+ *
+ * Emulation time is measured here, around Atari800_Frame(); the fill and the OSD
+ * belong to the caller, which is the only place that knows when they start and
+ * end.  Summed into the same window as the emulation figure, so the three add up
+ * to the work of a frame.
+ */
+void ATARI_NoteDrawCost(unsigned fill_us, unsigned osd_us)
+{
+	s_fill_us_sum += fill_us;
+	s_osd_us_sum += osd_us;
+}
 
 const uint8_t *ATARI_ScreenIndices(void)
 {
