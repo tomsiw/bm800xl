@@ -143,6 +143,10 @@ Set `STATIC_OSD=0` to have the menu sit on a dimmed, live picture instead — th
 machine keeps moving behind it, which is pleasant on a Pi 4 and costly on a Zero 2 W,
 where the redraw competes with the emulation for the frame.
 
+Closing the menu resets the core's audio timing; a short silence on close is
+normal, and it is what keeps a settings save or a log write from leaving the
+sound stuttering afterwards.
+
 The picture *outside* the menu is no longer the reason to need this: the fill was
 made about four times faster in `e2773e4`, from 18 ms to 4.8 ms on a Zero 2 W, so
 a game frame now fits at both PAL and NTSC. `STATIC_OSD` still saves the OSD's own

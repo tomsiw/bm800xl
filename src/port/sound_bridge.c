@@ -68,6 +68,28 @@ void ATARI_SetHostAudioSink(audio_sink_t *sink)
 }
 
 /*
+ * Empties the core's audio timing debt.
+ *
+ * The pacer already resynchronises its deadline when a frame is late, but the
+ * core's own sync buffer does not: it can stay full after a long blocking
+ * operation -- a settings save or a runtime-log write -- and then every frame
+ * sleeps one hardware buffer inside Atari800_Frame().  Pausing here stops
+ * production, SetLatency() rebuilds the sync buffer empty and resets the fill
+ * estimate, and Continue() restamps the last-write time.  The device queue
+ * drains while the pause is in effect and is not reopened.
+ */
+void ATARI_AudioReset (void)
+{
+	if (!Sound_enabled) {
+		return;
+	}
+
+	Sound_Pause();
+	Sound_SetLatency(Sound_latency);
+	Sound_Continue();
+}
+
+/*
  * Opens the audio device.
  *
  * The core asks for a buffer size in frames; we report what the device can

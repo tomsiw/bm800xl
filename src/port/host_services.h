@@ -31,6 +31,19 @@ extern "C" {
  */
 void ATARI_SetHostAudioSink(audio_sink_t *sink);
 
+/*
+ * Rebuilds the core's audio timing from a known state.
+ *
+ * A long blocking operation while the OSD is open -- a settings save or the
+ * thirty-second runtime-log write -- can leave the core's own sync buffer full.
+ * Sound_Update() then sleeps one hardware buffer at a time inside
+ * Atari800_Frame(), and once production and consumption match again a full
+ * buffer never drains by itself.  Pausing and rebuilding the sync buffer makes
+ * the next frames start from a known fill instead.  The audio device is not
+ * reopened: only the core's buffer and its timing estimate are reset.
+ */
+void ATARI_AudioReset (void);
+
 #ifdef __cplusplus
 }
 #endif

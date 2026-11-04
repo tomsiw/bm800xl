@@ -8,10 +8,12 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `e540f93`. USB keyboard remapping, BRK handling and
-snapshot erasing are implemented and verified on hardware; the output is muted
-while the OSD is open; the build and verification scripts refuse a kernel that
-does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
+**Last updated:** after commit `a6ff28d`; the audio-debt reset and this
+documentation update are in the commit that carries this line. USB keyboard
+remapping, BRK handling and snapshot erasing are implemented and verified on
+hardware; the output is muted while the OSD is open; the build and verification
+scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
+drawn in the Atari character set
 at twice its size, compiled in as data, its layout follows the font, and the panel
 is centred in the picture; the menu can warm-reset, cold-reset and power-cycle the
 machine, the last of which is the only way out of a cold reset that inherited a
@@ -198,7 +200,8 @@ audio: opened 44100 Hz, 1 channel(s), 2-byte samples, 885 frames per video frame
 ## 4. Defects found and fixed
 
 Each entry is a root cause, not a change list. Several cost days and are recorded
-here so they are not rediscovered.
+here so they are not rediscovered. A row marked *(this commit)* is the commit that
+carries this table; a commit cannot name its own hash.
 
 | Commit | Defect | Root cause |
 |---|---|---|
@@ -223,6 +226,9 @@ here so they are not rediscovered.
 | `a7f62b6` | the OSD panel sat against the left edge of the picture at 720p, so it looked like it leaned left | the centring code clamped the computed margin against `MenuMarginX`, which is an absolute position and starts at 40, not a margin. At 720p the picture is 960 wide and a 900-wide panel needs a 30-pixel margin, so `30 > 40` was false and the margin was dropped: flush left, 30 pixels short on the right. The panel is centred whenever it fits now, and falls back to the picture's edge otherwise; the vertical expression had the same shape and was fixed with it. Only 720p showed the fault, because the 1080p margin (270) is larger than 40. |
 | `1c48244` | a cold reset left some software in charge: BOOT ERROR instead of BASIC, as though OPTION were still held | a cold start is the CPU's RESET line, and POKEY and GTIA have no reset pin, so GTIA's console-key mask survived — and software can set it by writing `$D01F`, where a masked key reads back as pressed. RAM survived as well. There was no way out of that state, because no reset clears what the OS was misreading. *Power cycle* on the main menu now builds the machine again: RAM zeroed, every chip at power-up, ROMs reloaded, media mounted again. The audio device is deliberately left open across the rebuild, since reopening the HDMI sink hangs this hardware. |
 | `e540f93` | after closing the menu, the black side margins could alternate between black and the panel's edge strips on every flip, while the middle of the picture stayed steady | `InvalidatePadding()` deferred clearing to the next fill, and a fill composes one half of the double buffer and then sets the once-only flag, so the other half kept the panel's edges until something repainted it whole. An integer scale can make the picture narrower than the 900-pixel OSD panel, which draws over the margins, so the fault appeared there. Both halves are now cleared in one bounded pass when the menu closes. |
+| `a243567` | the black bars above and below the picture were rewritten on every fill at integer scales | the once-only flag guarded only the side strips; the top and bottom block ran on every fill.  At 2x on 1080p that is 1.15 million pixels a frame against 0.32 million of picture -- several milliseconds rewriting bytes that cannot have changed.  `ClearMargins()` now clears the top and bottom bars and both side strips in both halves when the flag says they are stale, and the OSD-close path calls it immediately. |
+| `a6ff28d` | the transparent OSD was slow because the panel dim spent three integer divisions per pixel | a 900x480 panel is 1.3 million divisions per redraw.  The per-channel results are tabulated once per call -- five bits for red and blue, six for green -- and looked up in the pixel loop; the values are unchanged, so the panel looks the same.  Only `STATIC_OSD=0` calls `DimRect()`. |
+| (this commit) | after closing the menu with `STATIC_OSD=0`, the machine sometimes stuttered and the sound was choppy, especially after an aspect or scanline change or the thirty-second log line | the setting save and the runtime-log write are long SD blocks.  The pacer resynchronises, but the core's own audio sync buffer can stay full; `Sound_Update()` then sleeps one hardware buffer at a time inside `Atari800_Frame()`, charged to emulation, and once production and consumption match it never drains.  The menu-close transition now pauses the core's audio, rebuilds the buffer with `Sound_SetLatency()` and continues; the device is not reopened, and a short silence on close is expected. |
 
 ---
 
@@ -440,9 +446,13 @@ failures. They are listed because they are invisible until they bite.
   samples instead, so the cost is nothing at 100% and about 5 us a frame below it.
 - **Stereo needs a restart.** The channel count is a property of the open device,
   and reopening the HDMI sink hangs on this hardware. Reported honestly in the log.
-- **The OSD redraw still costs ~18–30 ms** when it happens. Mitigated by redrawing
-  every 10th frame while the menu is open, and at most every 4th frame while keys
-  are held; emulation keeps running at full speed throughout.
+- **The OSD redraw is still heavy enough to throttle.** The transparent panel
+  dims 900x480 pixels; `a6ff28d` replaced its three divisions per pixel with
+  5/6-bit tables, so the redraw no longer does 1.3 million divisions, but it is
+  still several milliseconds and is drawn every 10th frame (every 4th while keys
+  are held).  With `STATIC_OSD=0`, a long settings save or runtime-log write can
+  leave the core's audio sync buffer full; the menu-close transition resets it,
+  so closing may be followed by a short silence rather than a standing stutter.
 - **The fill was the frame budget on a Zero 2 W, and is no longer.** Repainting
   960x720 used to cost 18 ms of a 20 ms frame, so a frame that drew could not
   finish in time and the adaptive fill skip had to leave every second picture
@@ -489,6 +499,12 @@ cassette writing, hot-plugging USB storage, sound on the Zero 2 W, the Pi 5.
 Verified since, on a Zero 2 W, a 3B, a 3B+, a 4 and a 400: every RAM
 configuration -- 64 / 128 / 192 / 320 (RAMBO) / 320 (Compy Shop) kB -- and NTSC
 as well as PAL on the 4 / 400 class.  Those two were the last doubts on that list.
+
+The OSD margin clearing and the audio-debt reset were exercised with
+`STATIC_OSD=1` and `=0` at 1080p and 720p: all four aspects keep black margins
+after closing the menu, and the recipe that used to stutter -- an aspect or
+scanline change, or a log write with the menu open -- no longer leaves the
+machine stuttering.
 
 BASIC's `STICK(n)` / `STRIG(n)` are the cheapest joystick test:
 `15` = centred, `1` = no fire.
@@ -759,6 +775,10 @@ unexplained, so the slower renderer whose behaviour is understood is the one kep
 
 - **Never commit without the user's explicit approval.**
 - **One change at a time**, tested on hardware before the next.
+- **Documentation is updated before the commit and included in it.** The ledger,
+  `using.md`, `troubleshooting.md` and `README.md` are edited in the same commit as
+  the behaviour they describe.  A separate "record in the ledger" commit means the
+  code commit was incomplete.
 - **The build must be verified against the binary**, not the log: strings searched
   in the image caught an image that predated a fix.
 - **Beware layout changes masking bugs.** A 336-byte change once flipped the

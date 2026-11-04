@@ -537,6 +537,28 @@ If the frame rate is low:
 
 ---
 
+## The picture stutters after closing the menu (STATIC_OSD=0)
+
+With `STATIC_OSD=0` the machine runs normally until the menu is opened.  After
+closing it -- especially after an aspect or scanline change, or a `stats:` line
+written while the menu was open -- frames arrive slowly and the sound is choppy.
+Opening and closing the menu again sometimes clears it.
+
+Those actions write to the SD card: every setting change saves `settings.cfg`,
+and the thirty-second `stats:` line appends to `runtimelog.txt`.  A long write can
+leave the core's own audio sync buffer full.  `Sound_Update()` then sleeps one
+hardware buffer at a time inside `Atari800_Frame()`, which is charged to
+`emulation`, and once production and consumption match, a full buffer never
+drains by itself.
+
+The menu-close transition now empties that buffer: it pauses the core's audio,
+rebuilds the sync buffer with `Sound_SetLatency()`, and continues.  A short
+silence when the menu closes is normal.  If the stutter returns, the `stats:` line
+after it says whether `emulation` is still high (the audio debt) or whether
+`skipped` is rising while `emulation` is near 2.2 ms (a rendering overrun).
+
+---
+
 ## Getting diagnostic information
 
 The emulator writes start-up messages and any errors to the screen and to the

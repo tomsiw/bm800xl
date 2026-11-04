@@ -1511,6 +1511,16 @@ void CAtariKernel::RunFrame (void)
 		if (bMenuWasOpen && !bMenuOpen)
 		{
 			ATARI_ApplyPendingColdStart ();
+
+			/*
+			 * The menu session may have contained a long blocking write --
+			 * a settings save from an aspect or scanline change, or the
+			 * thirty-second runtime log line.  The pacer drops its own debt
+			 * when that happens; the core's audio sync buffer does not, so
+			 * it is emptied here, on the one transition where the menu has
+			 * let go of the machine.
+			 */
+			ATARI_AudioReset ();
 		}
 
 		bMenuWasOpen = bMenuOpen;
