@@ -373,9 +373,7 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 	{
 		if (EqualsIgnoreCase (pValue, "USB") || strcmp (pValue, "0") == 0)
 		{
-			pSettings->nAspect = AtariAspect43;
-
-	pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
+			pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
 		}
 		else if (EqualsIgnoreCase (pValue, "GPIO") || strcmp (pValue, "1") == 0)
 		{
@@ -407,14 +405,18 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 	}
 	else if (strcmp (pKey, "SCANLINES") == 0)
 	{
-		pSettings->bScanlines = bValue != 0;
+		if (ParseBool (pValue, &bValue))
+		{
+			pSettings->bScanlines = bValue;
+		}
 	}
 	else if (strcmp (pKey, "SCANLINE_FACTOR") == 0)
 	{
 		/* Only the three offered factors; anything else keeps the default. */
-		if (bValue == 85 || bValue == 90 || bValue == 95)
+		if (ParseInt (pValue, &nValue)
+		    && (nValue == 85 || nValue == 90 || nValue == 95))
 		{
-			pSettings->nScanlineFactor = bValue;
+			pSettings->nScanlineFactor = nValue;
 		}
 	}
 	else if (strcmp (pKey, "JOY_SWAP") == 0)
