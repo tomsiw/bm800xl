@@ -554,13 +554,18 @@ for PAL, 59.92 Hz for NTSC.
 > It shows 49.86 or 59.92 according to the selected video standard, and it
 > cannot read low. The **measured** rate is in the runtime log instead:
 > `SD:/ATARI/runtimelog.txt` carries a `stats` line every 30 seconds with
-> the achieved frame rate and frame count, and — only when there were any — the
-> number of pictures that were skipped because a frame did not fit. See
+> the achieved frame rate and frame count, the number of pictures that were
+> skipped because a frame did not fit (only when there were any), and the budget:
+> `frame` is the work of an average frame — emulation, fill and the OSD — and
+> `pace` is the sleep that keeps the emulator at its target rate. See
 > [Getting diagnostic information](troubleshooting.md#getting-diagnostic-information).
 
 A low `stats` figure means the emulation itself is being starved. A normal frame
 rate with a `skipped` count means only the display is struggling: the emulated
 machine keeps its 50 or 60 frames a second and the picture updates less often.
+A large `pace` is healthy, not a problem: it is the time the frame had to spare.
+`frame` above 20 ms (PAL) or 16.7 ms (NTSC) is the warning, and `pace` heading
+towards zero says the same thing is starting.
 
 If it struggles:
 

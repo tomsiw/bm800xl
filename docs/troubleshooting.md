@@ -503,14 +503,23 @@ NTSC — not the rate achieved. The achieved rate is in the `stats` line of the
 runtime log (see [Getting diagnostic information](#getting-diagnostic-information)). A Zero 2 W reaches both, so a low figure is not normal on any
 supported board.
 
-Two things worth knowing before changing anything:
+Four things worth knowing before changing anything:
 
 - The emulated machine is never slowed down to fix the picture. If a frame cannot
   be drawn within its deadline, the picture is skipped instead, and the periodic
-  `stats` line in the runtime log says how many were skipped ("N skipped"); the
-  emulated frame count stays at 50 or 60. So a *low fps* means the emulation
-  itself is being starved, while *skipped pictures with normal fps* means only the
-  display is struggling.
+  `stats` line in the runtime log says how many were skipped ("N skipped", shown
+  only when the count is not zero); the emulated frame count stays at 50 or 60.
+  So a *low fps* means the emulation itself is being starved, while *skipped
+  pictures with normal fps* means only the display is struggling.
+- The same line splits the budget. `frame` is the work of an average frame
+  (emulation + fill + OSD) and `pace` is the sleep that holds the loop at the
+  target rate, so compare `frame` with 20.0 ms at 50 fps or 16.7 ms at 60. Above
+  it the host cannot keep up; `pace` falling towards zero is the same warning
+  arriving. A *large* `pace` is healthy: it means the work was cheap.
+- `emulation` should sit at about 2.2-2.3 ms on the A53 boards. If it rises to
+  tens of milliseconds while `fill` has not moved, the core is sleeping inside
+  the frame -- the sound overflow loop in the project ledger -- not doing more
+  work. That is a known defect, not a setting to change.
 - Accurate PAL blending is per-pixel and expensive; it is the first display option
   to turn off.
 
@@ -554,7 +563,9 @@ Once the machine is running, the log keeps a heartbeat so that a hang is
 distinguishable from a healthy machine:
 
 - `stats: …` every **thirty seconds** — the achieved frame rate and frame count,
-  and the number of pictures skipped in that window when there were any. If the
+  the number of pictures skipped in that window when there were any, and the
+  budget: `frame` (emulation + fill + OSD) and `pace` (the sleep to the deadline).
+  See [Performance is poor](#performance-is-poor) for how to read them. If the
   file stops growing, the machine stopped there.
 - `boot t=30s` / `boot t=60s` after a cold reset — the same idea for a machine
   that is running but never boots, with `PC`, `DMACTL`, the display list address,

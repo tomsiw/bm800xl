@@ -27,9 +27,11 @@ unmodified.
 - Upscaled to 1280x720 by default
 - Original Atari aspect ratio preserved: the picture fills the screen height and
   is padded left and right with black rather than stretched to 16:9 — or, at the
-  press of a menu key, scaled by an exact 2x or 3x for square, pixel-perfect
-  output in a border
+  press of a menu key, scaled by an exact 2x, 3x or 4x for square, pixel-perfect
+  output in a border (4x only where the display can hold 1344x960, i.e. 1080p)
 - PAL colour blending and NTSC artifacting, selectable
+- Scanlines: a dim band once per Atari line, switched on and off and set to
+  85 %, 90 % or 95 % brightness from the menu while the machine runs
 
 **Sound**
 - Full POKEY emulation, mono or stereo (two POKEYs)
@@ -402,8 +404,11 @@ work; on the others the check was that the machine runs and is playable.
 Every RAM configuration -- 64 / 128 / 192 / 320 (RAMBO) / 320 (Compy Shop) kB --
 and both video standards, PAL and NTSC, were exercised across these boards.
 
-The frame rate was not measured on the Pi 3 pair, so what is claimed for them is
-that they work, not how much room they have.  The A72-optimised build
+The scanline renderer was measured on a **3B+ at 1080p**: the fill is 7.3 ms with
+the effect off and 14.4 ms with it on, and a frame lands at 19.6-19.7 ms either
+way, so scanlines leave very little room there but fit at 720p and 2x.  The frame
+rate was not separately measured on the 3B (non-plus), so what is claimed for it
+is that it works, not how much room it has.  The A72-optimised build
 (`kernel8-rpi4.img`) has been run on the 4 / 400 class as well and works.
 
 **NOT yet verified:**

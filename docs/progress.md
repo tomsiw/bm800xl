@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `5cbb7e2`. USB keyboard remapping, BRK handling and
+**Last updated:** after commit `e540f93`. USB keyboard remapping, BRK handling and
 snapshot erasing are implemented and verified on hardware; the output is muted
 while the OSD is open; the build and verification scripts refuse a kernel that
 does not fit in Circle's 2 MB region; the OSD is drawn in the Atari character set
@@ -23,12 +23,13 @@ and a turbo tape gets the real-timing mode a power cycle away; `STATIC_OSD=1` le
 a slow board open the menu without losing the frame deadline; the picture fill was
 made five times faster by scaling from the source, so a Zero 2 W now holds 49.8 fps
 at PAL and 59.9 at NTSC with no picture skipped, the adaptive skip remaining as a
-safety net; the output resolution, the pixel scale -- 4:3, or an exact 2x/3x -- and the
-joystick interface are chosen in the
-menu -- USB gamepads, the 9-pin ports or keys on the USB keyboard -- the resolution
-and the interface on the next power cycle and the joystick port swap at once; and the runtime log carries a 30-second stats line with that
-skip count and the OSD's open and close, the frame cost report retired. Checked on
-a Pi 400 and a Zero 2 W.
+safety net; the output resolution, the pixel scale -- 4:3, or an exact 2x/3x/4x,
+the last only where the display can hold it -- the scanline effect and its
+strength, and the joystick interface are chosen in the menu -- USB gamepads, the
+9-pin ports or keys on the USB keyboard -- the resolution and the interface on the
+next power cycle and the joystick port swap at once; and the runtime log carries a
+30-second stats line with the frame budget, the skip count when there was one,
+and the OSD's open and close. Checked on a Pi 400 and a Zero 2 W.
 
 ---
 
@@ -46,6 +47,7 @@ a Pi 400 and a Zero 2 W.
 | OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker; `STATIC_OSD` for boards where the picture fill will not fit beside the emulation |
 | Activity LED | lit while the machine runs, dark while a file is read or written, 1 Hz blink after a failure; replaces the SD driver's per-transfer blinking |
 | Pixel scaling | 4:3 aspect fit, or exact 2x/3x in a border, chosen in the menu and applied live; 2x costs under half the fill, 3x at 1080p costs what 720p 4:3 used to; 4x (1344x960) is offered only where it fits, i.e. 1080p |
+| Scanlines | off/on and the 85/90/95 % factor, both applied live; the dim band repeats once per upscaled Atari line; at 1080p 4:3 the fill goes from 7.3 to 14.4 ms on a 3B+, and it is free at 2x and 720p |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
 | Joystick ports | two inputs (`STICK(0)`, `STICK(1)`); one interface at a time, chosen in the OSD as USB gamepads, the two 9-pin GPIO ports, or keys on the USB keyboard (`Joy1_Up` .. `Joy2_Fire` in `usbkeys.cfg`, nothing bound by default), with the ports swappable live; the 9-pin path has never been run on hardware |
@@ -116,11 +118,11 @@ emulate 14454 us, fill 5547 us, menu 0, present 0, total 20005     (49.8 fps)
 `emulate` here includes the frame pacer's idle wait; the true emulation cost is
 about **1.5 ms**.
 
-The measurement has since been removed from the kernel: it answered its question,
-and the same numbers can be taken again from the `stats` line by reading the
-frame rate, or by rebuilding with the timings reinstated. Just the same, the
-figures above are the ones the renderer work was judged by, and they are worth
-keeping:
+The separate frame-cost line has since been removed from the kernel: it answered
+its question. Since `8f79f42` the 30-second `stats` line carries the same split --
+`frame` (the work: emulation + fill + OSD) and `pace` (the sleep to the deadline) --
+so these numbers can be read without a special build. The figures above are still
+the ones the renderer work was judged by, and they are worth keeping:
 
 ### Fill cost, Zero 2 W (temporary measurement, `e2773e4`)
 
@@ -150,6 +152,20 @@ five-fold. The effect on the machine:
 The adaptive skip is still there, but it is a safety net now rather than the
 normal state of the machine.
 
+
+### Scanlines, Pi 3B+ at 1080p (`e540f93`)
+
+| Mode | emulation | fill | work | pace | period |
+|---|---|---|---|---|---|
+| 4:3, scanlines off | 2.2 | 7.3 | 9.5 | 10.1 | 19.6 ms |
+| 4:3, scanlines on | 2.2 | 14.4 | 16.6 | 3.1 | 19.7 ms |
+| 2x, scanlines on | 2.2 | 8.2 | 10.4 | ~9 | ~20 ms |
+
+`work` is emulation + fill; `period` is work + pace. The `2x` row is approximate
+because its figures were read to the nearest millisecond. Scanlines roughly double
+the fill at 1080p 4:3, which leaves almost no pace there; those windows logged one
+skipped picture in three, while the 720p and `2x` cases fit comfortably.
+`emulation` stayed at 2.2 ms throughout.
 
 ### Boot breakdown, Zero 2 W
 
@@ -204,8 +220,9 @@ here so they are not rediscovered.
 | `9981c01` | no way to remove an old snapshot | the Snapshots screen could write and read files but never erase one. Erasing now has a screen of its own, *Erase snapshot*, reached like the others: the save and load browsers were the wrong place to put it, because a file could then be lost in a screen opened for another purpose. Return or Delete asks, a second press erases, and any other key cancels **and takes the question off the screen** — leaving it there made a cancelled action look pending. |
 | `6712e7b` | a long directory listing ran past the bottom of the menu panel | the browser drew a fixed 20 rows, but the panel holds about 14 at the font the menu used: the last rows were drawn over the status line and the footer, and a transient message was drawn on top of them. The row count is derived from the panel and the font now, and limited by the message line. |
 | `fabd27b` | a disk mounted read/write was still write-protected, and one mounted read-only could not be made writable | three faults, each enough on its own. The ATR header's write-protect byte forced the drive read-only whatever mode the file was opened in, and the menu's `[ro]` setting was never consulted. `ATARI_VFS_Open` decoded `"rb+"` as read-only, so even a read/write mount dropped every sector the machine wrote while `SIO_WriteSector` reported success. And the mode is fixed when the file is opened, so toggling `[ro]` changed only the setting — while ejecting reset it to read-only, so re-inserting the same image always came back protected. All three are fixed, the mount log now reports the mode the drive actually has, and the cassette had the same shape of bug in its toggle. |
-| (this commit) | the OSD panel sat against the left edge of the picture at 720p, so it looked like it leaned left | the centring code clamped the computed margin against `MenuMarginX`, which is an absolute position and starts at 40, not a margin. At 720p the picture is 960 wide and a 900-wide panel needs a 30-pixel margin, so `30 > 40` was false and the margin was dropped: flush left, 30 pixels short on the right. The panel is centred whenever it fits now, and falls back to the picture's edge otherwise; the vertical expression had the same shape and was fixed with it. Only 720p showed the fault, because the 1080p margin (270) is larger than 40. |
+| `a7f62b6` | the OSD panel sat against the left edge of the picture at 720p, so it looked like it leaned left | the centring code clamped the computed margin against `MenuMarginX`, which is an absolute position and starts at 40, not a margin. At 720p the picture is 960 wide and a 900-wide panel needs a 30-pixel margin, so `30 > 40` was false and the margin was dropped: flush left, 30 pixels short on the right. The panel is centred whenever it fits now, and falls back to the picture's edge otherwise; the vertical expression had the same shape and was fixed with it. Only 720p showed the fault, because the 1080p margin (270) is larger than 40. |
 | `1c48244` | a cold reset left some software in charge: BOOT ERROR instead of BASIC, as though OPTION were still held | a cold start is the CPU's RESET line, and POKEY and GTIA have no reset pin, so GTIA's console-key mask survived — and software can set it by writing `$D01F`, where a masked key reads back as pressed. RAM survived as well. There was no way out of that state, because no reset clears what the OS was misreading. *Power cycle* on the main menu now builds the machine again: RAM zeroed, every chip at power-up, ROMs reloaded, media mounted again. The audio device is deliberately left open across the rebuild, since reopening the HDMI sink hangs this hardware. |
+| `e540f93` | after closing the menu, the black side margins could alternate between black and the panel's edge strips on every flip, while the middle of the picture stayed steady | `InvalidatePadding()` deferred clearing to the next fill, and a fill composes one half of the double buffer and then sets the once-only flag, so the other half kept the panel's edges until something repainted it whole. An integer scale can make the picture narrower than the 900-pixel OSD panel, which draws over the margins, so the fault appeared there. Both halves are now cleared in one bounded pass when the menu closes. |
 
 ---
 
@@ -354,6 +371,21 @@ failures. They are listed because they are invisible until they bite.
     with no data blocks, or fsk blocks after the data has begun. A standard tape
     whose leader is an fsk block stays standard.
 
+19. **The SIO patch breaks the built-in SELF TEST's ROM check, by design.** The
+    patch is ESC opcodes written into the OS ROM image in memory via
+    `MEMORY_dPutByte()` (`esc.c:101`), bypassing the CPU's write protection: at
+    `$E459` (SIO entry), `$FD13` and `$FD60` (cassette open, XL OS) and — a
+    telling one — `$C31D`, where two `EA` bytes replace the OS's boot-time
+    checksum test, with the comment *"Disable setting NGFLAG on wrong OS
+    checksum"*. The core suppresses the OS's own complaint because it caused it;
+    it cannot suppress the self-test's separate verification, so the self-test
+    reports a ROM error while the machine is otherwise perfectly healthy, and the
+    RAM tests pass. Confirmed on a Zero 2 W: with a turbo `.cas` inserted and a
+    power cycle (real-timing mode, `ESC_enable_sio_patch = FALSE`, unmodified
+    ROM), the ROM test passes. This is upstream behaviour, not a port defect, and
+    the documentation now says so rather than leaving a reader to conclude the
+    emulator is broken.
+
 20. **The core can sleep inside a frame, and it is charged to emulation.**
     `src/sound.c:405` — when the core's own staging buffer has no room for a frame's
     audio it loops on `Util_sleep (buffer_frames / freq)`, one whole hardware buffer
@@ -372,20 +404,6 @@ failures. They are listed because they are invisible until they bite.
     device: `src/input/usb_key_reports.cpp` claims the handler and forwards every report to a list
     of listeners, and the report for a keyboard that has gone is an empty one so that nothing stays
     held.  Any future driver that wants key reports registers there, not on the device.
-19. **The SIO patch breaks the built-in SELF TEST's ROM check, by design.** The
-    patch is ESC opcodes written into the OS ROM image in memory via
-    `MEMORY_dPutByte()` (`esc.c:101`), bypassing the CPU's write protection: at
-    `$E459` (SIO entry), `$FD13` and `$FD60` (cassette open, XL OS) and — a
-    telling one — `$C31D`, where two `EA` bytes replace the OS's boot-time
-    checksum test, with the comment *"Disable setting NGFLAG on wrong OS
-    checksum"*. The core suppresses the OS's own complaint because it caused it;
-    it cannot suppress the self-test's separate verification, so the self-test
-    reports a ROM error while the machine is otherwise perfectly healthy, and the
-    RAM tests pass. Confirmed on a Zero 2 W: with a turbo `.cas` inserted and a
-    power cycle (real-timing mode, `ESC_enable_sio_patch = FALSE`, unmodified
-    ROM), the ROM test passes. This is upstream behaviour, not a port defect, and
-    the documentation now says so rather than leaving a reader to conclude the
-    emulator is broken.
 
 ---
 
@@ -613,7 +631,46 @@ the frame loop, and the probe remains the tool for that kind of detail.
 
 ## 9. What to do next, in order
 
-### 1. Port the resolver into the emulator  *(done and verified — `aed2e43`)*
+### Open items, in the order I would attack them
+
+1. **The core can sleep inside a frame, and it is charged to emulation.**
+   `external/atari800/src/sound.c:405`: when the core's staging buffer has no room
+   for a frame's audio it loops on `Util_sleep (buffer_frames / freq)` inside
+   `Atari800_Frame()`.  Two iterations measured 21 ms of "emulation" against a
+   true 2.3 ms.  It appears and clears with the rendering cost, because that
+   changes the sink's queue depth at the moment of the write.  A trial that made
+   `PLATFORM_SoundAvailable()` always report at least one buffer removed the
+   stall, but produced 703 skipped pictures in 1405 frames with a `frame` of only
+   11.6 ms -- unexplained, and reverted.  The skip decision
+   (`ATARI_LastFrameOverran()`) disagreeing with the budget figures is part of the
+   same item.
+2. **The dimmed-palette scanline renderer.**  It would cut the 1080p 4:3 fill
+   from 14.4 to ~9.3 ms, but both attempts were withdrawn: one 21 ms stall inside
+   `Atari800_Frame()` -- now traced to the sound loop above, not the renderer --
+   and a skip count that did not match the budget, still unexplained.  The idea is
+   sound on paper; settle item 1 before trying it again.
+3. **SD release artefacts.**  They predate everything since the aspect work.  One
+   `New-SdCardRelease.ps1` run brings the zip and the image level.
+   `C:\Projects\ai\deepseek\SD\SD-card-content\ATARI\settings.cfg` has `ASPECT`
+   and `STATIC_OSD=1` but not `SCANLINES` or `SCANLINE_FACTOR` (the emulator
+   rewrites the file on the first change).
+4. **Pi 5 / Pi 500.**  The image builds but has never run, and it is the only
+   platform whose page-flip branch has never executed.  Rebuild
+   `kernel_2712.img` after any change.
+5. **Unverified on hardware.**  The GPIO keyboard, the 9-pin joysticks, hot
+   plugging USB storage, cassette writing, and sound on a Zero 2 W (the test
+   display has no speakers).
+6. **Stereo needs a restart.**  The channel count belongs to the open device, and
+   reopening the HDMI sink hangs on this hardware.  Understanding why would
+   unlock live stereo and sample-rate changes.
+7. **OSD font licensing.**  `src/osd/atari_font.cpp` holds glyph shapes extracted
+   from an XL/XE OS image and compiled in; the ROMs are gitignored, these 128
+   glyphs are not, so publishing the repository publishes them.  This is the one
+   unresolved licensing exposure.
+
+### Done, and decided against
+
+#### USB gamepad resolver — done and verified (`aed2e43`; hot plug `7b8153a`)
 
 1. Move `TDirection` / `TMapping` / `ResolveMapping()` / `IsActive()` from
    `probe/gamepad/kernel.cpp` into `src/input/usb_joystick.cpp`. They are
@@ -634,14 +691,16 @@ All five are done. The resolver is `aed2e43`; hot plug and the Switch Pro needed
 Verified on hardware with the generic pad and the Switch Pro, plugged in both
 before and during a session.
 
-### 2. Housekeeping
+#### Housekeeping
 
 - ~~Gate the `frame cost` logging behind a build flag.~~ Done the other way round
-  in `64d93ba`: the measurement and its line were removed entirely, and the stats
-  line was reduced to fps, frames and PC.
-- Nothing uncommitted: the gamepad work is `aed2e43`, `7b8153a` and `92d4282`.
+  in `64d93ba`: the separate measurement and its line were removed.  `8f79f42`
+  later put the budget back into the `stats` line itself -- what a frame cost and
+  how much of it was sleep -- because the two had been added together and the sum
+  was misleading.
+- The gamepad work is `aed2e43`, `7b8153a` and `92d4282`.
 
-### 3. USB keyboard remapping  *(implemented and verified — `5498dc7`)*
+#### USB keyboard remapping — done and verified (`5498dc7`)
 
 `SD:/ATARI/usbkeys.cfg` remaps the USB keyboard; [docs/usbkeys.md](usbkeys.md) is
 the description and the contract. The unit of a mapping is the **function**, not
@@ -664,12 +723,7 @@ three functions of `*`, `A(None)`, combination selectors, comments containing
 `#`, duplicate lines, and every rejection message. It was then run on hardware
 with a crafted `usbkeys.cfg`, and behaved as specified.
 
-### 4. Verification debt
-
-- The Pi 5 (its page-flip branch has never run).
-- GPIO keyboard and 9-pin joysticks.
-
-### 5. Scanlines  *(implemented)*
+#### Scanlines — implemented (`e540f93`)
 
 Atari800's scanline simulation darkens alternate display lines to suggest a
 television.  Ours is a Display row (`Scanlines: off/on`) and a factor
@@ -687,18 +741,17 @@ it is built once per run for the dark blocks.  Cost measured on a 3B+ at 1080p:
 fill 14.4 ms against 7.3 ms off, so scanlines roughly double the fill there and
 are only free at `2x` and 720p.  A dimmed **palette** — 256 entries once per
 frame, dark rows written straight from the source columns — was tried twice and
-measured ~9.3 ms, but both attempts behaved in ways that could not be explained
-(a 21 ms stall inside `Atari800_Frame()`, and a skip count that did not match the
-budget), so the slower renderer whose behaviour is understood is the one kept.
+measured ~9.3 ms, but both attempts were withdrawn: one stalled for 21 ms inside
+`Atari800_Frame()` -- since traced to the core's sound overflow loop, not to the
+renderer -- and the other's skip count did not match the budget, which is still
+unexplained, so the slower renderer whose behaviour is understood is the one kept.
 
-### 6. Longer term
+#### Decided against
 
 - ~~**circle-stdlib migration**~~ — **decided against**, and not to be revisited
   without a concrete problem to solve. The `_sbrk` approach works, and a port of
   the whole standard library for its own sake would be a large change with no
   failure to justify it.
-- Understand **why reopening the HDMI sink hangs** — that single answer would
-  unlock stereo and sample-rate changes without a reboot.
 
 ---
 
