@@ -109,11 +109,12 @@ public:
 	void SetScanlineFactor (int nPercent);
 
 	/*
-	 * Makes the black margins be cleared again on the next fill.
+	 * Clears the black margins in both halves of the double buffer.
 	 *
 	 * Called when the OSD closes: a panel wider than the picture is drawn over the
 	 * margins, and those are otherwise written once and never revisited, so the
-	 * strips where the panel was would keep its pixels.
+	 * strips where the panel was would keep its pixels.  Clearing both halves
+	 * here, rather than on the next fill, is what stops them alternating.
 	 */
 	void InvalidatePadding (void);
 	unsigned GetPixelScale (void) const	{ return m_nScale; }
@@ -219,6 +220,9 @@ private:
 	/* Blacks both halves, for a change that moves the picture rectangle. */
 	void ClearBuffers (void);
 
+	/* Clears the black margins in both halves; writes the once-only flag. */
+	void ClearMargins (void);
+
 	// Raw framebuffer access for the current composition buffer
 	u16 *BackBuffer (void) const;
 	u16 *FrontBuffer (void) const;
@@ -283,13 +287,6 @@ private:
 	boolean m_bDoubleBuffered;	// frame is composed in an off-screen half
 	boolean m_bFrontIsFirst;	// which half the display currently shows
 
-	/*
-	 * Whether the black margins beside the picture are already cleared.
-	 *
-	 * Nothing writes to them after the first frame, so clearing them again is
-	 * wasted work -- about a quarter of the pixels in a frame.  Reset by
-	 * anything that repaints the whole buffer.
-	 */
 	/* Requested pixel scale: 0 for the 4:3 fit, 2 or 3 for integer blocks. */
 	int		m_nScaleRequest;
 
@@ -308,7 +305,16 @@ private:
 	/* The scale actually in use, after fitting: 0 for the 4:3 fit. */
 	unsigned	m_nScale;
 
-	boolean m_bPaddingCleared;
+	/*
+	 * Whether the black margins are already cleared in both halves.
+	 *
+	 * The margins are the top and bottom bars and the side strips.  Nothing
+	 * writes there except the OSD panel and FillSolid(), so clearing them once
+	 * is enough; anything that dirties them resets this, and FillScreen() then
+	 * clears both halves once.  InvalidatePadding() is the OSD-close path and
+	 * clears them immediately.
+	 */
+	boolean m_bMarginsCleared;
 
 	// The font all text is drawn with; see SetFont().
 	const TFont *m_pFont;

@@ -77,7 +77,7 @@ CAtariVideoOut::CAtariVideoOut (void)
 	m_pBackBuffer (0),
 	m_bDoubleBuffered (FALSE),
 	m_bFrontIsFirst (FALSE),
-	m_bPaddingCleared (FALSE),
+	m_bMarginsCleared (FALSE),
 	m_pFont (&Font8x16)
 {
 }
@@ -433,23 +433,16 @@ void CAtariVideoOut::SetAspect (int nScale)
 	 * screen empty until the menu closed.  The first frame that draws the picture
 	 * again does it, which is the first frame after the OSD closes.
 	 */
-	m_bPaddingCleared = FALSE;
+	m_bMarginsCleared = FALSE;
 	m_bClearPending = TRUE;
 }
 
 /*
- * Makes the black margins be cleared again on the next fill.
- *
- * Called when the OSD closes.  A panel wider than the picture -- which an integer
- * scale produces -- is drawn over the margins, and the margins are otherwise only
- * ever written once, so without this the strips where the panel was would keep
- * its pixels.
- */
-/*
  * Turns the scanline effect on and off, live.
  *
  * Off is the code path that existed before this option: whole scaled rows,
- * copied.  On adds one palette build per frame and a write per dark row.
+ * copied.  On builds a darkened copy of a scaled row for each run that has a
+ * dark destination row and copies it where the pattern calls for it.
  */
 void CAtariVideoOut::SetScanlines (boolean bEnabled)
 {
@@ -476,7 +469,16 @@ void CAtariVideoOut::SetScanlineFactor (int nPercent)
 	m_nScanlineNumerator = (unsigned) (nPercent * 256 / 100);
 }
 
+/*
+ * The OSD-close entry point: the panel may have been drawn over the margins, so
+ * clear them in both halves now rather than waiting for the next fill.
+ */
 void CAtariVideoOut::InvalidatePadding (void)
+{
+	ClearMargins ();
+}
+
+void CAtariVideoOut::ClearMargins (void)
 {
 	/*
 	 * Cleared in BOTH halves, now, rather than asking for it on the next fill.
@@ -490,7 +492,9 @@ void CAtariVideoOut::InvalidatePadding (void)
 	 * the strips alternated between black and the panel's edges on every flip
 	 * while the middle of the screen was perfectly steady.
 	 *
-	 * One bounded pass over the margin pixels, on closing the menu.
+	 * One bounded pass over the margin pixels.  The OSD close path calls this
+	 * directly; FillScreen() calls it once when the flag says the margins are
+	 * stale.
 	 */
 	u16 *pFirst = (u16 *) (uintptr) m_pFrameBuffer->GetBuffer ();
 	unsigned nHalf = m_bDoubleBuffered
@@ -536,7 +540,7 @@ void CAtariVideoOut::InvalidatePadding (void)
 		}
 	}
 
-	m_bPaddingCleared = TRUE;
+	m_bMarginsCleared = TRUE;
 }
 
 /*
@@ -615,8 +619,23 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 	if (m_bClearPending)
 	{
 		ClearBuffers ();
-		m_bPaddingCleared = TRUE;
+		m_bMarginsCleared = TRUE;
 		m_bClearPending = FALSE;
+	}
+
+	/*
+	 * Margins are written once, not every frame.
+	 *
+	 * They are the top and bottom bars and the side strips, and the only things
+	 * that write there are the OSD panel and FillSolid().  Both dirty them
+	 * explicitly (InvalidatePadding() on menu close, FillSolid() below), so a
+	 * fill only has to clear them when that flag says they are stale.  Both
+	 * halves are cleared, not just the one being composed: the next Present()
+	 * makes the other half visible.
+	 */
+	if (!m_bMarginsCleared)
+	{
+		ClearMargins ();
 	}
 
 	u16 *pFrame = BackBuffer ();
@@ -639,25 +658,6 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 		Palette565[nIndex] = (u16) ((((nRGB >> 16) & 0xf8) << 8)
 					    | (((nRGB >> 8) & 0xfc) << 3)
 					    | ((nRGB & 0xff) >> 3));
-	}
-
-	/*
-	 * Clear the top and bottom bars once.
-	 *
-	 * The picture does not fill the framebuffer height any more -- it is a 4:3
-	 * rectangle centred vertically -- so these margins have to be black.  Only
-	 * cleared when the geometry leaves any, and cleared over the full width
-	 * because the side padding below covers the picture rows only.
-	 */
-	if (m_nDestTop > 0)
-	{
-		unsigned nRowBytes = m_nWidth * sizeof (u16);
-
-		memset (pFrame, 0, (uintptr) m_nDestTop * nRowBytes);
-
-		u16 *pBelow = pFrame + (uintptr) (m_nDestTop + m_nDestHeight) * m_nPitchPixels;
-		memset (pBelow, 0,
-			(uintptr) (m_nHeight - m_nDestTop - m_nDestHeight) * nRowBytes);
 	}
 
 	/*
@@ -839,37 +839,6 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 			}
 		}
 	}
-
-	/*
-	 * Black side padding.
-	 *
-	 * Cleared ONCE, not every frame.  Nothing ever writes to the margins, so
-	 * re-clearing them each frame spends writes on bytes that cannot have
-	 * changed: at 960 wide in a 1280 framebuffer that is 320x720 pixels, about a
-	 * quarter of all pixel traffic per frame.  The framebuffer is not cacheable
-	 * from the ARM, so those writes were measurably expensive -- the emulator
-	 * ran at 29 fps against a 50 fps target.
-	 *
-	 * The flag is cleared again by anything that repaints the whole buffer, so
-	 * the margins are restored after a stage clear or an error report.
-	 */
-	if (m_nDestLeft > 0 && !m_bPaddingCleared)
-	{
-		u16 *pLeft = pFrame + (uintptr) m_nDestTop * m_nPitchPixels;
-		u16 *pRight = pLeft + m_nDestLeft + m_nColumnMapSize;
-		unsigned nRightWidth = m_nWidth - m_nDestLeft - m_nColumnMapSize;
-
-		for (unsigned nY = 0; nY < m_nDestHeight; nY++)
-		{
-			memset (pLeft, 0, m_nDestLeft * sizeof (u16));
-			memset (pRight, 0, nRightWidth * sizeof (u16));
-
-			pLeft += m_nPitchPixels;
-			pRight += m_nPitchPixels;
-		}
-
-		m_bPaddingCleared = TRUE;
-	}
 }
 
 /*
@@ -951,7 +920,7 @@ void CAtariVideoOut::FillSolid (TAtariColor Color)
 	 * The margins now hold Color rather than black, so the next frame has to
 	 * clear them again.
 	 */
-	m_bPaddingCleared = FALSE;
+	m_bMarginsCleared = FALSE;
 
 	/* Make sure the half being shown is the one that was painted. */
 	if (m_bDoubleBuffered)
