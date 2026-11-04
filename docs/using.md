@@ -106,9 +106,9 @@ comb. `Scanline factor` sets how dark the dim bands are: 85 %, 90 % or 95 % of
 full brightness, with 90 % the default. All three cost the same, so the choice is
 the look alone.
 
-The effect is not free at high resolution: at 1080p with `4:3` it roughly doubles
-the picture fill (7.3 ms to 14.4 ms on a Pi 3B+), which a Zero 2 W or a 3B+ cannot
-always spare. At `2x` and at 720p it fits comfortably. It is off by default.
+The effect is cheap now: at 1080p with `4:3` the fill is 7.4 ms with scanlines off
+and 7.8 ms with them on, so the effect costs under half a millisecond.  At `2x`
+and at 720p it was already free.  It is off by default.
 
 Changing it applies at once; a factor the framebuffer cannot hold is reduced
 until it fits and the menu says which one it used.

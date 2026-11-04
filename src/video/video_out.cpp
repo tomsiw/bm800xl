@@ -43,12 +43,13 @@ static const unsigned MaxDestinationWidth = 1920;
 static const unsigned MaxRunRows = 8;
 
 /*
- * The scaled row darkened, built once per run.
+ * The scaled row darkened, built for the runs that need it.
  *
- * This is the renderer that is kept: it costs more than a darkened palette would
- * (three multiplies per destination pixel of every dark row, 9.9 ms of fill at
- * 1080p instead of ~9.3), and the palette version was tried twice.  It is kept
- * because it is the one whose behaviour on hardware is understood.
+ * The dark values come from a palette built once per frame, so the row costs one
+ * lookup per source pixel rather than three multiplies per destination pixel.
+ * The buffer is still staged and copied like the lit row, which keeps the
+ * framebuffer write pattern -- and the audio and pacing interaction that goes
+ * with it -- the same as the renderer it replaces.
  */
 static u16 s_RowBufferDim[MaxDestinationWidth];
 
@@ -441,8 +442,9 @@ void CAtariVideoOut::SetAspect (int nScale)
  * Turns the scanline effect on and off, live.
  *
  * Off is the code path that existed before this option: whole scaled rows,
- * copied.  On builds a darkened copy of a scaled row for each run that has a
- * dark destination row and copies it where the pattern calls for it.
+ * copied.  On builds a darkened copy of a scaled row from the dark palette for
+ * each run that has a dark destination row and copies it where the pattern calls
+ * for it.
  */
 void CAtariVideoOut::SetScanlines (boolean bEnabled)
 {
@@ -661,6 +663,34 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 	}
 
 	/*
+	 * The dark-row palette, built once per frame when scanlines are on.
+	 *
+	 * The old renderer darkened the already-scaled row, which cost three integer
+	 * multiplies per destination pixel of every dark row.  Doing it on the 256
+	 * palette entries instead leaves the row build as one lookup per source
+	 * pixel; the values are the same, because it is the same expression applied
+	 * to the same components.
+	 */
+	u16 Palette565Dim[256] = { };
+	if (m_bScanlines)
+	{
+		const unsigned nNum = m_nScanlineNumerator;
+
+		for (unsigned nIndex = 0; nIndex < 256; nIndex++)
+		{
+			const u16 nColour = Palette565[nIndex];
+
+			unsigned nRed   = (((nColour >> 11) & 0x1f) * nNum) >> 8;
+			unsigned nGreen = (((nColour >>  5) & 0x3f) * nNum) >> 8;
+			unsigned nBlue  = (( nColour        & 0x1f) * nNum) >> 8;
+
+			Palette565Dim[nIndex] = (u16) ((nRed << 11)
+						       | (nGreen << 5)
+						       | nBlue);
+		}
+	}
+
+	/*
 	 * Scale the picture.
 	 *
 	 * The source is walked once per source row, not once per destination pixel.
@@ -734,91 +764,108 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 			continue;
 		}
 
-		// One scaled row in cached memory, then one burst copy per destination
-		// row that shows it.
-		u16 *pOut = s_RowBuffer;
+		/*
+		 * One scaled row in cached memory, then one burst copy per destination
+		 * row that shows it.  With scanlines on, a run may need the lit row, the
+		 * dark row, or both: the period equals the run length at 720p and the
+		 * integer scales, but not at 1080p 4:3, where a run can straddle the
+		 * boundary.
+		 */
+		boolean bDark[MaxRunRows] = { FALSE };
+		boolean bAllDark = m_bScanlines;
+		boolean bAnyDark = FALSE;
 
-		for (unsigned nCol = 0; nCol < m_nColumnRuns; nCol++)
+		if (m_bScanlines)
 		{
-			u16 nColour = Palette565[pSource[ScreenXOrigin
-							+ m_ColumnRunSource[nCol]]];
-			const unsigned nRun = m_ColumnRunLength[nCol];
+			unsigned nProbeRow = s_nScanlineRow;
+			boolean bProbeDark = s_bScanlineDark;
 
-			for (unsigned k = 0; k < nRun; k++)
-			{
-				pOut[k] = nColour;
-			}
-
-			pOut += nRun;
-		}
-
-		if (!m_bScanlines)
-		{
 			for (unsigned nRowIndex = 0; nRowIndex < nRunRows; nRowIndex++)
 			{
-				u16 *pRow = pFrame
-					  + (uintptr) (m_nDestTop + m_RowRunFirst[nRow]
-							+ nRowIndex) * m_nPitchPixels
-					  + m_nDestLeft;
+				bDark[nRowIndex] = bProbeDark;
 
-				memcpy (pRow, s_RowBuffer,
-					m_nColumnMapSize * sizeof (u16));
-			}
+				if (bProbeDark)
+				{
+					bAnyDark = TRUE;
+				}
+				else
+				{
+					bAllDark = FALSE;
+				}
 
-			continue;
-		}
-
-		/*
-		 * Scanlines.
-		 *
-		 * The pattern repeats once per upscaled Atari line: m_nScanlinePeriod
-		 * destination rows lit, then the same number dark.  The state runs across
-		 * the frame (s_nScanlineRow, s_bScanlineDark) so the blocks keep their
-		 * place from one row run to the next instead of restarting.
-		 *
-		 * A lit row is the memcpy it always was.  A dark row is written from the
-		 * source columns through the darkened palette -- no intermediate buffer
-		 * to build, no per-destination-pixel multiply, and only the write the row
-		 * needed anyway.
-		 */
-		boolean bDark[MaxRunRows];
-		unsigned nProbeRow = s_nScanlineRow;
-		boolean bProbeDark = s_bScanlineDark;
-		boolean bNeedDim = FALSE;
-
-		for (unsigned nRowIndex = 0; nRowIndex < nRunRows; nRowIndex++)
-		{
-			bDark[nRowIndex] = bProbeDark;
-
-			if (bProbeDark)
-			{
-				bNeedDim = TRUE;
-			}
-
-			if (++nProbeRow >= m_nScanlinePeriod)
-			{
-				nProbeRow = 0;
-				bProbeDark = bProbeDark ? FALSE : TRUE;
+				if (++nProbeRow >= m_nScanlinePeriod)
+				{
+					nProbeRow = 0;
+					bProbeDark = bProbeDark ? FALSE : TRUE;
+				}
 			}
 		}
 
-		if (bNeedDim)
+		const boolean bNeedLit = !bAllDark;
+		const boolean bNeedDim = m_bScanlines && bAnyDark;
+
+		if (bNeedLit && bNeedDim)
 		{
-			for (unsigned nCol = 0; nCol < m_nColumnMapSize; nCol++)
+			// A run that straddles a boundary: build both rows in one pass.
+			u16 *pLit = s_RowBuffer;
+			u16 *pDim = s_RowBufferDim;
+
+			for (unsigned nCol = 0; nCol < m_nColumnRuns; nCol++)
 			{
-				unsigned nColour = s_RowBuffer[nCol];
+				const unsigned nSource = pSource[ScreenXOrigin
+								+ m_ColumnRunSource[nCol]];
+				const u16 nLit = Palette565[nSource];
+				const u16 nDim = Palette565Dim[nSource];
+				const unsigned nRun = m_ColumnRunLength[nCol];
 
-				unsigned nRed   = (nColour >> 11) & 0x1f;
-				unsigned nGreen = (nColour >> 5) & 0x3f;
-				unsigned nBlue  = nColour & 0x1f;
+				for (unsigned k = 0; k < nRun; k++)
+				{
+					pLit[k] = nLit;
+					pDim[k] = nDim;
+				}
 
-				nRed   = (nRed * m_nScanlineNumerator) >> 8;
-				nGreen = (nGreen * m_nScanlineNumerator) >> 8;
-				nBlue  = (nBlue * m_nScanlineNumerator) >> 8;
+				pLit += nRun;
+				pDim += nRun;
+			}
+		}
+		else if (bNeedDim)
+		{
+			// Every row in the run is dark: the lit row is not built at all.
+			u16 *pDim = s_RowBufferDim;
 
-				s_RowBufferDim[nCol] = (u16) ((nRed << 11)
-							      | (nGreen << 5)
-							      | nBlue);
+			for (unsigned nCol = 0; nCol < m_nColumnRuns; nCol++)
+			{
+				const u16 nDim = Palette565Dim[
+					pSource[ScreenXOrigin
+						+ m_ColumnRunSource[nCol]]];
+				const unsigned nRun = m_ColumnRunLength[nCol];
+
+				for (unsigned k = 0; k < nRun; k++)
+				{
+					pDim[k] = nDim;
+				}
+
+				pDim += nRun;
+			}
+		}
+		else
+		{
+			// No scanlines, or every row in this run is lit.
+			u16 *pLit = s_RowBuffer;
+
+			for (unsigned nCol = 0; nCol < m_nColumnRuns; nCol++)
+			{
+				const u16 nLit = Palette565[
+					pSource[ScreenXOrigin
+						+ m_ColumnRunSource[nCol]]];
+				const unsigned nRun = m_ColumnRunLength[nCol];
+
+				for (unsigned k = 0; k < nRun; k++)
+				{
+					pLit[k] = nLit;
+				}
+
+				pLit += nRun;
 			}
 		}
 
@@ -829,13 +876,18 @@ void CAtariVideoOut::FillScreen (const u8 *pScreen, const u32 *pPalette)
 						+ nRowIndex) * m_nPitchPixels
 				  + m_nDestLeft;
 
-			memcpy (pRow, bDark[nRowIndex] ? s_RowBufferDim : s_RowBuffer,
+			memcpy (pRow,
+				(m_bScanlines && bDark[nRowIndex])
+					? s_RowBufferDim : s_RowBuffer,
 				m_nColumnMapSize * sizeof (u16));
 
-			if (++s_nScanlineRow >= m_nScanlinePeriod)
+			if (m_bScanlines)
 			{
-				s_nScanlineRow = 0;
-				s_bScanlineDark = s_bScanlineDark ? FALSE : TRUE;
+				if (++s_nScanlineRow >= m_nScanlinePeriod)
+				{
+					s_nScanlineRow = 0;
+					s_bScanlineDark = s_bScanlineDark ? FALSE : TRUE;
+				}
 			}
 		}
 	}

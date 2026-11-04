@@ -8,8 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `a6ff28d`; the audio-debt reset and this
-documentation update are in the commit that carries this line. USB keyboard
+**Last updated:** after commit `53cdf22`; the dark-palette scanline renderer and
+this documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
 scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
@@ -49,7 +49,7 @@ and the OSD's open and close. Checked on a Pi 400 and a Zero 2 W.
 | OSD menu | opens, navigates, applies settings; Atari character set at 2x; warm reset, cold reset and power cycle; no flicker; `STATIC_OSD` for boards where the picture fill will not fit beside the emulation |
 | Activity LED | lit while the machine runs, dark while a file is read or written, 1 Hz blink after a failure; replaces the SD driver's per-transfer blinking |
 | Pixel scaling | 4:3 aspect fit, or exact 2x/3x in a border, chosen in the menu and applied live; 2x costs under half the fill, 3x at 1080p costs what 720p 4:3 used to; 4x (1344x960) is offered only where it fits, i.e. 1080p |
-| Scanlines | off/on and the 85/90/95 % factor, both applied live; the dim band repeats once per upscaled Atari line; at 1080p 4:3 the fill goes from 7.3 to 14.4 ms on a 3B+, and it is free at 2x and 720p |
+| Scanlines | off/on and the 85/90/95 % factor, both applied live; the dim band repeats once per upscaled Atari line; at 1080p 4:3 the fill is 7.4 ms off and 7.8 ms on, so the effect is nearly free; also free at 2x and 720p |
 | Boot to first frame | ~6.6 s on Zero 2 W, ~7 s on Pi 400 |
 | USB gamepads | resolver, hot plug and both pad kinds **verified on hardware** — see section 8 |
 | Joystick ports | two inputs (`STICK(0)`, `STICK(1)`); one interface at a time, chosen in the OSD as USB gamepads, the two 9-pin GPIO ports, or keys on the USB keyboard (`Joy1_Up` .. `Joy2_Fire` in `usbkeys.cfg`, nothing bound by default), with the ports swappable live; the 9-pin path has never been run on hardware |
@@ -169,6 +169,21 @@ the fill at 1080p 4:3, which leaves almost no pace there; those windows logged o
 skipped picture in three, while the 720p and `2x` cases fit comfortably.
 `emulation` stayed at 2.2 ms throughout.
 
+### Scanlines after the dark palette
+
+Measured at 1080p 4:3 after the dark-palette renderer; the table above is the
+renderer it replaced.
+
+| Mode | emulation | fill | work | pace | period |
+|---|---|---|---|---|---|
+| 4:3, scanlines off | 2.2 | 7.4 | 9.6 | 10.1 | 19.7 ms |
+| 4:3, scanlines on | 2.3 | 7.8 | 10.1 | 9.7 | 19.8 ms |
+
+The fill drops from 14.4 ms on to 7.8 ms, and the one skipped picture the old
+renderer logged is gone.  `work` is emulation + fill; `period` is work + pace,
+rounded to the nearest tenth.  The four aspects and both `STATIC_OSD` settings
+were checked; the integer scales and 720p remain cheap.
+
 ### Boot breakdown, Zero 2 W
 
 ```
@@ -228,7 +243,8 @@ carries this table; a commit cannot name its own hash.
 | `e540f93` | after closing the menu, the black side margins could alternate between black and the panel's edge strips on every flip, while the middle of the picture stayed steady | `InvalidatePadding()` deferred clearing to the next fill, and a fill composes one half of the double buffer and then sets the once-only flag, so the other half kept the panel's edges until something repainted it whole. An integer scale can make the picture narrower than the 900-pixel OSD panel, which draws over the margins, so the fault appeared there. Both halves are now cleared in one bounded pass when the menu closes. |
 | `a243567` | the black bars above and below the picture were rewritten on every fill at integer scales | the once-only flag guarded only the side strips; the top and bottom block ran on every fill.  At 2x on 1080p that is 1.15 million pixels a frame against 0.32 million of picture -- several milliseconds rewriting bytes that cannot have changed.  `ClearMargins()` now clears the top and bottom bars and both side strips in both halves when the flag says they are stale, and the OSD-close path calls it immediately. |
 | `a6ff28d` | the transparent OSD was slow because the panel dim spent three integer divisions per pixel | a 900x480 panel is 1.3 million divisions per redraw.  The per-channel results are tabulated once per call -- five bits for red and blue, six for green -- and looked up in the pixel loop; the values are unchanged, so the panel looks the same.  Only `STATIC_OSD=0` calls `DimRect()`. |
-| (this commit) | after closing the menu with `STATIC_OSD=0`, the machine sometimes stuttered and the sound was choppy, especially after an aspect or scanline change or the thirty-second log line | the setting save and the runtime-log write are long SD blocks.  The pacer resynchronises, but the core's own audio sync buffer can stay full; `Sound_Update()` then sleeps one hardware buffer at a time inside `Atari800_Frame()`, charged to emulation, and once production and consumption match it never drains.  The menu-close transition now pauses the core's audio, rebuilds the buffer with `Sound_SetLatency()` and continues; the device is not reopened, and a short silence on close is expected. |
+| `53cdf22` | after closing the menu with `STATIC_OSD=0`, the machine sometimes stuttered and the sound was choppy, especially after an aspect or scanline change or the thirty-second log line | the setting save and the runtime-log write are long SD blocks.  The pacer resynchronises, but the core's own audio sync buffer can stay full; `Sound_Update()` then sleeps one hardware buffer at a time inside `Atari800_Frame()`, charged to emulation, and once production and consumption match it never drains.  The menu-close transition now pauses the core's audio, rebuilds the buffer with `Sound_SetLatency()` and continues; the device is not reopened, and a short silence on close is expected. |
+| (this commit) | scanlines doubled the 1080p 4:3 fill and left only 3.1 ms of pace, with one skipped picture per window | the dark row was produced by darkening every pixel of the already-scaled row -- three integer multiplies per destination pixel of every dark row.  A 256-entry dark palette is now built once per frame, and each row run builds only the lit row, the dark row, or both; the per-destination-row memcpy sequence is unchanged, so the framebuffer write pattern and its audio/pacing interaction stay comparable to the renderer it replaces.  Fill 14.4 -> 7.8 ms, frame 10.1, pace 9.7, nothing skipped. |
 
 ---
 
@@ -506,6 +522,10 @@ after closing the menu, and the recipe that used to stutter -- an aspect or
 scanline change, or a log write with the menu open -- no longer leaves the
 machine stuttering.
 
+The dark-palette scanline renderer was checked at 1080p in 4:3, 2x, 3x and 4x,
+with `STATIC_OSD=1` and `=0`: the pattern is unchanged, scanlines-on fill at 4:3
+is 7.8 ms against 7.4 ms off, and nothing is skipped.
+
 BASIC's `STICK(n)` / `STRIG(n)` are the cheapest joystick test:
 `15` = centred, `1` = no fire.
 
@@ -660,26 +680,21 @@ the frame loop, and the probe remains the tool for that kind of detail.
    11.6 ms -- unexplained, and reverted.  The skip decision
    (`ATARI_LastFrameOverran()`) disagreeing with the budget figures is part of the
    same item.
-2. **The dimmed-palette scanline renderer.**  It would cut the 1080p 4:3 fill
-   from 14.4 to ~9.3 ms, but both attempts were withdrawn: one 21 ms stall inside
-   `Atari800_Frame()` -- now traced to the sound loop above, not the renderer --
-   and a skip count that did not match the budget, still unexplained.  The idea is
-   sound on paper; settle item 1 before trying it again.
-3. **SD release artefacts.**  They predate everything since the aspect work.  One
+2. **SD release artefacts.**  They predate everything since the aspect work.  One
    `New-SdCardRelease.ps1` run brings the zip and the image level.
    `C:\Projects\ai\deepseek\SD\SD-card-content\ATARI\settings.cfg` has `ASPECT`
    and `STATIC_OSD=1` but not `SCANLINES` or `SCANLINE_FACTOR` (the emulator
    rewrites the file on the first change).
-4. **Pi 5 / Pi 500.**  The image builds but has never run, and it is the only
+3. **Pi 5 / Pi 500.**  The image builds but has never run, and it is the only
    platform whose page-flip branch has never executed.  Rebuild
    `kernel_2712.img` after any change.
-5. **Unverified on hardware.**  The GPIO keyboard, the 9-pin joysticks, hot
+4. **Unverified on hardware.**  The GPIO keyboard, the 9-pin joysticks, hot
    plugging USB storage, cassette writing, and sound on a Zero 2 W (the test
    display has no speakers).
-6. **Stereo needs a restart.**  The channel count belongs to the open device, and
+5. **Stereo needs a restart.**  The channel count belongs to the open device, and
    reopening the HDMI sink hangs on this hardware.  Understanding why would
    unlock live stereo and sample-rate changes.
-7. **OSD font licensing.**  `src/osd/atari_font.cpp` holds glyph shapes extracted
+6. **OSD font licensing.**  `src/osd/atari_font.cpp` holds glyph shapes extracted
    from an XL/XE OS image and compiled in; the ROMs are gitignored, these 128
    glyphs are not, so publishing the repository publishes them.  This is the one
    unresolved licensing exposure.
@@ -739,7 +754,7 @@ three functions of `*`, `A(None)`, combination selectors, comments containing
 `#`, duplicate lines, and every rejection message. It was then run on hardware
 with a crafted `usbkeys.cfg`, and behaved as specified.
 
-#### Scanlines — implemented (`e540f93`)
+#### Scanlines — the dim-row renderer (`e540f93`, superseded)
 
 Atari800's scanline simulation darkens alternate display lines to suggest a
 television.  Ours is a Display row (`Scanlines: off/on`) and a factor
@@ -752,15 +767,29 @@ line is three destination rows, so the period is
 `destHeight / 240` rows lit then the same number dark (5 at 1080p, 3 at 720p, 2 at
 2x).  Every second row was tried first and read as a fine comb.
 
-The renderer is the **dim row**: the scaled row is copied, and a darkened copy of
-it is built once per run for the dark blocks.  Cost measured on a 3B+ at 1080p:
-fill 14.4 ms against 7.3 ms off, so scanlines roughly double the fill there and
-are only free at `2x` and 720p.  A dimmed **palette** — 256 entries once per
-frame, dark rows written straight from the source columns — was tried twice and
-measured ~9.3 ms, but both attempts were withdrawn: one stalled for 21 ms inside
-`Atari800_Frame()` -- since traced to the core's sound overflow loop, not to the
-renderer -- and the other's skip count did not match the budget, which is still
-unexplained, so the slower renderer whose behaviour is understood is the one kept.
+The first renderer was the **dim row**: the scaled row was copied, and a darkened
+copy of it was built once per run for the dark blocks.  Cost measured on a 3B+ at
+1080p: fill 14.4 ms against 7.3 ms off.  A dimmed **palette** — 256 entries once
+per frame, dark rows written straight from the source columns — was tried twice
+then and measured ~9.3 ms, but both attempts were withdrawn: one stalled for 21 ms
+inside `Atari800_Frame()` -- since traced to the core's sound overflow loop, not
+the renderer -- and the other's skip count did not match the budget.  The
+dark-palette renderer below is a different shape: it keeps the row buffers and the
+framebuffer write sequence, and changes only where the dim bytes come from.
+
+#### Scanlines — dark palette (the commit that carries this)
+
+The dim-row pass is gone.  A 256-entry dark palette is built once per frame, and
+the scaler chooses per row run: the lit row only, the dark row only, or both.
+Runs are mixed only at 1080p 4:3, where the 5-row period straddles the 4/5-row
+runs; at 720p and the integer scales a run is all lit or all dark and only one row
+is built.  The per-destination-row `memcpy` sequence is unchanged, so the
+framebuffer write pattern -- and the audio/pacing interaction -- is the same as the
+renderer it replaces.
+
+Measured at 1080p 4:3: fill 7.4 ms off and 7.8 ms on, frame 10.1 ms, pace 9.7 ms,
+nothing skipped; the dim-row renderer was 14.4 ms on.  The four aspects and both
+`STATIC_OSD` settings were checked.
 
 #### Decided against
 
