@@ -1019,8 +1019,28 @@ void CAtariVideoOut::DimRect (unsigned nX, unsigned nY, unsigned nWidth, unsigne
 		nPercent = 100;
 	}
 
-	// Halve each colour component about nPercent/100 of the way towards black.
+	/*
+	 * Scale each colour component by nKeep/100, towards black.
+	 *
+	 * The per-channel results are tabulated once per call: five bits for red
+	 * and blue, six for green.  The old inner loop did three integer divisions
+	 * per pixel -- 1.3 million of them for a 900x480 panel -- which is most of
+	 * what a transparent OSD redraw cost.  A table lookup replaces each one.
+	 */
 	unsigned nKeep = 100 - nPercent;
+
+	u16 Dim5[32];
+	u16 Dim6[64];
+
+	for (unsigned nLevel = 0; nLevel < 32; nLevel++)
+	{
+		Dim5[nLevel] = (u16) (nLevel * nKeep / 100);
+	}
+
+	for (unsigned nLevel = 0; nLevel < 64; nLevel++)
+	{
+		Dim6[nLevel] = (u16) (nLevel * nKeep / 100);
+	}
 
 	/*
 	 * Dim row by row through cached memory.
@@ -1048,9 +1068,9 @@ void CAtariVideoOut::DimRect (unsigned nX, unsigned nY, unsigned nWidth, unsigne
 			{
 				u16 nPixel = pRow[nCol];
 
-				unsigned nR = ((nPixel >> 11) & 0x1f) * nKeep / 100;
-				unsigned nG = ((nPixel >>  5) & 0x3f) * nKeep / 100;
-				unsigned nB = ( nPixel        & 0x1f) * nKeep / 100;
+				unsigned nR = Dim5[(nPixel >> 11) & 0x1f];
+				unsigned nG = Dim6[(nPixel >>  5) & 0x3f];
+				unsigned nB = Dim5[ nPixel        & 0x1f];
 
 				pRow[nCol] = (u16) ((nR << 11) | (nG << 5) | nB);
 			}
@@ -1064,9 +1084,9 @@ void CAtariVideoOut::DimRect (unsigned nX, unsigned nY, unsigned nWidth, unsigne
 		{
 			u16 nPixel = s_DimRow[nCol];
 
-			unsigned nR = ((nPixel >> 11) & 0x1f) * nKeep / 100;
-			unsigned nG = ((nPixel >>  5) & 0x3f) * nKeep / 100;
-			unsigned nB = ( nPixel        & 0x1f) * nKeep / 100;
+			unsigned nR = Dim5[(nPixel >> 11) & 0x1f];
+			unsigned nG = Dim6[(nPixel >>  5) & 0x3f];
+			unsigned nB = Dim5[ nPixel        & 0x1f];
 
 			s_DimRow[nCol] = (u16) ((nR << 11) | (nG << 5) | nB);
 		}
