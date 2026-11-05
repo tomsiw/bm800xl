@@ -111,6 +111,13 @@ matched one at a time, from the measurements recorded in
 the four directions and the two buttons that were measured work, and an
 unidentified button does nothing rather than firing by accident.
 
+The **8BitDo Pro 2 Wired for Xbox** is one of the named controllers: it presents
+as an Xbox One pad (`2dc8-2000/2014/201e`) and uses Circle's Xbox One driver.
+That driver needed its ID in the factory table, the LED-on/auth-done GIP init
+packets that Linux sends, and acceptance of its 36-byte GIP reports; all three
+are limited to the three 8BitDo IDs, so a genuine Xbox controller is unaffected.
+The change is carried by a patch so a fresh source fetch keeps it.
+
 On such a controller the D-pad and the left stick are read **together**: either
 one steers, so a player can move between them without lifting off. A hat also
 reports its diagonals, and a diagonal pushes both of the directions it lies

@@ -175,7 +175,10 @@ CUSBFunction *CUSBDeviceFactory::GetDevice (CUSBFunction *pParent, CString *pNam
 		 || pName->Compare ("ven45e-2dd") == 0		// XBox One Controller (FW 2015)
 		 || pName->Compare ("ven45e-2e3") == 0		// XBox One Elite Controller
 		 || pName->Compare ("ven45e-2ea") == 0		// XBox One S Controller
-		 || pName->Compare ("ven45e-b12") == 0)		// XBox Series X Controller
+		 || pName->Compare ("ven45e-b12") == 0		// XBox Series X Controller
+		 || pName->Compare ("ven2dc8-2000") == 0	// 8BitDo Pro 2 Wired for Xbox
+		 || pName->Compare ("ven2dc8-2014") == 0	// 8BitDo Pro 2 Wired for Xbox (newer hw)
+		 || pName->Compare ("ven2dc8-201e") == 0)	// 8BitDo Pro 2 Wired for Xbox (later hw)
 	{
 		pResult = new CUSBGamePadXboxOneDevice (pParent);
 	}

@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `cfab5ee`; the Shift+arrow fix and this
+**Last updated:** after commit `9a63c6e`; the 8BitDo Pro 2 Xbox support and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -246,7 +246,8 @@ carries this table; a commit cannot name its own hash.
 | `53cdf22` | after closing the menu with `STATIC_OSD=0`, the machine sometimes stuttered and the sound was choppy, especially after an aspect or scanline change or the thirty-second log line | the setting save and the runtime-log write are long SD blocks.  The pacer resynchronises, but the core's own audio sync buffer can stay full; `Sound_Update()` then sleeps one hardware buffer at a time inside `Atari800_Frame()`, charged to emulation, and once production and consumption match it never drains.  The menu-close transition now pauses the core's audio, rebuilds the buffer with `Sound_SetLatency()` and continues; the device is not reopened, and a short silence on close is expected. |
 | `c1334b6` | scanlines doubled the 1080p 4:3 fill and left only 3.1 ms of pace, with one skipped picture per window | the dark row was produced by darkening every pixel of the already-scaled row -- three integer multiplies per destination pixel of every dark row.  A 256-entry dark palette is now built once per frame, and each row run builds only the lit row, the dark row, or both; the per-destination-row memcpy sequence is unchanged, so the framebuffer write pattern and its audio/pacing interaction stay comparable to the renderer it replaces.  Fill 14.4 -> 7.8 ms, frame 10.1, pace 9.7, nothing skipped. |
 | `cfab5ee` | `SCANLINES` and `SCANLINE_FACTOR` in `settings.cfg` were ignored on the next boot, and `JOY_INTERFACE=USB` reset the saved aspect ratio | the `SCANLINES` branch assigned the parser's stale `bValue` without calling `ParseBool()`; `SCANLINE_FACTOR` tested the same stale `bValue` without calling `ParseInt()`, so neither value ever reached the settings; and the `JOY_INTERFACE` USB branch also wrote `nAspect = AtariAspect43`.  All three now parse and validate their own values; the other boolean keys already used `ParseBool()`. |
-| (this commit) | Robbo would not shoot left or right with Shift+arrow, although up and down worked | the Atari cursor keys are Ctrl+Plus/Asterisk/Minus/Equal.  ORing Shift onto Left or Right produced Ctrl+Shift+Plus/Asterisk, which the core's ghost-key filter drops; Up and Down are Ctrl+Shift+Minus/Equal, which that filter does not match.  The shift switch now maps the four arrows to Plus/Asterisk/Minus/Equal before the shift bit is added -- the same codes the SDL frontend sends -- so Shift+arrow produces the legal shifted symbols. |
+| `9a63c6e` | Robbo would not shoot left or right with Shift+arrow, although up and down worked | the Atari cursor keys are Ctrl+Plus/Asterisk/Minus/Equal.  ORing Shift onto Left or Right produced Ctrl+Shift+Plus/Asterisk, which the core's ghost-key filter drops; Up and Down are Ctrl+Shift+Minus/Equal, which that filter does not match.  The shift switch now maps the four arrows to Plus/Asterisk/Minus/Equal before the shift bit is added -- the same codes the SDL frontend sends -- so Shift+arrow produces the legal shifted symbols. |
+| (this commit) | the 8BitDo Pro 2 Wired for Xbox was rejected by Circle as "Function is not supported" and never reached the gamepad adapter | the controller is a GIP/Xbox One device reporting `2dc8-2000/2014/201e`, but Circle's static USB factory had no entry for those IDs, so it never selected the Xbox One driver that already speaks the protocol.  The factory now routes them to `CUSBGamePadXboxOneDevice`; because a third-party GIP pad can bind and still wait for the rest of the init sequence, the driver also sends LED-on and auth-done for those three IDs only -- a genuine Xbox controller keeps the original power-on path.  It also accepts the 8BitDo's 36-byte GIP reports, whose standard gamepad fields are still the first 18 bytes, for those IDs only; a genuine pad keeps the 18/48-byte rule.  The resolver lists the IDs so the D-pad and left stick steer and A/B fire.  This is the single permitted Circle source change, carried by `patches/circle-8bitdo-xbox.patch`. |
 
 ---
 
@@ -429,6 +430,22 @@ failures. They are listed because they are invisible until they bite.
     of listeners, and the report for a keyboard that has gone is an empty one so that nothing stays
     held.  Any future driver that wants key reports registers there, not on the device.
 
+22. **Circle's USB device factory is a static table with no hook.** A device whose
+    vendor/product ID is not in it is rejected before any project code sees it:
+    "Function is not supported", once per interface, then "Device has no supported
+    function". The generic HID fallback is only reached for HID-class interfaces,
+    and an Xbox GIP controller's gamepad interface is vendor-specific. The 8BitDo
+    Pro 2 Wired for Xbox (`2dc8-2000/2014/201e`) therefore needed one entry in
+    `lib/usb/usbdevicefactory.cpp` routing it to the existing Xbox One driver,
+    plus its IDs in the resolver's known list, plus the LED-on and auth-done
+    init packets that Linux sends and Circle's driver omitted.  Those packets are
+    sent only for the three 8BitDo IDs; a genuine Xbox controller is untouched.
+    The driver also accepts the 8BitDo's 36-byte GIP reports (a 32-byte payload,
+    with the standard gamepad fields in the first 18 bytes) only for those IDs;
+    a genuine pad keeps the 18/48-byte rule.  The change is carried by
+    `patches/circle-8bitdo-xbox.patch` so that `fetch-sources.ps1` reapplies it
+    after a fresh fetch.
+
 ---
 
 ## 6. Known limitations
@@ -546,6 +563,12 @@ BASIC's `STICK(n)` / `STRIG(n)` are the cheapest joystick test:
 
 Circle timestamps its own output; no timestamping is done by the probe.
 
+Status lines from the USB interrupt are queued and written by `Run()`, because
+the logger reaches FatFs and FatFs cannot be called from that context.  Before
+this, `GAMEPAD.LOG` stopped at the first controller event while the screen kept
+showing it.  The probe's resolver also knows the 8BitDo Pro 2 Xbox IDs, so it maps
+their Circle button bits rather than falling back to the axes guess.
+
 It also carries a **resolver**, `ResolveMapping(pId, pState)`, which returns a
 `TMapping` of `TDirection` records saying *where* each Atari control comes from —
 a button bit, an axis with a threshold and side, or a hat.
@@ -559,6 +582,16 @@ a button bit, an axis with a threshold and side, or a hat.
 | `ven79-6` Microntek | axes: left/right on index 0, up/down on index 1 | bits `0x2` and `0x4` |
 
 All three verified in the probe, pressing every direction and fire.
+
+One more controller is recognised by the same mechanism: the **8BitDo Pro 2
+Wired for Xbox** (`ven2dc8-2000/2014/201e`).  It is a GIP/Xbox One device, and
+Circle's factory needed one local table entry to route it to the existing Xbox
+One driver; the resolver lists the IDs, so its D-pad and left stick steer and
+A/B fire.  The driver also sends the LED/auth init packets and accepts the pad's
+36-byte reports, both only for those IDs.  Verified in the emulator on a Pi 3:
+the pad attaches as an Xbox One controller and its controls reach the Atari.
+The pad's physical A arrives as Circle's B bit; both are fire, so the Atari sees
+the same action.
 
 On a generic pad the bit numbers are positions in the HID descriptor, not named
 buttons, so `0x2` and `0x4` are the pad's second and third declared buttons —
@@ -815,8 +848,14 @@ nothing skipped; the dim-row renderer was 14.4 ms on.  The four aspects and both
 - **Beware layout changes masking bugs.** A 336-byte change once flipped the
   symptoms of an unrelated fault.
 - **Commit messages record root causes**, not change lists.
-- `external/circle` stays unmodified; `external/atari800` carries one permitted
-  patch (`STATESAV_MAX_SIZE`).
+- `external/circle` stays unmodified except **the 8BitDo Pro 2 Wired for Xbox
+  support**: one device-table entry in `lib/usb/usbdevicefactory.cpp`, the
+  LED-on/auth-done GIP init packets in `lib/usb/usbgamepadxboxone.cpp`, and
+  acceptance of its 36-byte GIP reports there.  All three are limited to the
+  three 8BitDo IDs.  It is carried by
+  `patches/circle-8bitdo-xbox.patch` and reapplied by `fetch-sources.ps1`; any
+  Circle update must keep it.
+- `external/atari800` carries one permitted patch (`STATESAV_MAX_SIZE`).
 - `config.txt` and the SD card layout live outside the repository, in
   `atari-sd-backup` (temporary) and on the card (authoritative).
 

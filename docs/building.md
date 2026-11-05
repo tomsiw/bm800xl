@@ -48,8 +48,7 @@ pwsh -ExecutionPolicy Bypass -File scripts\fetch-sources.ps1
 
 That script downloads the exact revisions recorded in
 `external/SOURCES.txt`, verifies each archive's SHA-256, extracts it, and applies
-the one patch this project needs (see
-[Atari800 integration](atari800-integration.md#the-one-change-to-upstream)). The
+the patches this project needs (see [Pinned revisions](#pinned-revisions)). The
 SHA-256 check is the point of the file: a mismatch means GitHub served something
 other than what was pinned, and the fetch stops rather than building an unknown
 tree.
@@ -201,8 +200,8 @@ once and copy both files; you never have to switch again.
 
 ## Pinned revisions
 
-Reproducibility matters for a project that patches nothing and depends on two
-moving upstreams, so the exact revisions are recorded in
+Reproducibility matters for a project that carries only two small patches and
+depends on two moving upstreams, so the exact revisions are recorded in
 `external/SOURCES.txt`. Each line is:
 
 ```
@@ -213,11 +212,18 @@ so, in full:
 
 ```
 circle https://codeload.github.com/rsta2/circle/tar.gz/refs/heads/master \
-       circle-master 569e5bf8...8723 -
+       circle-master 569e5bf8...8723 patches/circle-8bitdo-xbox.patch
 atari800 https://codeload.github.com/atari800/atari800/tar.gz/refs/tags/ATARI800_7_2_1 \
        atari800-ATARI800_7_2_1 c85cd024...a832a0a \
        patches/atari800-statesav-size.patch
 ```
+
+The Circle patch is the 8BitDo Pro 2 Wired for Xbox support: the single
+device-table entry for `2dc8-2000/2014/201e`, the LED-on/auth-done GIP init
+packets in the Xbox One driver, and acceptance of its 36-byte GIP reports there.
+All three are limited to those IDs, so a genuine Xbox pad is unaffected. The
+Atari800 patch raises `STATESAV_MAX_SIZE` (see
+[Atari800 integration](atari800-integration.md#the-one-change-to-upstream)).
 
 The **SHA-256 is the point of the file**. It is checked after the download: a
 mismatch means the server produced something other than the revision that was

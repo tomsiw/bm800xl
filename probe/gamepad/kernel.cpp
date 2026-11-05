@@ -25,6 +25,22 @@
 #include <string.h>
 
 /*
+ * Status lines waiting for task-level logging.
+ *
+ * GamePadStatusHandler runs in the USB interrupt.  Writing the logger from there
+ * reaches FatFs, which is not reentrant and does disk I/O, so the log stopped at
+ * the first status line.  The handler copies a line here; Run() drains the queue
+ * where screen and file writes are safe.
+ */
+#define STATUS_QUEUE_LINES	8
+#define STATUS_LINE_MAX		128
+
+static char		s_StatusQueue[STATUS_QUEUE_LINES][STATUS_LINE_MAX];
+static volatile unsigned s_nStatusHead = 0;
+static volatile unsigned s_nStatusTail = 0;
+static volatile unsigned s_nReportCount = 0;
+
+/*
  * Where each Atari control comes from on this particular controller.
  *
  * A bare mask table cannot describe the generic USB pads: on ven79-11 (tested) the
@@ -165,7 +181,10 @@ static TMapping ResolveMapping (const char *pId, const TGamePadState *pState)
 	    || strcmp (p, "ven45e-28e")  == 0	/* Xbox 360 */
 	    || strcmp (p, "ven45e-2f8")  == 0
 	    || strcmp (p, "ven45e-2d1")  == 0	/* Xbox One */
-	    || strcmp (p, "ven54c-268")  == 0)	/* PS3 */
+	    || strcmp (p, "ven54c-268")  == 0	/* PS3 */
+	    || strcmp (p, "ven2dc8-2000") == 0	/* 8BitDo Pro 2 Xbox */
+	    || strcmp (p, "ven2dc8-2014") == 0
+	    || strcmp (p, "ven2dc8-201e") == 0)
 	{
 		m.pName = "buttons (Circle driver)";
 		m.Up    = DirBtn (0x08000);
@@ -454,6 +473,26 @@ TShutdownMode CKernel::Run (void)
 			m_Logger.Write (FromKernel, LogNotice, "Use your gamepad controls!");
 		}
 
+		for (;;)
+		{
+			unsigned nTail = s_nStatusTail;
+			if (nTail == s_nStatusHead)
+			{
+				break;
+			}
+
+			m_Logger.Write (FromKernel, LogNotice, "%s", s_StatusQueue[nTail]);
+			s_nStatusTail = (nTail + 1) % STATUS_QUEUE_LINES;
+		}
+
+		static unsigned nLastReportCount = 0;
+		unsigned nReportCount = s_nReportCount;
+		if (nReportCount != nLastReportCount)
+		{
+			m_Logger.Write (FromKernel, LogNotice,
+					"Gamepad reports: %u", nReportCount);
+			nLastReportCount = nReportCount;
+		}
 
 		m_Screen.Rotor (0, nCount);
 		m_Timer.MsDelay (100);
@@ -468,6 +507,8 @@ CString CKernel::m_LastMsg;
 
 void CKernel::GamePadStatusHandler (unsigned nDeviceIndex, const TGamePadState *pState)
 {
+	s_nReportCount++;
+
 	CString Msg;
 	Msg.Format ("Gamepad %u: Buttons 0x%X", nDeviceIndex+1, pState->buttons);
 
@@ -525,7 +566,22 @@ void CKernel::GamePadStatusHandler (unsigned nDeviceIndex, const TGamePadState *
 		AppendMapped (Msg, s_Map[nDeviceIndex], pState);
 	}
 
-	CLogger::Get ()->Write (FromKernel, LogNotice, Msg);
+	unsigned nLen = (unsigned) Msg.GetLength ();
+	if (nLen >= STATUS_LINE_MAX)
+	{
+		nLen = STATUS_LINE_MAX - 1;
+	}
+
+	unsigned nNext = (s_nStatusHead + 1) % STATUS_QUEUE_LINES;
+	if (nNext == s_nStatusTail)
+	{
+		// Queue full: drop the oldest line rather than the newest.
+		s_nStatusTail = (s_nStatusTail + 1) % STATUS_QUEUE_LINES;
+	}
+
+	memcpy (s_StatusQueue[s_nStatusHead], (const char *) Msg, nLen);
+	s_StatusQueue[s_nStatusHead][nLen] = '\0';
+	s_nStatusHead = nNext;
 }
 
 void CKernel::GamePadRemovedHandler (CDevice *pDevice, void *pContext)

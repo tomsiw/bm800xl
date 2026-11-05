@@ -238,6 +238,8 @@ static boolean IsKnownPad (const char *pId)
 
 		"ven2dc8-310b",					/* 8BitDo Pro 3, Ultimate 2.4G */
 		"ven2dc8-3106",					/* 8BitDo Ultimate C, adapter 2 */
+
+		"ven2dc8-2000", "ven2dc8-2014", "ven2dc8-201e",	/* 8BitDo Pro 2 Xbox */
 	};
 
 	for (unsigned i = 0; i < sizeof Ids / sizeof Ids[0]; i++)

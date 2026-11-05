@@ -411,6 +411,10 @@ rate was not separately measured on the 3B (non-plus), so what is claimed for it
 is that it works, not how much room it has.  The A72-optimised build
 (`kernel8-rpi4.img`) has been run on the 4 / 400 class as well and works.
 
+The **8BitDo Pro 2 Wired for Xbox** was checked on a Pi 3: it attaches through
+Circle's Xbox One driver and its controls reach the Atari.  The support is one
+permitted Circle patch; the ledger records why it was needed and its scope.
+
 **NOT yet verified:**
 
 - **Pi 5 (and Pi 500).** Its image builds and verifies, but it has never been

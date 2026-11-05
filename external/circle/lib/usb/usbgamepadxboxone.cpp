@@ -125,6 +125,43 @@ boolean CUSBGamePadXboxOneDevice::Configure (void)
 		return FALSE;
 	}
 
+	/*
+	 * Third-party GIP pads may bind and answer output commands, but never start
+	 * sending input until they have seen the rest of the initialisation sequence
+	 * Linux sends: LED on, then auth done.  Only the 8BitDo Pro 2 Wired for Xbox
+	 * IDs take this path; a genuine Xbox controller keeps the original single
+	 * power-on packet, so its behaviour is unchanged.  The packets are
+	 * best-effort: a failure is logged and input polling still starts.
+	 */
+	CString *pVendor = GetDevice ()->GetName (DeviceNameVendor);
+	boolean b8BitDo = pVendor != 0
+		       && (   pVendor->Compare ("ven2dc8-2000") == 0
+			   || pVendor->Compare ("ven2dc8-2014") == 0
+			   || pVendor->Compare ("ven2dc8-201e") == 0);
+	if (pVendor != 0)
+	{
+		delete pVendor;
+	}
+
+	if (b8BitDo)
+	{
+		DMA_BUFFER (u8, command_led, 7) =
+			{ 0x0A, 0x20, 0x00, 0x03, 0x00, 0x01, 0x14 };
+		if (!SendToEndpointOut (command_led, 7))
+		{
+			CLogger::Get ()->Write (FromUSBPadXboxOne, LogWarning,
+						"LED init failed");
+		}
+
+		DMA_BUFFER (u8, command_auth, 6) =
+			{ 0x06, 0x20, 0x00, 0x02, 0x01, 0x00 };
+		if (!SendToEndpointOut (command_auth, 6))
+		{
+			CLogger::Get ()->Write (FromUSBPadXboxOne, LogWarning,
+						"auth init failed");
+		}
+	}
+
 	return StartRequest ();
 }
 
@@ -153,8 +190,23 @@ void CUSBGamePadXboxOneDevice::ReportHandler (const u8 *pReport, unsigned report
 	// Controller sends "heartbeat" packets periodically starting with
 	// 0x03, 0x20. We aren't interested in them.
 	//
-	// XBox One controller has packet size 18, Series X controller has size 48
-	if (m_pStatusHandler != nullptr && (reportSize == 18 || reportSize == 48) && pReport[0] == 0x20)
+	// XBox One controller has packet size 18, Series X controller has size 48.
+	// The 8BitDo Pro 2 Wired for Xbox sends a 36-byte GIP frame (a 32-byte
+	// payload), but its standard gamepad fields are still the first 18 bytes.
+	// Accept that length only for the 8BitDo IDs; a genuine Xbox pad keeps the
+	// original 18/48 rule.
+	const TUSBDeviceDescriptor *pDeviceDesc = GetDevice ()->GetDeviceDescriptor ();
+	boolean b8BitDo = pDeviceDesc != 0
+		       && pDeviceDesc->idVendor == 0x2DC8
+		       && (   pDeviceDesc->idProduct == 0x2000
+			   || pDeviceDesc->idProduct == 0x2014
+			   || pDeviceDesc->idProduct == 0x201E);
+
+	if (   m_pStatusHandler != nullptr
+	    && (   reportSize == 18
+		|| reportSize == 48
+		|| (b8BitDo && reportSize >= 18))
+	    && pReport[0] == 0x20)
 	{
 		DecodeReport (pReport);
 
