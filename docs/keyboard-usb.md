@@ -20,7 +20,7 @@ The mapping below is the built-in one. Any key can be moved with
 | **F7** | SELECT |
 | **F8** | OPTION |
 | **F9** | BREAK |
-| **F10** | RESET (warm reset) |
+| **F10** | RESET (warm reset); **Shift+F10** is a power cycle |
 | **F12** | **Opens the OSD menu** |
 | Arrow keys | Atari cursor keys |
 | Left Ctrl / Right Ctrl | CONTROL |
@@ -34,6 +34,11 @@ Pressing and holding it opens the menu once, not repeatedly.
 `RESET` and `BREAK` are not keys on a real Atari keyboard — they are buttons and
 lines on the machine itself. The emulator treats F10 as a press of the RESET
 button, which is a warm reset: the emulated machine resets but keeps its memory.
+
+**Shift+F10** is the emulator's power-cycle shortcut. It is not sent to the
+Atari: the keyboard layer latches it, and the kernel rebuilds the emulated
+machine before the next frame — RAM cleared, every chip at its power-up state,
+and the media mounted again. F10 alone remains the warm reset.
 Use the menu for a cold reset. F9 raises BREAK, which most software reads as
 "stop"; in BASIC it interrupts a running program.
 

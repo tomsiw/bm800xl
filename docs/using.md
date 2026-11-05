@@ -516,7 +516,7 @@ With a USB keyboard (Mode 1):
 | F7 | Select |
 | F8 | Option |
 | F9 | Break |
-| F10 | Reset (warm) |
+| F10 | Reset (warm); Shift+F10: power cycle |
 | F12 | **OSD menu** |
 | Arrows | Atari cursor keys |
 | Left Ctrl | CONTROL |

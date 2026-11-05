@@ -526,6 +526,14 @@ static int s_initialised;
 static char s_last_error[160];
 
 /*
+ * Shift+F10 is a host shortcut for a power cycle.  It is set while the keys
+ * are read and consumed by the kernel at the top of the next frame, because
+ * rebuilding the machine from inside the core's frame is not safe.
+ */
+static int s_bPowerCycleRequested;
+static int s_bWarmKeyLatched;
+
+/*
  * There used to be a static here recording "channels the sink was opened with,
  * zero if nothing is open".  It was only ever written on the path where this file
  * opens the sink itself, but at start-up the core opens it first -- Sound_Init
@@ -889,7 +897,22 @@ static void PushKeyboardState(void)
 	 * because those are not key codes at all: they are commands like "warm
 	 * start" which the frame loop acts on.
 	 */
-	INPUT_key_code = ATARI_ApplyModifiers (state.key_code, state.shift, state.control);
+	/*
+	 * Shift+F10 is a power cycle, not the Reset key.  F10 alone still reports
+	 * ATARI_KEY_WARMSTART and is handled by the core as before.  The request
+	 * is latched so a held combination rebuilds the machine only once; it is
+	 * cleared when the keys are released.
+	 */
+	if (state.key_code == ATARI_KEY_WARMSTART && state.shift) {
+		if (!s_bWarmKeyLatched) {
+			s_bPowerCycleRequested = 1;
+			s_bWarmKeyLatched = 1;
+		}
+		INPUT_key_code = ATARI_KEY_NONE;
+	} else {
+		s_bWarmKeyLatched = 0;
+		INPUT_key_code = ATARI_ApplyModifiers (state.key_code, state.shift, state.control);
+	}
 
 	/*
 	 * Bit 3 of SKSTAT is what the hardware reports for Shift, and it is
@@ -2144,6 +2167,13 @@ void ATARI_WarmReset(void)
 	s_blank_frames = 0;
 }
 
+int ATARI_TakePowerCycleRequest(void)
+{
+	int bRequested = s_bPowerCycleRequested;
+	s_bPowerCycleRequested = 0;
+	return bRequested;
+}
+
 void ATARI_SetVideoStandard(atari_video_standard_t video)
 {
 	if (video == s_config.video) {
@@ -2646,6 +2676,8 @@ int ATARI_SetCassetteWriteProtect(int read_only)
 		SetError("the cassette cannot be toggled");
 		return 0;
 	}
+
+	ATARI_RuntimeLog("cassette: write protect %s", want ? "on" : "off");
 
 	return CASSETTE_write_protect == want;
 }

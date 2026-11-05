@@ -358,6 +358,17 @@ void ATARI_ColdReset(void);
 void ATARI_WarmReset(void);
 
 /*
+ * Consumes a pending Shift+F10 power-cycle request from the keyboard layer.
+ *
+ * Shift+F10 is a host shortcut, not an Atari key: it is latched while the
+ * keyboard is read and consumed by the kernel before the next frame, because
+ * the machine cannot be rebuilt from inside the core's frame.
+ *
+ * \return Non-zero if a request was pending.
+ */
+int ATARI_TakePowerCycleRequest(void);
+
+/*
  * Power cycles the emulated machine: RAM zeroed, every chip at its power-up
  * state, the ROM images loaded again, and then a cold start.
  *

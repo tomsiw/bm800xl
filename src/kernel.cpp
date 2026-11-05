@@ -1412,6 +1412,23 @@ void CAtariKernel::RunFrame (void)
 	ATARI_LED_Poll ();
 
 	/*
+	 * Shift+F10 is a host shortcut for a power cycle.  The keyboard layer
+	 * latches it while the previous frame read the keys; rebuilding here,
+	 * before this frame starts, is the same safe point the menu's Power cycle
+	 * uses.
+	 */
+	if (ATARI_TakePowerCycleRequest ())
+	{
+		CBootLog::Get ()->RecordRuntime ("keyboard: Shift+F10 power cycle");
+
+		if (!PowerCycle ())
+		{
+			CBootLog::Get ()->RecordRuntimef (
+				"keyboard power cycle failed: %s", GetLastError ());
+		}
+	}
+
+	/*
 	 * USB enumeration is driven here, from the frame loop, and nowhere else.
 	 *
 	 * This call is what makes a device plugged in after start-up appear at all:
