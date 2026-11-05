@@ -264,8 +264,10 @@ Standard tape - power cycle required
 ```
 
 Leaving the menu — F12, Escape on the main screen, or any of *Cold reset*, *Warm
-reset* and *Close menu* — performs that power cycle instead of the action you
-picked, and the tape is still in the drive afterwards. Be aware of what that means:
+reset*, *Power cycle* and *Close menu* — performs that power cycle instead of the
+action you picked, and the tape is still in the drive afterwards. *Restart Pi* is
+exempt: the Pi boots the emulator again, which rebuilds the machine anyway. Be
+aware of what that means:
 **a power cycle clears the machine's memory**, so an unsaved program is lost at
 that moment. That is the price of having the tape loadable at all; a cold reset
 cannot do it, because the OS patches are installed when the machine is built.
@@ -375,6 +377,7 @@ Four ways, and they are not interchangeable:
 | Warm reset | Menu → Warm reset | Presses the emulated Reset button. Programs keep their memory. |
 | Cold reset | Menu → Cold reset | The CPU's RESET line: PIA, ANTIC and the CPU are reset and the OS cold-starts. RAM keeps its contents, and POKEY and GTIA keep their registers — on a real machine neither chip has a reset pin. |
 | Power cycle | Menu → Power cycle | A new machine: RAM cleared, every chip at its power-up state, the ROMs loaded again, and the media mounted again from the settings. |
+| Restart Pi | Menu → Restart Pi | Restarts the whole Raspberry Pi. The emulator's main loop returns `ShutdownReboot`, and Circle reboots the board; the emulator then starts again from the card. |
 | Power-on | Power the Pi off and on | The emulator starts with the settings file, and re-mounts the media |
 
 Cold reset is enough for most things. It is not enough when the software that was

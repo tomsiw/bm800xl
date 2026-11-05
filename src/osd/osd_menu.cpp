@@ -41,7 +41,7 @@ static const unsigned MenuLabelColumn	= 450;	// x offset of the value column
 
 // Numbers of entries on each screen.  All five switch statements keyed on
 // m_Screen have to agree with these, so they are named rather than repeated.
-static const unsigned MainItemCount		= 12;
+static const unsigned MainItemCount		= 13;
 static const unsigned DiskItemCount		= SETTINGS_MAX_DRIVES * 2;	// insert and eject
 static const unsigned CartridgeItemCount	= 2;	// insert, eject
 static const unsigned CassetteItemCount		= 2;	// insert, eject
@@ -261,7 +261,9 @@ void CAtariMenu::ExitMenu (TMenuExit Action)
 	 * asked for: see the declaration.  The rebuild replaces the requested
 	 * action, because none of them can change the mode.
 	 */
-	if (m_pHost != 0 && m_pHost->CassetteModeMismatch ())
+	if (   m_pHost != 0
+	    && m_pHost->CassetteModeMismatch ()
+	    && Action != ExitRestartPi)
 	{
 		Action = ExitPowerCycle;
 	}
@@ -295,6 +297,18 @@ void CAtariMenu::ExitMenu (TMenuExit Action)
 		if (m_pHost != 0)
 		{
 			m_pHost->WarmReset ();
+		}
+		break;
+
+	case ExitRestartPi:
+		/*
+		 * The host only sets a flag; the frame loop returns ShutdownReboot
+		 * after this frame, and main() calls reboot().  Close() still runs so
+		 * that the menu has been left and any pending settings are committed.
+		 */
+		if (m_pHost != 0)
+		{
+			m_pHost->RestartPi ();
 		}
 		break;
 
@@ -479,7 +493,8 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 8: return "Cold reset";
 		case 9: return "Warm reset";
 		case 10: return "Power cycle";
-		case 11: return "Close menu";
+		case 11: return "Restart Pi";
+		case 12: return "Close menu";
 		}
 		break;
 
@@ -1523,7 +1538,8 @@ void CAtariMenu::ActivateSelection (void)
 		case 8: ExitMenu (ExitColdReset); break;
 		case 9: ExitMenu (ExitWarmReset); break;
 		case 10: ExitMenu (ExitPowerCycle); break;
-		case 11: ExitMenu (ExitClose); break;
+		case 11: ExitMenu (ExitRestartPi); break;
+		case 12: ExitMenu (ExitClose); break;
 		}
 		break;
 

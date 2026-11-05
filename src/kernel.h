@@ -149,6 +149,7 @@ public:
 	void AppendSnapshotNotice (const char *pFormat, ...);
 	void ColdReset (void);
 	void WarmReset (void);
+	void RestartPi (void);
 	boolean PowerCycle (void);
 	void SwapJoystickPorts (void);
 	const char *GetLastError (void);
@@ -248,6 +249,7 @@ private:
 	char			m_SettingsPath[SETTINGS_PATH_MAX];
 
 	boolean			m_bInitialized;
+	boolean			m_bRestartPi;
 	boolean			m_bAudioOpen;
 
 	/*

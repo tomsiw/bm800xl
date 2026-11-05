@@ -80,6 +80,13 @@ public:
 	virtual void ColdReset (void) = 0;
 	virtual void WarmReset (void) = 0;
 
+	/*
+	 * Ends the emulator's main loop so that main() returns ShutdownReboot,
+	 * which Circle turns into a Raspberry Pi reboot.  This is not a power cycle
+	 * of the emulated machine: the whole Pi starts again.
+	 */
+	virtual void RestartPi (void) = 0;
+
 	// Rebuilds the emulated machine from scratch: RAM cleared, every chip at its
 	// power-up state, the media mounted again.  A cold reset is not this -- GTIA
 	// has no reset pin, so its state (and the console-key mask software can set
@@ -212,11 +219,13 @@ private:
 	 * A tape that needs the other mode cannot be loaded until the machine is
 	 * rebuilt, and every way out of the menu is a point where the user is about
 	 * to use that tape: F12, Escape on the main screen, and the warm-reset,
-	 * cold-reset, power-cycle and close items.  So all of them come through here,
-	 * and when a mismatch is pending the requested action is replaced by a power
-	 * cycle -- a warm reset would keep the wrong mode, a cold reset cannot change
-	 * it, and closing the menu would leave a tape that cannot load.  The rebuild
-	 * clears the mismatch, so this cannot loop.
+	 * cold-reset, power-cycle, restart-Pi and close items.  So all of them come
+	 * through here, and when a mismatch is pending the requested action is
+	 * replaced by a power cycle -- a warm reset would keep the wrong mode, a
+	 * cold reset cannot change it, and closing the menu would leave a tape that
+	 * cannot load.  A Pi restart is exempt because booting the emulator again
+	 * rebuilds the machine anyway.  The rebuild clears the mismatch, so this
+	 * cannot loop.
 	 *
 	 * Every action has one failure path here as well: if the restart or the reset
 	 * fails the menu stays open with the reason, rather than closing over a
@@ -227,7 +236,8 @@ private:
 		ExitClose,
 		ExitColdReset,
 		ExitWarmReset,
-		ExitPowerCycle
+		ExitPowerCycle,
+		ExitRestartPi
 	};
 
 	void ExitMenu (TMenuExit Action);

@@ -397,6 +397,7 @@ CAtariKernel::CAtariKernel (void)
 	m_bSettingsApplied (FALSE),
 	m_pJoystickHandle{0, 0},
 	m_bInitialized (FALSE),
+	m_bRestartPi (FALSE),
 	m_bAudioOpen (FALSE),
 	m_bUSBReady (FALSE),
 	m_bFirstFrameDrawn (FALSE),
@@ -1332,6 +1333,16 @@ TShutdownMode CAtariKernel::Run (void)
 	for (;;)
 	{
 		RunFrame ();
+
+		/*
+		 * Restart Pi is the only OSD action that leaves the loop.  It is
+		 * requested from the menu's key handler; RunFrame() has already
+		 * finished the frame and closed the menu when this is set.
+		 */
+		if (m_bRestartPi)
+		{
+			return ShutdownReboot;
+		}
 	}
 
 	return ShutdownNone;
@@ -2382,6 +2393,17 @@ void CAtariKernel::WarmReset (void)
 	CBootLog::Get ()->RecordRuntime ("OSD: warm reset requested");
 	ATARI_WarmReset ();
 	CBootLog::Get ()->RecordRuntime ("OSD: warm reset returned");
+}
+
+void CAtariKernel::RestartPi (void)
+{
+	/*
+	 * Do not reboot here: this runs inside the menu's key handler, while the
+	 * frame is still being drawn.  Setting the flag lets RunFrame() finish and
+	 * Run() return ShutdownReboot, which main() turns into Circle's reboot().
+	 */
+	CBootLog::Get ()->RecordRuntime ("OSD: restart Pi requested");
+	m_bRestartPi = TRUE;
 }
 
 boolean CAtariKernel::PowerCycle (void)
