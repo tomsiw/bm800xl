@@ -38,7 +38,6 @@
 static char		s_StatusQueue[STATUS_QUEUE_LINES][STATUS_LINE_MAX];
 static volatile unsigned s_nStatusHead = 0;
 static volatile unsigned s_nStatusTail = 0;
-static volatile unsigned s_nReportCount = 0;
 
 /*
  * Where each Atari control comes from on this particular controller.
@@ -485,15 +484,6 @@ TShutdownMode CKernel::Run (void)
 			s_nStatusTail = (nTail + 1) % STATUS_QUEUE_LINES;
 		}
 
-		static unsigned nLastReportCount = 0;
-		unsigned nReportCount = s_nReportCount;
-		if (nReportCount != nLastReportCount)
-		{
-			m_Logger.Write (FromKernel, LogNotice,
-					"Gamepad reports: %u", nReportCount);
-			nLastReportCount = nReportCount;
-		}
-
 		m_Screen.Rotor (0, nCount);
 		m_Timer.MsDelay (100);
 	}
@@ -507,8 +497,6 @@ CString CKernel::m_LastMsg;
 
 void CKernel::GamePadStatusHandler (unsigned nDeviceIndex, const TGamePadState *pState)
 {
-	s_nReportCount++;
-
 	CString Msg;
 	Msg.Format ("Gamepad %u: Buttons 0x%X", nDeviceIndex+1, pState->buttons);
 
