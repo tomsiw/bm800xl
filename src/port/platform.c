@@ -829,6 +829,28 @@ int ATARI_ApplyModifiers(int base_key_code, int shift, int control)
 		case ATARI_KEY_INSERT_CHAR:
 			return ATARI_KEY_INSERT_LINE;	/* Shift+Insert */
 
+		/*
+		 * The cursor keys are Ctrl+Plus/Asterisk/Minus/Equal on the Atari.
+		 * Adding Shift to one of those produces a Ctrl+Shift+symbol
+		 * combination, which the keyboard hardware cannot read; for Plus and
+		 * Asterisk -- left and right -- the core's ghost-key filter drops it
+		 * entirely, so Shift+Left and Shift+Right never reached the machine.
+		 * Use the shifted symbols instead, exactly as the SDL frontend does:
+		 * with the shift bit added below they become Shift+Plus,
+		 * Shift+Asterisk, Shift+Minus and Shift+Equal.
+		 */
+		case ATARI_KEY_LEFT:
+			return ATARI_KEY_PLUS;
+
+		case ATARI_KEY_RIGHT:
+			return ATARI_KEY_ASTERISK;
+
+		case ATARI_KEY_UP:
+			return ATARI_KEY_MINUS;
+
+		case ATARI_KEY_DOWN:
+			return ATARI_KEY_EQUAL;
+
 		default:
 			break;
 		}

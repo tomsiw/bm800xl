@@ -47,6 +47,12 @@ Shift and Control are reported separately, exactly as on a real keyboard, so
 Shift+A produces a capital A through the Atari's own keyboard handling rather
 than being a different key code.
 
+Shift with a cursor key is the one place where the two are combined.  The Atari
+cannot read a cursor key with Shift added as an extra modifier; it produces the
+shifted symbols printed on the cursor keys instead: `+` (Left), `*` (Right),
+`-` (Up) and `=` (Down).  This matches the SDL frontend, and it is how games such
+as Robbo fire in a direction.
+
 | USB key | Atari key |
 |---|---|
 | A – Z | The matching Atari letter |
