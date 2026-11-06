@@ -3,11 +3,11 @@
  * at twice their size, compiled into the kernel.
  *
  * The shapes are the ones the XL/XE OS keeps in ROM at $E000, indexed by the
- * machine's internal character codes: space at $00, digits at $10-$19, 'A'-'Z'
- * at $21-$3A and the lower case at $61-$7A.  They were extracted from an XL/XE
- * OS image once and pasted here as data, so the emulator reads no ROM for them
- * and the menu looks the same whatever OS image is loaded, and whatever state
- * the machine is in.
+ * machine's internal character codes: up/down arrows at $1E/$1F, space at $20,
+ * digits at $30-$39, 'A'-'Z' at $41-$5A and the lower case at $61-$7A.  They
+ * were extracted from an XL/XE OS image once and pasted here as data, so the
+ * emulator reads no ROM for them and the menu looks the same whatever OS image
+ * is loaded, and whatever state the machine is in.
  *
  * Each glyph is sixteen 16-bit rows, bit 15 leftmost, which is the layout
  * CCharGenerator uses for a font 16 pixels wide.
@@ -24,6 +24,12 @@ const unsigned FontHeight = 16;
 
 const u16 s_Glyphs[] =
 {
+	/* 0x1E  up arrow */
+0x0000, 0x0180, 0x03C0, 0x07E0, 0x0FF0, 0x1FF8, 0x3FFC, 0x7FFE,
+0xFFFF, 0x0180, 0x0180, 0x0180, 0x0180, 0x0180, 0x0180, 0x0000,
+	/* 0x1F  down arrow */
+0x0000, 0x0180, 0x0180, 0x0180, 0x0180, 0x0180, 0x0180, 0xFFFF,
+0x7FFE, 0x3FFC, 0x1FF8, 0x0FF0, 0x07E0, 0x03C0, 0x0180, 0x0000,
 	/* 0x20  space */
 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
@@ -321,7 +327,7 @@ const TFont AtariFont =
 	FontHeight,		// width
 	FontHeight,		// height
 	0,			// extra_height
-	0x20,			// first_char
+	0x1E,			// first_char
 	0x7F,			// last_char
 	s_Glyphs
 };

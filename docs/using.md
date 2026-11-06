@@ -54,6 +54,10 @@ cassette and the cartridge. Selecting a drive opens a file browser. While a
 drive with an image is selected, Left/Right toggles its read-only flag, shown as
 `[ro]`. **Delete** ejects whatever is selected.
 
+When a directory has more files than the browser can show at once, an up arrow
+appears in the header and a down arrow in the footer while there are files
+hidden above or below the visible rows.
+
 **Cartridge** — Load a cartridge image (CAR or ROM).
 
 **Joysticks** — Which interface feeds the two Atari joystick ports: **USB

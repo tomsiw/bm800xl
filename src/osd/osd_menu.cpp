@@ -2342,17 +2342,34 @@ void CAtariMenu::DrawMainScreen (void)
 
 void CAtariMenu::DrawBrowser (void)
 {
-	char Title[MENU_TEXT_MAX];
+	static const char UpArrow[] = "\x1E";
+	static const char DownArrow[] = "\x1F";
 
-	// The browser's title is the directory being listed, which can be longer
-	// than the title bar; CopyText truncates it to the buffer, and the second
-	// cut is to the panel, which is what the user can see.
-	CopyText (Title, m_BrowseDirectory, sizeof Title);
-	Truncate (Title, TextColumns (MenuPanelWidth - 2 * MenuIndent));
-	DrawHeader (Title);
+	char Title[MENU_TEXT_MAX];
 
 	unsigned nCount = m_pStorage != 0 ? m_pStorage->GetEntryCount () : 0;
 	unsigned nVisibleRows = m_nVisibleRows;
+
+	// A row above the first visible one, or below the last, means there is
+	// more to see.  The arrows are drawn in the header/footer corners, where
+	// there is no file name to collide with.
+	boolean bMoreAbove = m_nBrowseTop > 0;
+	boolean bMoreBelow = m_nBrowseTop + nVisibleRows < nCount;
+
+	// The browser's title is the directory being listed, which can be longer
+	// than the title bar; CopyText truncates it to the buffer, and the second
+	// cut is to the panel, which is what the user can see.  Leave room for the
+	// up arrow when it is shown.
+	CopyText (Title, m_BrowseDirectory, sizeof Title);
+
+	unsigned nTitleWidth = MenuPanelWidth - 2 * MenuIndent;
+	if (bMoreAbove)
+	{
+		nTitleWidth -= m_pVideo->GetTextWidth (UpArrow);
+	}
+
+	Truncate (Title, TextColumns (nTitleWidth));
+	DrawHeader (Title);
 
 	if (nCount == 0)
 	{
@@ -2408,6 +2425,24 @@ void CAtariMenu::DrawBrowser (void)
 	DrawFooter (   m_BrowseTarget == BrowseSnapshotErase
 		    ? "Up/Down  Return/Del erase  Esc"
 		    : "Up/Down  Return  Esc");
+
+	unsigned nArrowX = MenuMarginX + MenuPanelWidth - MenuIndent
+			 - m_pVideo->GetTextWidth (UpArrow);
+
+	if (bMoreAbove)
+	{
+		m_pVideo->DrawText (nArrowX,
+				    MenuMarginY + (m_nHeaderHeight - m_nLineHeight) / 2,
+				    ATARI_COLOR_WHITE, UpArrow);
+	}
+
+	if (bMoreBelow)
+	{
+		m_pVideo->DrawText (nArrowX,
+				    MenuMarginY + MenuPanelHeight - m_nFooterHeight
+				    + (m_nFooterHeight - m_nLineHeight) / 2,
+				    ATARI_COLOR_WHITE, DownArrow);
+	}
 }
 
 void CAtariMenu::Draw (void)

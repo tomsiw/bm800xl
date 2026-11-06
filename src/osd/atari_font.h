@@ -11,7 +11,8 @@
 
 #include <circle/font.h>
 
-/// 16x16 glyphs for characters 0x20..0x7F, for CAtariVideoOut::SetFont().
+/// 16x16 glyphs for characters 0x1E..0x7F, for CAtariVideoOut::SetFont().
+/// 0x1E and 0x1F are the up/down arrows used by the file browser.
 extern const TFont AtariFont;
 
 #endif

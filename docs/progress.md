@@ -8,8 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `55a82f0`; the Shift+F10 power-cycle shortcut and
-this documentation update are in the commit that carries this line. USB keyboard
+**Last updated:** after commit `4ca8791`; the browser scroll indicators and this
+documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
 scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
@@ -249,7 +249,8 @@ carries this table; a commit cannot name its own hash.
 | `9a63c6e` | Robbo would not shoot left or right with Shift+arrow, although up and down worked | the Atari cursor keys are Ctrl+Plus/Asterisk/Minus/Equal.  ORing Shift onto Left or Right produced Ctrl+Shift+Plus/Asterisk, which the core's ghost-key filter drops; Up and Down are Ctrl+Shift+Minus/Equal, which that filter does not match.  The shift switch now maps the four arrows to Plus/Asterisk/Minus/Equal before the shift bit is added -- the same codes the SDL frontend sends -- so Shift+arrow produces the legal shifted symbols. |
 | `33321aa` | the 8BitDo Pro 2 Wired for Xbox was rejected by Circle as "Function is not supported" and never reached the gamepad adapter | the controller is a GIP/Xbox One device reporting `2dc8-2000/2014/201e`, but Circle's static USB factory had no entry for those IDs, so it never selected the Xbox One driver that already speaks the protocol.  The factory now routes them to `CUSBGamePadXboxOneDevice`; because a third-party GIP pad can bind and still wait for the rest of the init sequence, the driver also sends LED-on and auth-done for those three IDs only -- a genuine Xbox controller keeps the original power-on path.  It also accepts the 8BitDo's 36-byte GIP reports, whose standard gamepad fields are still the first 18 bytes, for those IDs only; a genuine pad keeps the 18/48-byte rule.  The resolver lists the IDs so the D-pad and left stick steer and A/B fire.  This is the single permitted Circle source change, carried by `patches/circle-8bitdo-xbox.patch`. |
 | `55a82f0` | there was no way to restart the Raspberry Pi from the OSD; Power cycle only rebuilt the emulated machine, and the Pi itself could only be power-cycled by hand | the kernel's frame loop had no exit.  A new main-menu item, *Restart Pi*, asks the host for a restart; the host sets a flag, `Run()` returns `ShutdownReboot` after the frame, and `main.cpp` passes that to Circle's `reboot()`.  The action is exempt from the cassette-mode override because booting the Pi rebuilds the emulator anyway. |
-| (this commit) | a power cycle was only reachable through the OSD, and F10 alone was a warm reset | the keyboard layer now latches Shift+F10 instead of passing it to the core, and the kernel consumes the request at the top of the next frame and calls `PowerCycle()`.  F10 without Shift is unchanged; the latch clears on release so a held combination rebuilds once. |
+| `4ca8791` | a power cycle was only reachable through the OSD, and F10 alone was a warm reset | the keyboard layer now latches Shift+F10 instead of passing it to the core, and the kernel consumes the request at the top of the next frame and calls `PowerCycle()`.  F10 without Shift is unchanged; the latch clears on release so a held combination rebuilds once. |
+| (this commit) | the file browser showed no sign that files were hidden above or below the visible rows | the browser now draws the Atari up/down arrow glyphs in the header and footer corners when `m_nBrowseTop` leaves rows above, or when more entries remain below the visible rows.  The OSD font gained glyphs at 0x1E/0x1F, and the title reserves the up-arrow width. |
 
 ---
 
