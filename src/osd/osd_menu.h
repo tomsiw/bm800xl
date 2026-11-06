@@ -128,12 +128,29 @@ public:
 	void Close (void);
 
 	/*
+	 * Routes one key transition to the menu.
+	 *
+	 * The keyboard layer reports presses and releases separately; the menu
+	 * owns auto-repeat, so it tracks the held navigation key here.  A press
+	 * is handled immediately; a release only stops a repeat.
+	 *
+	 * \return TRUE if the transition was used by the menu.
+	 */
+	boolean HandleKeyEvent (int nKey, boolean bPressed);
+
+	/*
+	 * Advances auto-repeat.  Called once per frame while the menu is open.
+	 *
+	 * \return TRUE if a repeat was generated.
+	 */
+	boolean Tick (void);
+
+	/*
 	 * Routes one Atari key press to the menu.
 	 *
 	 * NKey is an ATARI_KEY_* code, or ATARI_KEY_NONE.  Shift and Control are
-	 * passed separately.  The key must be a fresh press, not a held key: the
-	 * caller is responsible for edge detection, because only it knows how its
-	 * keyboard reports state.
+	 * passed separately.  This is the press-only entry point; HandleKeyEvent()
+	 * adds the release side needed for auto-repeat.
 	 *
 	 * \return TRUE if the key was used by the menu and must not reach the
 	 *	   emulated machine.
@@ -356,6 +373,10 @@ private:
 	boolean m_bOpen;
 	TMenuScreen m_Screen;
 	unsigned m_nSelected;
+
+	// Auto-repeat: the held navigation key, and when it next fires.
+	int m_nRepeatKey;
+	unsigned m_nRepeatAtTicks;
 
 	// File browser state
 	TBrowseTarget m_BrowseTarget;

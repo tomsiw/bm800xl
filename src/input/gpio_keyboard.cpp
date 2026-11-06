@@ -129,7 +129,7 @@ static const unsigned s_ConsolPin[GPIO_KEYBOARD_CONSOL_KEYS] =
  * Minimum time between two scans, in microseconds.
  *
  * keyboard.h polls the driver once per emulated frame, but ConsumeMenuRequest()
- * and ConsumeMenuKey() are polled from the same loop and would otherwise scan
+ * and ConsumeMenuKeyEvent() are polled from the same loop and would otherwise scan
  * again microseconds after GetState() did.  Spacing the scans keeps the debounce
  * count meaningful, and it is also what makes it harmless for the kernel to
  * call the menu entry points any number of times per frame.
@@ -425,7 +425,8 @@ CGPIOAtariKeyboard::CGPIOAtariKeyboard (void)
 
 	for (unsigned nSlot = 0; nSlot < GPIO_KEYBOARD_MENU_QUEUE_SIZE; nSlot++)
 	{
-		m_MenuQueue[nSlot] = ATARI_KEY_NONE;
+		m_MenuQueue[nSlot].nKey = ATARI_KEY_NONE;
+		m_MenuQueue[nSlot].bPressed = FALSE;
 	}
 }
 
@@ -608,18 +609,14 @@ void CGPIOAtariKeyboard::Debounce (void)
 			m_ChangeCount[nRow][nCol] = 0;
 			m_bKeyPressed[nRow][nCol] = bRaw;
 
-			if (bRaw)
+			/*
+			 * Report both edges to the menu.  It owns auto-repeat, so it
+			 * needs the release as well as the first press.
+			 */
+			int nMenuKey = MenuKeyForPosition (nRow, nCol);
+			if (nMenuKey != ATARI_KEY_NONE)
 			{
-				/*
-				 * A press is reported to the menu once, when it is first
-				 * accepted.  The menu is edge triggered, so holding a key down
-				 * must not repeat.
-				 */
-				int nMenuKey = MenuKeyForPosition (nRow, nCol);
-				if (nMenuKey != ATARI_KEY_NONE)
-				{
-					PushMenuKey (nMenuKey);
-				}
+				PushMenuKey (nMenuKey, bRaw);
 			}
 		}
 	}
@@ -789,22 +786,27 @@ boolean CGPIOAtariKeyboard::ConsumeMenuRequest (void)
 	return TRUE;
 }
 
-int CGPIOAtariKeyboard::ConsumeMenuKey (void)
+boolean CGPIOAtariKeyboard::ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent)
 {
+	if (pEvent == 0)
+	{
+		return FALSE;
+	}
+
 	Poll ();
 
 	/*
-	 * Presses are accumulated whatever the menu is doing, but only the open
-	 * menu is given them: while it is closed these keys belong to the emulated
-	 * machine.  SetMenuActive() empties the queue when the menu opens, so a
-	 * press aimed at the Atari cannot come back as a menu command.
+	 * Transitions are accumulated whatever the menu is doing, but only the
+	 * open menu is given them: while it is closed these keys belong to the
+	 * emulated machine.  SetMenuActive() empties the queue when the menu
+	 * opens, so a press aimed at the Atari cannot come back as a menu command.
 	 */
 	if (!m_bMenuActive)
 	{
-		return ATARI_KEY_NONE;
+		return FALSE;
 	}
 
-	return PopMenuKey ();
+	return PopMenuKey (pEvent);
 }
 
 void CGPIOAtariKeyboard::SetMenuActive (boolean bActive)
@@ -817,14 +819,14 @@ void CGPIOAtariKeyboard::SetMenuActive (boolean bActive)
 	m_bMenuActive = bActive;
 }
 
-void CGPIOAtariKeyboard::PushMenuKey (int nKeyCode)
+void CGPIOAtariKeyboard::PushMenuKey (int nKeyCode, boolean bPressed)
 {
 	if (m_nMenuQueueCount >= GPIO_KEYBOARD_MENU_QUEUE_SIZE)
 	{
 		/*
-		 * The kernel polls once per frame, so this needs more presses between
-		 * two polls than a person can make.  Dropping the newest press keeps
-		 * the older ones in order, which is what a menu wants.
+		 * The kernel polls once per frame, so this needs more transitions
+		 * between two polls than a person can make.  Dropping the newest
+		 * keeps the older ones in order, which is what a menu wants.
 		 */
 		return;
 	}
@@ -832,23 +834,24 @@ void CGPIOAtariKeyboard::PushMenuKey (int nKeyCode)
 	unsigned nTail = (m_nMenuQueueHead + m_nMenuQueueCount)
 			 % GPIO_KEYBOARD_MENU_QUEUE_SIZE;
 
-	m_MenuQueue[nTail] = nKeyCode;
+	m_MenuQueue[nTail].nKey = nKeyCode;
+	m_MenuQueue[nTail].bPressed = bPressed;
 	m_nMenuQueueCount++;
 }
 
-int CGPIOAtariKeyboard::PopMenuKey (void)
+boolean CGPIOAtariKeyboard::PopMenuKey (TMenuKeyEvent *pEvent)
 {
 	if (m_nMenuQueueCount == 0)
 	{
-		return ATARI_KEY_NONE;
+		return FALSE;
 	}
 
-	int nKeyCode = m_MenuQueue[m_nMenuQueueHead];
+	*pEvent = m_MenuQueue[m_nMenuQueueHead];
 
 	m_nMenuQueueHead = (m_nMenuQueueHead + 1) % GPIO_KEYBOARD_MENU_QUEUE_SIZE;
 	m_nMenuQueueCount--;
 
-	return nKeyCode;
+	return TRUE;
 }
 
 void CGPIOAtariKeyboard::ClearMenuQueue (void)

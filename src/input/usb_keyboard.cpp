@@ -94,7 +94,7 @@ CUSBAtariKeyboard::TEventState CUSBAtariKeyboard::s_Event[USB_KEYBOARD_MAX_DEVIC
 
 CUSBAtariKeyboard::TReport CUSBAtariKeyboard::s_Report[USB_KEYBOARD_MAX_DEVICES];
 
-int CUSBAtariKeyboard::s_MenuQueue[USB_KEYBOARD_MAX_DEVICES][CUSBAtariKeyboard::MenuQueueSize];
+TMenuKeyEvent CUSBAtariKeyboard::s_MenuQueue[USB_KEYBOARD_MAX_DEVICES][CUSBAtariKeyboard::MenuQueueSize];
 
 unsigned CUSBAtariKeyboard::s_nMenuHead[USB_KEYBOARD_MAX_DEVICES];
 
@@ -608,6 +608,21 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 		Newly.Words[i] = Now.Words[i] & ~rReport.Held.Words[i];
 	}
 
+	/* Keys that were down in the previous report and are now up. */
+	TBitmap Gone;
+	Gone.Clear ();
+	for (unsigned i = 0; i < BitmapWords; i++)
+	{
+		Gone.Words[i] = rReport.Held.Words[i] & ~Now.Words[i];
+	}
+
+	/*
+	 * Remember the raw report before the key scan below consumes Now.  This is
+	 * the previous state the next report compares against; storing the cleared
+	 * map instead makes every key look newly pressed and no release visible.
+	 */
+	rReport.Held = Now;
+
 	/*
 	 * The modifier bits.  They are both the state of the Atari's Shift and
 	 * Control lines and the modifier mask of a stroke, which is what lets
@@ -666,7 +681,35 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 		unsigned nNext = (rnTail + 1) % MenuQueueSize;
 		if (nNext != rnHead)
 		{
-			s_MenuQueue[nEvent][rnTail] = nMenuKey;
+			s_MenuQueue[nEvent][rnTail].nKey = nMenuKey;
+			s_MenuQueue[nEvent][rnTail].bPressed = TRUE;
+			rnTail = nNext;
+		}
+	}
+
+	/*
+	 * Queue the releases too.  The menu owns auto-repeat, so it needs to know
+	 * when the arrow it is repeating has been let go.
+	 */
+	while ((nUsage = FirstSetBit (Gone)) != (int) ATARI_KEY_NONE)
+	{
+		Gone.Words[nUsage >> 6] &= ~((u64) 1 << (nUsage & 63));
+
+		int nMenuKey = MenuKeyForUsage ((unsigned) nUsage, bNumpadAsCursor,
+						bMenuActive);
+		if (nMenuKey == ATARI_KEY_NONE)
+		{
+			continue;
+		}
+
+		unsigned &rnHead = s_nMenuHead[nEvent];
+		unsigned &rnTail = s_nMenuTail[nEvent];
+
+		unsigned nNext = (rnTail + 1) % MenuQueueSize;
+		if (nNext != rnHead)
+		{
+			s_MenuQueue[nEvent][rnTail].nKey = nMenuKey;
+			s_MenuQueue[nEvent][rnTail].bPressed = FALSE;
 			rnTail = nNext;
 		}
 	}
@@ -893,8 +936,6 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 	rEvent.bSelect = bSelect;
 	rEvent.bOption = bOption;
 	rEvent.nKeyCode = bHaveKey ? nKeyCode : ATARI_KEY_NONE;
-
-	rReport.Held = Now;
 
 	/*
 	 * The machine follows the keyboard that last sent a report.  This is a
@@ -1182,33 +1223,48 @@ boolean CUSBAtariKeyboard::ConsumeMenuRequest (void)
 	return bRequested;
 }
 
-int CUSBAtariKeyboard::ConsumeMenuKey (void)
+boolean CUSBAtariKeyboard::ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent)
 {
-	int nKeyCode = ATARI_KEY_NONE;
+	if (pEvent == 0)
+	{
+		return FALSE;
+	}
+
+	boolean bHaveEvent = FALSE;
 
 	s_SpinLock.Acquire ();
 
 	/*
-	 * The queue is per keyboard, and drained from the one that last
-	 * reported: while the menu is open that is the one the user is typing
-	 * on.
+	 * The queue is per keyboard.  Start with the one that last reported, but
+	 * do not stop there: a keyboard can expose more than one HID interface,
+	 * and the release of a key pressed on one interface can be reported by
+	 * another slot.
 	 */
-	unsigned nEvent = s_nLastEvent;
-	if (nEvent < USB_KEYBOARD_MAX_DEVICES)
-	{
-		unsigned &rnHead = s_nMenuHead[nEvent];
-		unsigned nTail = s_nMenuTail[nEvent];
+	unsigned nFirst = s_nLastEvent < USB_KEYBOARD_MAX_DEVICES
+			? s_nLastEvent : 0;
 
-		if (rnHead != nTail)
+	if (s_bMenuActive)
+	{
+		for (unsigned i = 0; i < USB_KEYBOARD_MAX_DEVICES; i++)
 		{
-			nKeyCode = s_MenuQueue[nEvent][rnHead];
-			rnHead = (rnHead + 1) % MenuQueueSize;
+			unsigned nEvent = (nFirst + i) % USB_KEYBOARD_MAX_DEVICES;
+
+			unsigned &rnHead = s_nMenuHead[nEvent];
+			unsigned nTail = s_nMenuTail[nEvent];
+
+			if (rnHead != nTail)
+			{
+				*pEvent = s_MenuQueue[nEvent][rnHead];
+				rnHead = (rnHead + 1) % MenuQueueSize;
+				bHaveEvent = TRUE;
+				break;
+			}
 		}
 	}
 
 	s_SpinLock.Release ();
 
-	return nKeyCode;
+	return bHaveEvent;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1232,6 +1288,8 @@ void CUSBAtariKeyboard::SetMenuActive (boolean bActive)
 	 */
 	s_bMenuActive = bActive;
 
+	s_SpinLock.Acquire ();
+
 	if (!bActive)
 	{
 		/*
@@ -1239,16 +1297,14 @@ void CUSBAtariKeyboard::SetMenuActive (boolean bActive)
 		 * key pressed just as the menu closed is not replayed into the
 		 * emulated machine afterwards.
 		 */
-		s_SpinLock.Acquire ();
-
 		for (unsigned i = 0; i < USB_KEYBOARD_MAX_DEVICES; i++)
 		{
 			s_nMenuHead[i] = 0;
 			s_nMenuTail[i] = 0;
 		}
-
-		s_SpinLock.Release ();
 	}
+
+	s_SpinLock.Release ();
 }
 
 /* ---------------------------------------------------------------------------

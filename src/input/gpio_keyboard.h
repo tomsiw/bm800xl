@@ -153,7 +153,7 @@ public:
 	/* CAtariKeyboard */
 	void GetState (atari_keyboard_state_t *pState);
 	boolean ConsumeMenuRequest (void);
-	int ConsumeMenuKey (void);
+	boolean ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent);
 	void SetMenuActive (boolean bActive);
 	boolean IsPresent (void)	{ return m_bInitialized; }
 
@@ -174,8 +174,8 @@ private:
 	/// Re-arms and fires the Shift + Help menu request.
 	void UpdateMenuRequest (void);
 
-	void PushMenuKey (int nKeyCode);
-	int PopMenuKey (void);
+	void PushMenuKey (int nKeyCode, boolean bPressed);
+	boolean PopMenuKey (TMenuKeyEvent *pEvent);
 	void ClearMenuQueue (void);
 
 private:
@@ -205,9 +205,9 @@ private:
 	boolean m_bMenuRequest;
 	boolean m_bMenuComboLatch;
 
-	// Key presses the menu has not consumed yet.
+	// Key transitions the menu has not consumed yet.
 	boolean m_bMenuActive;
-	int m_MenuQueue[GPIO_KEYBOARD_MENU_QUEUE_SIZE];
+	TMenuKeyEvent m_MenuQueue[GPIO_KEYBOARD_MENU_QUEUE_SIZE];
 	unsigned m_nMenuQueueHead;
 	unsigned m_nMenuQueueCount;
 };

@@ -33,6 +33,10 @@ screen, to close it.
 | Escape | Up one directory in the browser; otherwise back a screen, and close from the main screen |
 | Delete | Eject the selected drive, cassette or cartridge |
 
+Holding **Up** or **Down** repeats after a short delay, so a long list can be
+walked without pressing the key repeatedly. Return, Space, Escape and Delete
+act once.
+
 The picture keeps running behind the menu, dimmed, so you can see what you are
 changing.
 

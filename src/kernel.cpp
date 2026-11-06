@@ -1496,16 +1496,21 @@ void CAtariKernel::RunFrame (void)
 		// arrows that move the selection do not also move the emulated cursor;
 		// the GPIO driver withholds only the keys the menu uses, so typing
 		// carries on.  See docs/keyboard-usb.md and docs/keyboard-gpio.md.
-		for (int nGuard = 0; nGuard < 8; nGuard++)
+		for (int nGuard = 0; nGuard < 16; nGuard++)
 		{
-			int nKey = m_pKeyboard->ConsumeMenuKey ();
-			if (nKey == ATARI_KEY_NONE)
+			TMenuKeyEvent Event;
+			if (!m_pKeyboard->ConsumeMenuKeyEvent (&Event))
 			{
 				break;
 			}
-			m_Menu.HandleKey (nKey, FALSE, FALSE);
+			m_Menu.HandleKeyEvent (Event.nKey, Event.bPressed);
 			bMenuKeyHandled = TRUE;
 		}
+	}
+
+	if (m_Menu.Tick ())
+	{
+		bMenuKeyHandled = TRUE;
 	}
 
 	/*

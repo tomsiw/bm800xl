@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `4ca8791`; the browser scroll indicators and this
+**Last updated:** after commit `e95c2a6`; the OSD auto-repeat and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -250,7 +250,8 @@ carries this table; a commit cannot name its own hash.
 | `33321aa` | the 8BitDo Pro 2 Wired for Xbox was rejected by Circle as "Function is not supported" and never reached the gamepad adapter | the controller is a GIP/Xbox One device reporting `2dc8-2000/2014/201e`, but Circle's static USB factory had no entry for those IDs, so it never selected the Xbox One driver that already speaks the protocol.  The factory now routes them to `CUSBGamePadXboxOneDevice`; because a third-party GIP pad can bind and still wait for the rest of the init sequence, the driver also sends LED-on and auth-done for those three IDs only -- a genuine Xbox controller keeps the original power-on path.  It also accepts the 8BitDo's 36-byte GIP reports, whose standard gamepad fields are still the first 18 bytes, for those IDs only; a genuine pad keeps the 18/48-byte rule.  The resolver lists the IDs so the D-pad and left stick steer and A/B fire.  This is the single permitted Circle source change, carried by `patches/circle-8bitdo-xbox.patch`. |
 | `55a82f0` | there was no way to restart the Raspberry Pi from the OSD; Power cycle only rebuilt the emulated machine, and the Pi itself could only be power-cycled by hand | the kernel's frame loop had no exit.  A new main-menu item, *Restart Pi*, asks the host for a restart; the host sets a flag, `Run()` returns `ShutdownReboot` after the frame, and `main.cpp` passes that to Circle's `reboot()`.  The action is exempt from the cassette-mode override because booting the Pi rebuilds the emulator anyway. |
 | `4ca8791` | a power cycle was only reachable through the OSD, and F10 alone was a warm reset | the keyboard layer now latches Shift+F10 instead of passing it to the core, and the kernel consumes the request at the top of the next frame and calls `PowerCycle()`.  F10 without Shift is unchanged; the latch clears on release so a held combination rebuilds once. |
-| (this commit) | the file browser showed no sign that files were hidden above or below the visible rows | the browser now draws the Atari up/down arrow glyphs in the header and footer corners when `m_nBrowseTop` leaves rows above, or when more entries remain below the visible rows.  The OSD font gained glyphs at 0x1E/0x1F, and the title reserves the up-arrow width. |
+| `e95c2a6` | the file browser showed no sign that files were hidden above or below the visible rows | the browser now draws the Atari up/down arrow glyphs in the header and footer corners when `m_nBrowseTop` leaves rows above, or when more entries remain below the visible rows.  The OSD font gained glyphs at 0x1E/0x1F, and the title reserves the up-arrow width. |
+| (this commit) | holding Up or Down in the OSD moved the selection once, then repeated forever after release; auto-repeat was missing with `STATIC_OSD=1` | the keyboard layer now reports menu presses and releases as events, and `CAtariMenu` owns the repeat policy: 400 ms before the first repeat, then every 80 ms while Up/Down is held.  Release, unplug and menu close cancel it; Return, Space, Escape and Delete are one-shot.  The held-key bitmap was also stored after the Atari key scan had consumed it, so every press looked new and no release was visible; it is now saved before the scan. |
 
 ---
 
@@ -330,12 +331,13 @@ failures. They are listed because they are invisible until they bite.
     remain unconditional and are what the crash containment still catches.
 
 13. **The menu only ever sees the keys a keyboard driver classifies as menu
-    keys.** `ConsumeMenuKey()` is the only route into `CAtariMenu::HandleKey()`,
-    and each driver's mapping list is the filter: `MenuKeyForUsage()` for USB,
-    `MenuKeyForPosition()` for GPIO. A case in the menu for a key that is not in
-    those lists is dead code that looks live, which is how "Delete ejects the
-    image" stayed broken and unnoticed. When adding a menu command, add the key
-    to both drivers' lists or it will never arrive.
+    keys.** `ConsumeMenuKeyEvent()` is the only route into
+    `CAtariMenu::HandleKeyEvent()`, and each driver's mapping list is the
+    filter: `MenuKeyForUsage()` for USB, `MenuKeyForPosition()` for GPIO. A case
+    in the menu for a key that is not in those lists is dead code that looks
+    live, which is how "Delete ejects the image" stayed broken and unnoticed.
+    When adding a menu command, add the key to both drivers' lists or it will
+    never arrive.
 
 14. **The kernel image has a fixed 2 MB region, and `.bss` counts.** Circle's
     `MEM_KERNEL_END` is `MEM_KERNEL_START` (0x80000) plus `KERNEL_MAX_SIZE`

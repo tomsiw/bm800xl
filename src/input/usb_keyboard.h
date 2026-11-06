@@ -112,14 +112,10 @@ public:
 	boolean ConsumeMenuRequest (void) override;
 
 	/*
-	 * The next cursor/Return/Escape/Space press for the menu, or
-	 * ATARI_KEY_NONE when there is nothing pending.
-	 *
-	 * Each press is handed out exactly once.  While the menu is active those
-	 * keys are held back from GetState() as well, so the arrow keys move the
-	 * menu selection instead of the emulated cursor.
+	 * The next menu-key transition, or FALSE when nothing is pending.
+	 * Presses and releases both arrive, so the menu can own auto-repeat.
 	 */
-	int ConsumeMenuKey (void) override;
+	boolean ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent) override;
 
 	boolean IsPresent (void) override;
 
@@ -129,7 +125,7 @@ public:
 	/* Makes the keypad's 2/4/6/8 arrows act as the Atari cursor keys. */
 	void SetNumpadAsCursor (boolean bEnabled) override;
 
-	/* Tells the driver whether the OSD menu is open; see ConsumeMenuKey(). */
+	/* Tells the driver whether the OSD menu is open; see ConsumeMenuKeyEvent(). */
 	void SetMenuActive (boolean bActive) override;
 
 	/*
@@ -236,11 +232,12 @@ private:
 	static volatile unsigned s_nLastEvent;
 
 	/*
-	 * The menu's pending presses, one ring per keyboard.  Written only by
-	 * the interrupt handler, drained only by ConsumeMenuKey().
+	 * The menu's pending press/release transitions, one ring per keyboard.
+	 * Written only by the interrupt handler, drained only by
+	 * ConsumeMenuKeyEvent().
 	 */
-	static const unsigned	MenuQueueSize = 8;
-	static int		s_MenuQueue[USB_KEYBOARD_MAX_DEVICES][MenuQueueSize];
+	static const unsigned	MenuQueueSize = 16;
+	static TMenuKeyEvent	s_MenuQueue[USB_KEYBOARD_MAX_DEVICES][MenuQueueSize];
 	static unsigned		s_nMenuHead[USB_KEYBOARD_MAX_DEVICES];
 	static unsigned		s_nMenuTail[USB_KEYBOARD_MAX_DEVICES];
 

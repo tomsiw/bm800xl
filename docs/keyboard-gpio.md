@@ -155,6 +155,9 @@ The Delete function is CTRL+BACK SPACE on an Atari, and the menu cannot see
 modifiers, so the plain BACK SPACE key stands in while the menu is open. With the
 menu closed it still types a back space into the machine.
 
+Holding **Up** or **Down** repeats the selection after a 400 ms delay, then every
+80 ms. The other menu keys are one-shot.
+
 Unlike the USB driver, this one withholds **only** the keys the menu uses, so
 you can still type on the emulated machine while the menu is on screen.
 

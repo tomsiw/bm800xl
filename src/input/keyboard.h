@@ -11,8 +11,8 @@
  *
  *   * the state of the Atari keyboard for the current frame, which goes
  *     straight to the emulation core, and
- *   * the key presses the OSD menu consumes, which must not reach the emulated
- *     machine.
+ *   * the key transitions the OSD menu consumes, which must not reach the
+ *     emulated machine.
  *
  * Keeping both in one interface means the rest of the emulator never has to
  * know which keyboard is in use.
@@ -28,6 +28,19 @@
 #include <circle/types.h>
 
 #include "atari_port.h"
+
+/*
+ * One OSD-menu key transition, as reported by a keyboard source.
+ *
+ * The keyboard layer says only what happened to which key.  How long a held
+ * arrow should wait before repeating, and how often it repeats, is the menu's
+ * policy, not the keyboard's.
+ */
+struct TMenuKeyEvent
+{
+	int	nKey;
+	boolean	bPressed;
+};
 
 /*
  * A keyboard source.
@@ -73,19 +86,16 @@ public:
 	virtual boolean ConsumeMenuRequest (void) = 0;
 
 	/*
-	 * Takes the next key press that the OSD menu should handle while it is
-	 * open, or returns ATARI_KEY_NONE when there is nothing new.
+	 * Takes the next menu-key transition, or returns FALSE when there is
+	 * nothing pending.
 	 *
-	 * Only presses that the menu uses are reported here -- the cursor keys,
-	 * Return, Escape and Space.  Everything else is left for the emulated
-	 * machine, so a key pressed while the menu is closed still reaches the
-	 * Atari.
-	 *
-	 * Each press is reported exactly once, and while the menu is open these
-	 * keys should not also be reported through GetState(), so that arrow keys
-	 * move the menu selection instead of the emulated cursor.
+	 * Both presses and releases are reported, so the menu can decide how long
+	 * a held arrow repeats.  Only keys the menu uses are described here --
+	 * the cursor keys, Return, Escape, Space and Delete -- and while the menu
+	 * is open those keys must not also reach GetState(), so that they move the
+	 * menu selection instead of the emulated cursor.
 	 */
-	virtual int ConsumeMenuKey (void) = 0;
+	virtual boolean ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent) = 0;
 
 	/*
 	 * Polls for a keyboard that has appeared since the last call.
@@ -125,9 +135,9 @@ public:
 	 * Enables or disables reporting keys to the menu.
 	 *
 	 * The kernel turns this on while the menu is open, so that the cursor
-	 * keys drive the menu rather than the emulated machine.  Presses are
+	 * keys drive the menu rather than the emulated machine.  Transitions are
 	 * accumulated either way; this only decides whether
-	 * ConsumeMenuKey() hands them out.
+	 * ConsumeMenuKeyEvent() hands them out.
 	 */
 	virtual void SetMenuActive (boolean bActive)		{ (void) bActive; }
 };

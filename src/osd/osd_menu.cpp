@@ -11,11 +11,19 @@
 #include "osd_menu.h"
 
 #include <circle/logger.h>
+#include <circle/timer.h>
 
 #include "bootlog.h"
 
 #include <stdio.h>
 #include <string.h>
+
+/*
+ * OSD auto-repeat.  The keyboard reports presses and releases; how long a held
+ * arrow waits and how often it fires is the menu's policy.
+ */
+#define MENU_REPEAT_DELAY_MS	400
+#define MENU_REPEAT_INTERVAL_MS	80
 
 // How the menu is laid out.  These are pixels in the framebuffer.
 //
@@ -92,6 +100,8 @@ CAtariMenu::CAtariMenu (void)
 	m_bOpen (FALSE),
 	m_Screen (ScreenMain),
 	m_nSelected (0),
+	m_nRepeatKey (ATARI_KEY_NONE),
+	m_nRepeatAtTicks (0),
 	m_BrowseTarget (BrowseNone),
 	m_nBrowseTop (0),
 	m_nBrowserSelected (0),
@@ -325,6 +335,7 @@ void CAtariMenu::Close (void)
 	m_bOpen = FALSE;
 	m_Screen = ScreenMain;
 	m_nSelected = 0;
+	m_nRepeatKey = ATARI_KEY_NONE;
 	m_BrowseTarget = BrowseNone;
 	ClearPendingErase (FALSE);
 
@@ -2097,6 +2108,65 @@ void CAtariMenu::SaveSettings (void)
 /* ---------------------------------------------------------------------------
  * Key handling
  * ------------------------------------------------------------------------- */
+
+boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed)
+{
+	if (!m_bOpen || nKey == ATARI_KEY_NONE)
+	{
+		return FALSE;
+	}
+
+	if (!bPressed)
+	{
+		if (nKey == m_nRepeatKey)
+		{
+			m_nRepeatKey = ATARI_KEY_NONE;
+		}
+
+		return TRUE;
+	}
+
+	/*
+	 * Only Up and Down repeat: they move the selection.  Left and Right
+	 * change a setting, which saves the file and can trigger an apply, so
+	 * holding one must not turn into a stream of writes.
+	 */
+	boolean bRepeatable = nKey == ATARI_KEY_UP || nKey == ATARI_KEY_DOWN;
+
+	if (bRepeatable)
+	{
+		m_nRepeatKey = nKey;
+		m_nRepeatAtTicks = CTimer::Get ()->GetTicks ()
+				 + MSEC2HZ (MENU_REPEAT_DELAY_MS);
+	}
+	else
+	{
+		m_nRepeatKey = ATARI_KEY_NONE;
+	}
+
+	return HandleKey (nKey, FALSE, FALSE);
+}
+
+boolean CAtariMenu::Tick (void)
+{
+	if (!m_bOpen || m_nRepeatKey == ATARI_KEY_NONE)
+	{
+		return FALSE;
+	}
+
+	unsigned nNow = CTimer::Get ()->GetTicks ();
+	if ((int) (nNow - m_nRepeatAtTicks) < 0)
+	{
+		return FALSE;
+	}
+
+	int nKey = m_nRepeatKey;
+	m_nRepeatAtTicks = nNow + MSEC2HZ (MENU_REPEAT_INTERVAL_MS);
+
+	(void) HandleKey (nKey, FALSE, FALSE);
+
+	return TRUE;
+}
 
 boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 {

@@ -173,6 +173,10 @@ Space, and **Delete**, which ejects the selected image and answers the question
 on the *Erase snapshot* screen. Everything else is ignored while the menu is
 open.
 
+Holding **Up** or **Down** repeats it: after a 400 ms delay the selection moves
+every 80 ms until the key is released. Return, Space, Escape and Delete are
+one-shot actions and do not repeat.
+
 ## If it does not work
 
 See [Troubleshooting](troubleshooting.md#the-usb-keyboard-does-not-work).
