@@ -40,6 +40,7 @@ struct TMenuKeyEvent
 {
 	int	nKey;
 	boolean	bPressed;
+	boolean	bShift;
 };
 
 /*

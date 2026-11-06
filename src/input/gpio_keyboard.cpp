@@ -427,6 +427,7 @@ CGPIOAtariKeyboard::CGPIOAtariKeyboard (void)
 	{
 		m_MenuQueue[nSlot].nKey = ATARI_KEY_NONE;
 		m_MenuQueue[nSlot].bPressed = FALSE;
+		m_MenuQueue[nSlot].bShift = FALSE;
 	}
 }
 
@@ -836,6 +837,7 @@ void CGPIOAtariKeyboard::PushMenuKey (int nKeyCode, boolean bPressed)
 
 	m_MenuQueue[nTail].nKey = nKeyCode;
 	m_MenuQueue[nTail].bPressed = bPressed;
+	m_MenuQueue[nTail].bShift = FALSE;
 	m_nMenuQueueCount++;
 }
 

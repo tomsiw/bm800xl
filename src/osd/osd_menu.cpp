@@ -2115,11 +2115,27 @@ void CAtariMenu::SaveSettings (void)
  * Key handling
  * ------------------------------------------------------------------------- */
 
-boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed)
+boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed, boolean bShift)
 {
 	if (!m_bOpen || nKey == ATARI_KEY_NONE)
 	{
 		return FALSE;
+	}
+
+	/*
+	 * F10 and Shift+F10 are global shortcuts.  While the menu is open the
+	 * keyboard hands them here, so close through ExitMenu() -- which also
+	 * handles a cassette-mode mismatch and reports a failed power cycle --
+	 * and run the same action as the Warm reset and Power cycle rows.
+	 */
+	if (nKey == ATARI_KEY_WARMSTART)
+	{
+		if (bPressed)
+		{
+			ExitMenu (bShift ? ExitPowerCycle : ExitWarmReset);
+		}
+
+		return TRUE;
 	}
 
 	if (!bPressed)

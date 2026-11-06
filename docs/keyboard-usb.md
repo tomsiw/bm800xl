@@ -177,6 +177,10 @@ Holding **Up** or **Down** repeats it: after a 400 ms delay the selection moves
 every 80 ms until the key is released. Return, Space, Escape and Delete are
 one-shot actions and do not repeat.
 
+**F10** and **Shift+F10** also work while the menu is open: the menu takes the
+press, closes, and performs the warm reset or power cycle. The press is consumed
+so the still-held key does not fire the global shortcut a second time.
+
 ## If it does not work
 
 See [Troubleshooting](troubleshooting.md#the-usb-keyboard-does-not-work).

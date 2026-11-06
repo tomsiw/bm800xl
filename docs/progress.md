@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `7d295c1`; the OSD shortcut hints and this
+**Last updated:** after commit `5474d59`; the in-menu reset shortcuts and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -252,7 +252,8 @@ carries this table; a commit cannot name its own hash.
 | `4ca8791` | a power cycle was only reachable through the OSD, and F10 alone was a warm reset | the keyboard layer now latches Shift+F10 instead of passing it to the core, and the kernel consumes the request at the top of the next frame and calls `PowerCycle()`.  F10 without Shift is unchanged; the latch clears on release so a held combination rebuilds once. |
 | `e95c2a6` | the file browser showed no sign that files were hidden above or below the visible rows | the browser now draws the Atari up/down arrow glyphs in the header and footer corners when `m_nBrowseTop` leaves rows above, or when more entries remain below the visible rows.  The OSD font gained glyphs at 0x1E/0x1F, and the title reserves the up-arrow width. |
 | `7d295c1` | holding Up or Down in the OSD moved the selection once, then repeated forever after release; auto-repeat was missing with `STATIC_OSD=1` | the keyboard layer now reports menu presses and releases as events, and `CAtariMenu` owns the repeat policy: 400 ms before the first repeat, then every 80 ms while Up/Down is held.  Release, unplug and menu close cancel it; Return, Space, Escape and Delete are one-shot.  The held-key bitmap was also stored after the Atari key scan had consumed it, so every press looked new and no release was visible; it is now saved before the scan. |
-| (this commit) | the Warm reset, Power cycle and Close menu rows did not show the host shortcuts that trigger the same actions | the rows' value column now shows `<F10>`, `<Shift+F10>` and `<F12> / <Esc>`.  The 900 px panel leaves about 27 characters in that column, so the labels are unchanged. |
+| `5474d59` | the Warm reset, Power cycle and Close menu rows did not show the host shortcuts that trigger the same actions | the rows' value column now shows `<F10>`, `<Shift+F10>` and `<F12> / <Esc>`.  The 900 px panel leaves about 27 characters in that column, so the labels are unchanged. |
+| (this commit) | F10 and Shift+F10 only worked with the OSD closed; inside it every key was withheld, so the reset shortcuts did nothing | F10 is now classified as a menu key while the OSD is open, and the event carries the Shift state.  `CAtariMenu` maps the press to `ExitWarmReset` or `ExitPowerCycle`, so it closes and runs the same host action as the row, including the cassette-mode override and power-cycle failure handling.  A latch stops the still-held key from firing the global shortcut again after the menu closes. |
 
 ---
 

@@ -1503,7 +1503,7 @@ void CAtariKernel::RunFrame (void)
 			{
 				break;
 			}
-			m_Menu.HandleKeyEvent (Event.nKey, Event.bPressed);
+			m_Menu.HandleKeyEvent (Event.nKey, Event.bPressed, Event.bShift);
 			bMenuKeyHandled = TRUE;
 		}
 	}

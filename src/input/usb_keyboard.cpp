@@ -66,6 +66,7 @@
 #define USB_HID_START		0x3f	/* F6; Start console key */
 #define USB_HID_SELECT		0x40	/* F7; Select console key */
 #define USB_HID_OPTION		0x41	/* F8; Option console key */
+#define USB_HID_F10		0x43	/* warm reset; Shift+F10 is power cycle */
 #define USB_HID_F12		0x45	/* the OSD menu key */
 
 /*
@@ -109,6 +110,14 @@ boolean CUSBAtariKeyboard::s_bMenuRequest = FALSE;
 boolean CUSBAtariKeyboard::s_bNumpadAsCursor = FALSE;
 
 boolean CUSBAtariKeyboard::s_bMenuActive = FALSE;
+
+/*
+ * TRUE after the menu has taken an F10/Shift+F10 press for its Warm reset or
+ * Power cycle row.  The key is still physically down when the menu closes, so
+ * GetState() must not hand the same press to the normal global shortcut.  The
+ * release clears it.
+ */
+static boolean s_bMenuWarmKeyHandled = FALSE;
 
 /*
  * The remapping table.  Written once by SetKeyMap() before any keyboard is
@@ -480,6 +489,14 @@ int CUSBAtariKeyboard::MenuKeyForUsage (unsigned nUsage, boolean bNumpadAsCursor
 	case ATARI_KEY_DELETE_CHAR:
 		return nKeyCode;
 
+	/*
+	 * F10 is the warm-reset shortcut, and Shift+F10 is power cycle.  They
+	 * belong to the menu while it is open too, so the menu can close itself
+	 * and run the same action as its reset rows.
+	 */
+	case ATARI_KEY_WARMSTART:
+		return nKeyCode;
+
 	default:
 		break;
 	}
@@ -572,6 +589,7 @@ void CUSBAtariKeyboard::DeviceChanged (unsigned nSlot, boolean bPresent)
 	if (!bPresent)
 	{
 		memset (&s_Event[nSlot], 0, sizeof s_Event[nSlot]);
+		s_bMenuWarmKeyHandled = FALSE;
 	}
 
 	s_SpinLock.Release ();
@@ -683,7 +701,13 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 		{
 			s_MenuQueue[nEvent][rnTail].nKey = nMenuKey;
 			s_MenuQueue[nEvent][rnTail].bPressed = TRUE;
+			s_MenuQueue[nEvent][rnTail].bShift = bShiftDown;
 			rnTail = nNext;
+
+			if (nMenuKey == ATARI_KEY_WARMSTART)
+			{
+				s_bMenuWarmKeyHandled = TRUE;
+			}
 		}
 	}
 
@@ -694,6 +718,11 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 	while ((nUsage = FirstSetBit (Gone)) != (int) ATARI_KEY_NONE)
 	{
 		Gone.Words[nUsage >> 6] &= ~((u64) 1 << (nUsage & 63));
+
+		if (nUsage == USB_HID_F10)
+		{
+			s_bMenuWarmKeyHandled = FALSE;
+		}
 
 		int nMenuKey = MenuKeyForUsage ((unsigned) nUsage, bNumpadAsCursor,
 						bMenuActive);
@@ -710,6 +739,7 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 		{
 			s_MenuQueue[nEvent][rnTail].nKey = nMenuKey;
 			s_MenuQueue[nEvent][rnTail].bPressed = FALSE;
+			s_MenuQueue[nEvent][rnTail].bShift = bShiftDown;
 			rnTail = nNext;
 		}
 	}
@@ -1167,6 +1197,11 @@ void CUSBAtariKeyboard::GetState (atari_keyboard_state_t *pState)
 		bStart = s_Event[nEvent].bStart;
 		bSelect = s_Event[nEvent].bSelect;
 		bOption = s_Event[nEvent].bOption;
+
+		if (s_bMenuWarmKeyHandled && nKeyCode == ATARI_KEY_WARMSTART)
+		{
+			nKeyCode = ATARI_KEY_NONE;
+		}
 	}
 
 	s_SpinLock.Release ();

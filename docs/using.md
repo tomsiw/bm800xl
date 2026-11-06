@@ -38,8 +38,9 @@ walked without pressing the key repeatedly. Return, Space, Escape and Delete
 act once.
 
 The **Warm reset**, **Power cycle** and **Close menu** rows show their shortcuts
-on the right: `<F10>`, `<Shift+F10>` and `<F12> / <Esc>`. F10 and Shift+F10 act
-with the menu closed; F12 opens and closes the menu.
+on the right: `<F10>`, `<Shift+F10>` and `<F12> / <Esc>`. F10 and Shift+F10 work
+outside and inside the menu: inside, they close it and perform the warm reset or
+power cycle. F12 opens and closes the menu.
 
 The picture keeps running behind the menu, dimmed, so you can see what you are
 changing.
@@ -403,7 +404,7 @@ Inserting a cartridge applies a cold start automatically, because that is what a
 real Atari does when you plug one in.
 
 An ordinary warm reset — the Reset button on a real machine — is also available
-as **F8** on a USB keyboard.
+as **F10** on a USB keyboard.
 
 ---
 
