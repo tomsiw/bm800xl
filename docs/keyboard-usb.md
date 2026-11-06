@@ -110,14 +110,13 @@ These USB keys are ignored, and report as nothing rather than as a wrong key:
 Page Down, keypad `=`, the Windows/Apps keys, Power, F13 – F24, and the media
 and international keys.
 
-## Atari keys you cannot reach
+## Caps key
 
-Only one Atari key code has no source on a PC keyboard:
+The Atari Caps key toggles uppercase and lowercase. Caps Lock sends its base
+code, `0x3c`. Shift+Caps Lock sends `0x7c`, which the OS treats as a different
+combination and does not toggle, just as on the real machine.
 
-`CAPS TOGGLE` — not a physical key on the machine either. It is an internal
-action code, and the CAPS key itself is on Caps Lock.
-
-Everything else is reachable. The less obvious ones:
+The less obvious keys:
 
 | Atari function | USB keys |
 |---|---|

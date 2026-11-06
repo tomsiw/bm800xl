@@ -263,7 +263,8 @@ static const TFunctionName s_AtariNames[] =
 	{ "RESET",	UsbKeyActionKey, ATARI_KEY_WARMSTART,		0x43, 0 },
 	{ "BREAK",	UsbKeyActionKey, ATARI_KEY_BREAK,		0x42, 0 },
 	{ "INVERSE",	UsbKeyActionKey, ATARI_KEY_ATARI,		0x53, 0 },
-	{ "CAPS",	UsbKeyActionKey, ATARI_KEY_CAPSLOCK,		0x39, 0 },
+	{ "CAPS",	UsbKeyActionKey, ATARI_KEY_CAPSTOGGLE,		0x39, 0 },
+	/* Old name for the same base Caps key; kept for existing configs. */
 	{ "CAPSTOGGLE",	UsbKeyActionKey, ATARI_KEY_CAPSTOGGLE,		0,    0 },
 	{ "F1",		UsbKeyActionKey, ATARI_KEY_F1,			0x3a, 0 },
 	{ "F2",		UsbKeyActionKey, ATARI_KEY_F2,			0x3b, 0 },

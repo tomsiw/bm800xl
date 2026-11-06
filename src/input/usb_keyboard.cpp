@@ -272,12 +272,11 @@ int CUSBAtariKeyboard::AtariKeyForUsage (unsigned nUsage)
 	case 0x38: return ATARI_KEY_SLASH;
 
 	/*
-	 * Caps Lock and Num Lock are matrix keys on an Atari: Caps is the
-	 * Caps/Control key, and the Atari key is Inverse.  On a PC they are
-	 * toggle locks, but holding one down is the closest a USB keyboard
-	 * comes to holding the Atari key, and it is what a report shows.
+	 * Caps Lock is a matrix key on an Atari: Caps is the Caps key, and the
+	 * Atari key is Inverse.  The base Caps code is 0x3c; 0x7c is Shift+Caps,
+	 * which the OS does not treat as a caps toggle.
 	 */
-	case 0x39: return ATARI_KEY_CAPSLOCK;
+	case 0x39: return ATARI_KEY_CAPSTOGGLE;
 
 	/* F1..F4 are fitted only on a 1200XL; elsewhere they do nothing. */
 	case 0x3a: return ATARI_KEY_F1;

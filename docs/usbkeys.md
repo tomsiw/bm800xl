@@ -271,8 +271,8 @@ Three names, one key, three bindings that move independently.
 | `A(Reset)` | the Reset line: a warm start |
 | `A(Break)` | Break |
 | `A(Inverse)` | the ATARI / inverse-video key |
-| `A(Caps)` | the Caps key |
-| `A(CapsToggle)` | the internal Caps-toggle action |
+| `A(Caps)` | the Caps key; toggles upper/lower case |
+| `A(CapsToggle)` | alias of `A(Caps)` |
 | `A(F1)` … `A(F4)` | the 1200XL function keys |
 | `A(Insert)` `A(Delete)` | Insert and Delete |
 | `A(InsertLine)` `A(DeleteLine)` | Insert line and Delete line |
@@ -564,14 +564,14 @@ stroke is already the Atari `>` function.
 | `A(Break)` | — | `U(F9)` |
 | `A(Reset)` | — | `U(F10)` |
 | `A(Inverse)` | `27` | `U(NumLock)` |
-| `A(Caps)` | `7c` | `U(CapsLock)` |
+| `A(Caps)` | `3c` | `U(CapsLock)` |
 | `A(F1)` | `03` | `U(F1)` |
 | `A(F2)` | `04` | `U(F2)` |
 | `A(F3)` | `13` | `U(F3)` |
 | `A(F4)` | `14` | `U(F4)` |
 | `A(Shift)` | — | `U(Shift)` |
 | `A(Ctrl)` | — | `U(Ctrl)` |
-| `A(CapsToggle)` | `3c` | *none* |
+| `A(CapsToggle)` | `3c` | *alias of `A(Caps)`* |
 
 ### Remarks on the defaults
 
