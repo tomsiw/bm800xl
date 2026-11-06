@@ -776,6 +776,12 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			return Text;
 		case 7:
 			return "Save / load / erase";
+		case 9:
+			return "<F10>";
+		case 10:
+			return "<Shift+F10>";
+		case 12:
+			return "<F12> / <Esc>";
 		}
 		break;
 

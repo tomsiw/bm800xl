@@ -37,6 +37,10 @@ Holding **Up** or **Down** repeats after a short delay, so a long list can be
 walked without pressing the key repeatedly. Return, Space, Escape and Delete
 act once.
 
+The **Warm reset**, **Power cycle** and **Close menu** rows show their shortcuts
+on the right: `<F10>`, `<Shift+F10>` and `<F12> / <Esc>`. F10 and Shift+F10 act
+with the menu closed; F12 opens and closes the menu.
+
 The picture keeps running behind the menu, dimmed, so you can see what you are
 changing.
 
