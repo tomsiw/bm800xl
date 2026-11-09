@@ -2468,6 +2468,41 @@ const char *CAtariKernel::GetLastError (void)
 	return ATARI_LastError ();
 }
 
+boolean CAtariKernel::GetResetShortcut (char *pName, unsigned nSize)
+{
+	/*
+	 * A GPIO keyboard maps every Atari key to itself and does not use
+	 * usbkeys.cfg, so F10 is not a shortcut there.  Saying so keeps the OSD
+	 * hint truthful instead of showing a key that does nothing.
+	 */
+	if (m_Settings.nKeyboardMode == AtariKeyboardModeGPIO)
+	{
+		return FALSE;
+	}
+
+	return CUSBKeyMap::Get ().GetResetShortcut (pName, nSize);
+}
+
+boolean CAtariKernel::GetPowerCycleShortcut (char *pName, unsigned nSize)
+{
+	if (m_Settings.nKeyboardMode == AtariKeyboardModeGPIO)
+	{
+		return FALSE;
+	}
+
+	return CUSBKeyMap::Get ().GetPowerCycleShortcut (pName, nSize);
+}
+
+const char *CAtariKernel::GetCloseMenuHint (void)
+{
+	/*
+	 * F12 is a USB-keyboard convenience.  A GPIO Atari keyboard has no F12,
+	 * and its menu is opened with Shift+Help and closed with Escape.
+	 */
+	return m_Settings.nKeyboardMode == AtariKeyboardModeGPIO
+		? "<Esc>" : "<F12> / <Esc>";
+}
+
 double CAtariKernel::GetFps (void)
 {
 	return ATARI_Fps ();

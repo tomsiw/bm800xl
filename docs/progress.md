@@ -8,8 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `2d745f4`; the Caps Lock mapping fix and this
-documentation update are in the commit that carries this line. USB keyboard
+**Last updated:** after commit `3ffee97`; the dynamic OSD shortcut hints and
+this documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
 scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
@@ -254,7 +254,8 @@ carries this table; a commit cannot name its own hash.
 | `7d295c1` | holding Up or Down in the OSD moved the selection once, then repeated forever after release; auto-repeat was missing with `STATIC_OSD=1` | the keyboard layer now reports menu presses and releases as events, and `CAtariMenu` owns the repeat policy: 400 ms before the first repeat, then every 80 ms while Up/Down is held.  Release, unplug and menu close cancel it; Return, Space, Escape and Delete are one-shot.  The held-key bitmap was also stored after the Atari key scan had consumed it, so every press looked new and no release was visible; it is now saved before the scan. |
 | `5474d59` | the Warm reset, Power cycle and Close menu rows did not show the host shortcuts that trigger the same actions | the rows' value column now shows `<F10>`, `<Shift+F10>` and `<F12> / <Esc>`.  The 900 px panel leaves about 27 characters in that column, so the labels are unchanged. |
 | `2d745f4` | F10 and Shift+F10 only worked with the OSD closed; inside it every key was withheld, so the reset shortcuts did nothing | F10 is now classified as a menu key while the OSD is open, and the event carries the Shift state.  `CAtariMenu` maps the press to `ExitWarmReset` or `ExitPowerCycle`, so it closes and runs the same host action as the row, including the cassette-mode override and power-cycle failure handling.  A latch stops the still-held key from firing the global shortcut again after the menu closes. |
-| (this commit) | USB Caps Lock did nothing on the Atari: the built-in map sent `0x7c`, which is Shift+Caps, instead of the Caps key's base code `0x3c` | `AtariKeyForUsage()` and the `A(Caps)` remap entry now use `ATARI_KEY_CAPSTOGGLE`.  `A(CapsToggle)` remains as an alias.  This matches the GPIO driver's note that the physical Caps key is `0x3c` and Shift+Caps is `0x7c`. |
+| `3ffee97` | USB Caps Lock did nothing on the Atari: the built-in map sent `0x7c`, which is Shift+Caps, instead of the Caps key's base code `0x3c` | `AtariKeyForUsage()` and the `A(Caps)` remap entry now use `ATARI_KEY_CAPSTOGGLE`.  `A(CapsToggle)` remains as an alias.  This matches the GPIO driver's note that the physical Caps key is `0x3c` and Shift+Caps is `0x7c`. |
+| (this commit) | the OSD Warm reset/Power cycle hints were hardcoded `<F10>`/`<Shift+F10>`, so they lied after a `usbkeys.cfg` remap and in GPIO keyboard mode | `CUSBKeyMap` now reports the last effective `A(Reset)` binding, and `CAtariMenuHost` carries the formatted labels to the menu.  Shift+Reset is power-cycle-only; no binding or GPIO mode shows `<unbound>`, and GPIO's Close menu hint is `<Esc>`.  The keymap is queried only while drawing the OSD; the input path is unchanged. |
 
 ---
 

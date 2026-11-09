@@ -609,6 +609,165 @@ boolean CUSBKeyMap::Resolve (unsigned nUsage, unsigned nMods,
 	return FALSE;
 }
 
+/*
+ * The display name for a HID usage, as usbkeys.cfg writes it.
+ */
+static const char *UsbNameForUsage (unsigned nUsage)
+{
+	for (unsigned i = 0; i < sizeof s_UsbNames / sizeof s_UsbNames[0]; i++)
+	{
+		if (s_UsbNames[i].Usage == nUsage)
+		{
+			return s_UsbNames[i].pName;
+		}
+	}
+
+	return 0;
+}
+
+static boolean FormatShortcut (char *pName, unsigned nSize,
+			       unsigned nUsage, unsigned nMods)
+{
+	const char *pKey = UsbNameForUsage (nUsage);
+	if (pKey == 0 || pName == 0 || nSize == 0)
+	{
+		return FALSE;
+	}
+
+	snprintf (pName, nSize, "%s%s%s",
+		  (nMods & USB_KEYMAP_SHIFT) != 0 ? "Shift+" : "",
+		  (nMods & USB_KEYMAP_CTRL) != 0 ? "Ctrl+" : "",
+		  pKey);
+
+	return TRUE;
+}
+
+static boolean IsResetResult (const TUsbKeyResult &Result)
+{
+	return    Result.Action == UsbKeyActionKey
+	       && Result.Code == ATARI_KEY_WARMSTART;
+}
+
+boolean CUSBKeyMap::GetResetShortcut (char *pName, unsigned nSize) const
+{
+	int nLast = -1;
+
+	for (unsigned i = 0; i < m_nBindings; i++)
+	{
+		if (   m_Binding[i].Action == UsbKeyActionKey
+		    && m_Binding[i].Code == ATARI_KEY_WARMSTART)
+		{
+			nLast = (int) i;
+		}
+	}
+
+	if (nLast >= 0)
+	{
+		/*
+		 * A Shift+Reset binding is the power-cycle shortcut, not a warm
+		 * reset.  The last assignment is the one the hint reports.
+		 */
+		if ((m_Binding[nLast].Mods & USB_KEYMAP_SHIFT) != 0)
+		{
+			return FALSE;
+		}
+
+		return FormatShortcut (pName, nSize, m_Binding[nLast].Usage,
+				       m_Binding[nLast].Mods);
+	}
+
+	/* No remap: the built-in F10 still has to be the Reset key. */
+	for (unsigned i = 0; i < sizeof s_AtariNames / sizeof s_AtariNames[0]; i++)
+	{
+		if (   s_AtariNames[i].Action != UsbKeyActionKey
+		    || s_AtariNames[i].Code != ATARI_KEY_WARMSTART
+		    || s_AtariNames[i].DefUsage == 0)
+		{
+			continue;
+		}
+
+		TUsbKeyResult Result;
+		boolean bMapped = Resolve (s_AtariNames[i].DefUsage,
+					   s_AtariNames[i].DefMods, &Result);
+		if (   bMapped
+		    && (   Result.Action != UsbKeyActionKey
+			|| Result.Code != ATARI_KEY_WARMSTART))
+		{
+			return FALSE;
+		}
+
+		return FormatShortcut (pName, nSize, s_AtariNames[i].DefUsage,
+				       s_AtariNames[i].DefMods);
+	}
+
+	return FALSE;
+}
+
+boolean CUSBKeyMap::GetPowerCycleShortcut (char *pName, unsigned nSize) const
+{
+	int nLast = -1;
+
+	for (unsigned i = 0; i < m_nBindings; i++)
+	{
+		if (   m_Binding[i].Action == UsbKeyActionKey
+		    && m_Binding[i].Code == ATARI_KEY_WARMSTART)
+		{
+			nLast = (int) i;
+		}
+	}
+
+	if (nLast >= 0)
+	{
+		unsigned nMods = m_Binding[nLast].Mods;
+		if ((nMods & USB_KEYMAP_SHIFT) == 0)
+		{
+			nMods |= USB_KEYMAP_SHIFT;
+		}
+
+		/*
+		 * A more specific binding on Shift+this stroke may take it away
+		 * from Reset; the hint must not claim a power cycle that is now
+		 * something else.
+		 */
+		TUsbKeyResult Result;
+		boolean bMapped = Resolve (m_Binding[nLast].Usage, nMods, &Result);
+		if (bMapped && !IsResetResult (Result))
+		{
+			return FALSE;
+		}
+		if (!bMapped)
+		{
+			return FALSE;
+		}
+
+		return FormatShortcut (pName, nSize, m_Binding[nLast].Usage, nMods);
+	}
+
+	for (unsigned i = 0; i < sizeof s_AtariNames / sizeof s_AtariNames[0]; i++)
+	{
+		if (   s_AtariNames[i].Action != UsbKeyActionKey
+		    || s_AtariNames[i].Code != ATARI_KEY_WARMSTART
+		    || s_AtariNames[i].DefUsage == 0)
+		{
+			continue;
+		}
+
+		TUsbKeyResult Result;
+		boolean bMapped = Resolve (s_AtariNames[i].DefUsage,
+					   s_AtariNames[i].DefMods | USB_KEYMAP_SHIFT,
+					   &Result);
+		if (bMapped && !IsResetResult (Result))
+		{
+			return FALSE;
+		}
+
+		return FormatShortcut (pName, nSize, s_AtariNames[i].DefUsage,
+				       s_AtariNames[i].DefMods | USB_KEYMAP_SHIFT);
+	}
+
+	return FALSE;
+}
+
 /* ---------------------------------------------------------------------------
  * Parsing
  * ------------------------------------------------------------------------- */

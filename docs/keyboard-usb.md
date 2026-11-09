@@ -180,6 +180,10 @@ one-shot actions and do not repeat.
 press, closes, and performs the warm reset or power cycle. The press is consumed
 so the still-held key does not fire the global shortcut a second time.
 
+The OSD's Warm reset and Power cycle hints follow `usbkeys.cfg`: the last
+`A(Reset)` assignment is shown, Shift+Reset is the power-cycle form, and a
+rebound F10 with no Reset alias leaves both rows at `<unbound>`.
+
 ## If it does not work
 
 See [Troubleshooting](troubleshooting.md#the-usb-keyboard-does-not-work).

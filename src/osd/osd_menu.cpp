@@ -777,10 +777,37 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 		case 7:
 			return "Save / load / erase";
 		case 9:
-			return "<F10>";
+			{
+				char Shortcut[32];
+				if (   m_pHost != 0
+				    && m_pHost->GetResetShortcut (Shortcut,
+								  sizeof Shortcut))
+				{
+					snprintf (Text, sizeof Text, "<%s>", Shortcut);
+					return Text;
+				}
+
+				return m_pHost != 0 ? "<unbound>" : "<F10>";
+			}
 		case 10:
-			return "<Shift+F10>";
+			{
+				char Shortcut[32];
+				if (   m_pHost != 0
+				    && m_pHost->GetPowerCycleShortcut (Shortcut,
+								       sizeof Shortcut))
+				{
+					snprintf (Text, sizeof Text, "<%s>", Shortcut);
+					return Text;
+				}
+
+				return m_pHost != 0 ? "<unbound>" : "<Shift+F10>";
+			}
 		case 12:
+			if (m_pHost != 0)
+			{
+				return m_pHost->GetCloseMenuHint ();
+			}
+
 			return "<F12> / <Esc>";
 		}
 		break;

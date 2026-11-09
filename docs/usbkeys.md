@@ -288,6 +288,11 @@ is what [section 6](#6-one-key-several-functions) is about.
 `A(Reset)` and `A(Break)` are commands rather than key codes: the emulation core
 acts on them directly, resetting the machine or raising the Break NMI.
 
+The OSD's Warm reset and Power cycle hints follow the effective `A(Reset)`
+binding: the last assignment wins.  Shift+Reset is the power-cycle shortcut and
+does not count as a warm reset.  If F10 is rebound and no `A(Reset)` binding
+remains, the hints show `<unbound>`.
+
 ### 5.2 Shifted characters
 
 | Name | Character | On the Atari this is |

@@ -37,10 +37,12 @@ Holding **Up** or **Down** repeats after a short delay, so a long list can be
 walked without pressing the key repeatedly. Return, Space, Escape and Delete
 act once.
 
-The **Warm reset**, **Power cycle** and **Close menu** rows show their shortcuts
-on the right: `<F10>`, `<Shift+F10>` and `<F12> / <Esc>`. F10 and Shift+F10 work
-outside and inside the menu: inside, they close it and perform the warm reset or
-power cycle. F12 opens and closes the menu.
+The **Warm reset**, **Power cycle** and **Close menu** rows show the effective
+shortcuts. The reset hints follow `usbkeys.cfg`: by default `<F10>`,
+`<Shift+F10>` and `<F12> / <Esc>`; a remapped reset key updates the first two,
+and a reset with no binding — including GPIO keyboard mode — shows `<unbound>`.
+The reset key and Shift+reset work outside and inside the menu; inside they close
+it and perform the action. F12 opens and closes the menu.
 
 The picture keeps running behind the menu, dimmed, so you can see what you are
 changing.

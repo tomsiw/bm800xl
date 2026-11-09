@@ -158,6 +158,9 @@ menu closed it still types a back space into the machine.
 Holding **Up** or **Down** repeats the selection after a 400 ms delay, then every
 80 ms. The other menu keys are one-shot.
 
+In GPIO keyboard mode there is no USB remapping and no F10 shortcut, so the OSD
+shows `<unbound>` for Warm reset and Power cycle; the Close menu hint is `<Esc>`.
+
 Unlike the USB driver, this one withholds **only** the keys the menu uses, so
 you can still type on the emulated machine while the menu is on screen.
 

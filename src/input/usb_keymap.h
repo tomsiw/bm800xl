@@ -126,6 +126,18 @@ public:
 	boolean Resolve (unsigned nUsage, unsigned nMods, TUsbKeyResult *pResult) const;
 
 	/*
+	 * The current Warm reset / Power cycle shortcut labels, without angle
+	 * brackets, for the OSD hints.  The last A(Reset) binding wins; when none
+	 * exists the default F10 is used only if it still resolves to Reset.
+	 *
+	 * \return FALSE when no usable shortcut exists, including when the last
+	 *	   Reset binding is Shift-only (that is a power cycle, not a warm
+	 *	   reset).
+	 */
+	boolean GetResetShortcut (char *pName, unsigned nSize) const;
+	boolean GetPowerCycleShortcut (char *pName, unsigned nSize) const;
+
+	/*
 	 * How many strokes are bound to a direction or the fire button of PORT.
 	 *
 	 * Lets the keyboard joystick say in the log whether it has anything to

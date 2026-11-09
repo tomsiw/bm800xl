@@ -104,6 +104,17 @@ public:
 	// The message to show when the last operation failed.
 	virtual const char *GetLastError (void) = 0;
 
+	/*
+	 * The effective reset shortcuts for the OSD hints, without angle
+	 * brackets.  FALSE means no such shortcut exists -- for example on a
+	 * GPIO keyboard, where usbkeys.cfg does not apply.
+	 */
+	virtual boolean GetResetShortcut (char *pName, unsigned nSize) = 0;
+	virtual boolean GetPowerCycleShortcut (char *pName, unsigned nSize) = 0;
+
+	// The Close menu hint, already formatted for the value column.
+	virtual const char *GetCloseMenuHint (void) = 0;
+
 	// Frames emulated per second, for the status display.
 	virtual double GetFps (void) = 0;
 };

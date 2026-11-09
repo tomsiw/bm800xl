@@ -153,6 +153,9 @@ public:
 	boolean PowerCycle (void);
 	void SwapJoystickPorts (void);
 	const char *GetLastError (void);
+	boolean GetResetShortcut (char *pName, unsigned nSize);
+	boolean GetPowerCycleShortcut (char *pName, unsigned nSize);
+	const char *GetCloseMenuHint (void);
 	double GetFps (void);
 
 private:
