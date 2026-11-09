@@ -17,14 +17,14 @@
  *
  * The challenge is pins, not protocol.  The emulator's GPIO keyboard already
  * takes sixteen header pins, and there are not enough left for two ports'
- * worth of ten.  But the two are never used at the same time in the same way:
- * when the keyboard is a USB keyboard, **no** GPIO pin is being used for input
- * at all.  So these two ports deliberately **reuse the GPIO keyboard's pins**,
- * and the kernel refuses to start both at once.
+ * worth of ten.  The two are currently mutually exclusive: the kernel refuses
+ * to start both at once.  Port 1 additionally uses I2C1 (GPIO 2/3) and UART
+ * (GPIO 14/15), so its serial logger and I2C bus are unavailable while it is
+ * active.
  *
- * The assignment is not arbitrary: it follows the keyboard's own wiring, so that
- * a single ribbon can serve either a keyboard or a pair of joysticks, and the
- * pin numbers are documented in docs/joystick-gpio.md.
+ * The assignment is not arbitrary: Port 2 follows the keyboard's own wiring,
+ * so that a single ribbon can serve either a keyboard or a pair of joysticks,
+ * and the pin numbers are documented in docs/joystick.md.
  *
  * ---------------------------------------------------------------------------
  * Wiring

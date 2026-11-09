@@ -212,19 +212,25 @@ HIGH and a closed one reads LOW.
 
 ### Pin assignment
 
-These are the GPIO keyboard's pins, deliberately reused. The kernel refuses to
-run a GPIO keyboard and these ports together, so a pin can only ever be claimed
-by one of them.
+Port 2 uses the GPIO keyboard's pins, deliberately reused.  Port 1 uses
+GPIO 2/3 (I2C1) and GPIO 14/15 (UART); those buses must not be used while Port 1
+is active, and the serial logger stops producing output once the port is
+initialised.  The kernel still refuses to run a GPIO keyboard and the 9-pin
+ports together, because Port 1's Left pin is the keyboard's Start pin.
 
 **Port 1**
 
 | Signal | BCM GPIO | Physical pin | Atari 9-pin pin |
 |---|---|---|---|
-| Up | GPIO 4 | 7 | 1 |
-| Down | GPIO 5 | 29 | 2 |
-| Left | GPIO 6 | 31 | 3 |
-| Right | GPIO 8 | 24 | 4 |
-| Fire | GPIO 9 | 21 | 6 |
+| Up | GPIO 2 | 3 | 1 |
+| Down | GPIO 3 | 5 | 2 |
+| Left | GPIO 4 | 7 | 3 |
+| Right | GPIO 14 | 8 | 4 |
+| Fire | GPIO 15 | 10 | 6 |
+
+GPIO 2/3 are I2C1 SDA/SCL and have fixed 1.8 kΩ pull-ups on the Pi board.  They
+still read correctly as switch inputs: an open switch reads HIGH and a closed
+one reads LOW.  GPIO 14/15 are UART TX/RX.
 
 **Port 2**
 
@@ -262,9 +268,9 @@ The keyboard wins when it is selected, and the kernel logs why:
 GPIO joysticks are off while the GPIO keyboard is selected: they need the same header pins
 ```
 
-The joystick pins then follow the keyboard's own wiring, which is deliberate: one
-ribbon can serve either a keyboard or a pair of joysticks, and there is nothing
-to re-wire if you change your mind.
+The joystick pins do not all follow the keyboard's wiring any more: Port 1 uses
+GPIO 2/3/14/15 plus the keyboard's GPIO 4, while Port 2 keeps the keyboard
+pinout.  A ribbon can therefore no longer serve either function unchanged.
 
 The check is enforced, not merely documented. Each port asks the kernel which
 pins are already claimed before it configures anything, and a port whose pins are

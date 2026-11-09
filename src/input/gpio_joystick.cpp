@@ -25,20 +25,21 @@ static const char FromJoystick[] = "gpiojoy";
 /* ---------------------------------------------------------------------------
  * Pin assignment
  *
- * These are the GPIO keyboard's pins, deliberately reused.  The kernel refuses
- * to run a GPIO keyboard and these ports together, so a pin can only ever be
- * claimed by one of them.
- *
  * The Atari 9-pin connector is: pin 1 up, 2 down, 3 left, 4 right, 6 fire,
  * 8 ground.  Pin 5 (the paddle potentiometer) and pin 7 (+5V) are not
  * connected -- pin 7 especially must not be, because it carries five volts and
  * a GPIO pin will not tolerate that.
+ *
+ * Port 1 uses GPIO 2/3 (I2C1 SDA/SCL) for Up/Down and GPIO 14/15 (UART TX/RX)
+ * for Right/Fire.  Both work as pulled-up switch inputs, but initialising the
+ * port reconfigures those pins, so the serial logger stops producing output
+ * and I2C1 must not be used.  Port 2 keeps the keyboard wiring.
  * ------------------------------------------------------------------------- */
 
 static const unsigned s_PortPins[ATARI_GPIO_JOYSTICK_PORTS][ATARI_JOY_PINS_PER_PORT] =
 {
 	/* Up, Down, Left, Right, Fire -- port 1 */
-	{ 4, 5, 6, 8, 9 },
+	{ 2, 3, 4, 14, 15 },
 	/* Up, Down, Left, Right, Fire -- port 2 */
 	{ 10, 11, 12, 13, 16 }
 };
