@@ -210,6 +210,13 @@ private:
 	static int MenuKeyForUsage (unsigned nUsage, boolean bNumpadAsCursor,
 				    boolean bMenuActive);
 
+	/*
+	 * TRUE if this stroke currently resolves to the Reset function.  This is
+	 * what lets the OSD honour a remapped Reset key instead of hard-coding
+	 * F10.
+	 */
+	static boolean IsResetShortcutUsage (unsigned nUsage, unsigned nMods);
+
 	/* Turns one report into Atari state.  Caller holds the spin lock. */
 	static void HandleReport (unsigned nEvent, unsigned char ucModifiers,
 				  const unsigned char RawKeys[6]);

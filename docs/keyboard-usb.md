@@ -176,13 +176,15 @@ Holding **Up** or **Down** repeats it: after a 400 ms delay the selection moves
 every 80 ms until the key is released. Return, Space, Escape and Delete are
 one-shot actions and do not repeat.
 
-**F10** and **Shift+F10** also work while the menu is open: the menu takes the
-press, closes, and performs the warm reset or power cycle. The press is consumed
-so the still-held key does not fire the global shortcut a second time.
+The OSD's reset shortcut follows `usbkeys.cfg`, in the menu as well as
+outside it. By default **F10** and **Shift+F10** close the menu and perform the
+warm reset or power cycle. After `U(F1) = A(Reset)`, F1 and Shift+F1 do that
+instead, and F10 is no longer a reset key. The press is consumed so the
+still-held key does not fire the shortcut a second time after the menu closes.
 
-The OSD's Warm reset and Power cycle hints follow `usbkeys.cfg`: the last
-`A(Reset)` assignment is shown, Shift+Reset is the power-cycle form, and a
-rebound F10 with no Reset alias leaves both rows at `<unbound>`.
+The OSD's Warm reset and Power cycle hints show the same assignment: the last
+`A(Reset)` binding, with Shift+Reset as the power-cycle form. A rebound F10 with
+no Reset alias leaves both rows at `<unbound>`.
 
 ## If it does not work
 

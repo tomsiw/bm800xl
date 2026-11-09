@@ -2150,10 +2150,11 @@ boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed, boolean bShift)
 	}
 
 	/*
-	 * F10 and Shift+F10 are global shortcuts.  While the menu is open the
-	 * keyboard hands them here, so close through ExitMenu() -- which also
-	 * handles a cassette-mode mismatch and reports a failed power cycle --
-	 * and run the same action as the Warm reset and Power cycle rows.
+	 * The reset shortcut follows usbkeys.cfg.  While the menu is open the
+	 * keyboard hands the effective reset stroke here, so close through
+	 * ExitMenu() -- which also handles a cassette-mode mismatch and reports
+	 * a failed power cycle -- and run the same action as the Warm reset and
+	 * Power cycle rows.
 	 */
 	if (nKey == ATARI_KEY_WARMSTART)
 	{

@@ -143,9 +143,10 @@ public:
 	 *
 	 * The keyboard layer reports presses and releases separately; the menu
 	 * owns auto-repeat, so it tracks the held navigation key here.  A press
-	 * is handled immediately; a release only stops a repeat.  F10 and
-	 * Shift+F10 arrive as ATARI_KEY_WARMSTART with BSHIFT set for the latter,
-	 * and close the menu through the reset/power-cycle exits.
+	 * is handled immediately; a release only stops a repeat.  The current
+	 * reset shortcut arrives as ATARI_KEY_WARMSTART, with BSHIFT set for the
+	 * Shift+Reset power-cycle form, and closes the menu through the
+	 * reset/power-cycle exits.
 	 *
 	 * \return TRUE if the transition was used by the menu.
 	 */

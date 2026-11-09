@@ -66,7 +66,6 @@
 #define USB_HID_START		0x3f	/* F6; Start console key */
 #define USB_HID_SELECT		0x40	/* F7; Select console key */
 #define USB_HID_OPTION		0x41	/* F8; Option console key */
-#define USB_HID_F10		0x43	/* warm reset; Shift+F10 is power cycle */
 #define USB_HID_F12		0x45	/* the OSD menu key */
 
 /*
@@ -112,12 +111,13 @@ boolean CUSBAtariKeyboard::s_bNumpadAsCursor = FALSE;
 boolean CUSBAtariKeyboard::s_bMenuActive = FALSE;
 
 /*
- * TRUE after the menu has taken an F10/Shift+F10 press for its Warm reset or
- * Power cycle row.  The key is still physically down when the menu closes, so
- * GetState() must not hand the same press to the normal global shortcut.  The
- * release clears it.
+ * TRUE after the menu has taken the current Reset shortcut for its Warm reset
+ * or Power cycle row.  The key is still physically down when the menu closes,
+ * so GetState() must not hand the same press to the normal global shortcut.
+ * The release of that usage clears it.
  */
 static boolean s_bMenuWarmKeyHandled = FALSE;
+static unsigned s_nMenuWarmUsage = 0;
 
 /*
  * The remapping table.  Written once by SetKeyMap() before any keyboard is
@@ -462,7 +462,9 @@ int CUSBAtariKeyboard::MenuKeyForUsage (unsigned nUsage, boolean bNumpadAsCursor
 	/*
 	 * Only the keys the menu acts on are handed to it, and only while the
 	 * menu is open.  Everything else -- and everything while the menu is
-	 * closed -- is left for the emulated machine.
+	 * closed -- is left for the emulated machine.  Reset is not in this
+	 * switch because it follows usbkeys.cfg; the caller resolves it through
+	 * IsResetShortcutUsage().
 	 */
 	if (!bMenuActive)
 	{
@@ -488,19 +490,38 @@ int CUSBAtariKeyboard::MenuKeyForUsage (unsigned nUsage, boolean bNumpadAsCursor
 	case ATARI_KEY_DELETE_CHAR:
 		return nKeyCode;
 
-	/*
-	 * F10 is the warm-reset shortcut, and Shift+F10 is power cycle.  They
-	 * belong to the menu while it is open too, so the menu can close itself
-	 * and run the same action as its reset rows.
-	 */
-	case ATARI_KEY_WARMSTART:
-		return nKeyCode;
-
 	default:
 		break;
 	}
 
 	return (int) ATARI_KEY_NONE;
+}
+
+boolean CUSBAtariKeyboard::IsResetShortcutUsage (unsigned nUsage,
+						unsigned nMods)
+{
+	TUsbKeyResult Result;
+	if (s_KeyMap.Resolve (nUsage, nMods, &Result))
+	{
+		return    Result.Action == UsbKeyActionKey
+		       && Result.Code == ATARI_KEY_WARMSTART;
+	}
+
+	/*
+	 * No mapping decided this stroke.  If a plain binding/removal exists for
+	 * the key, it owns the key even with modifiers held; do not fall back to
+	 * the built-in F10 reset in that case.
+	 */
+	if (nMods != 0)
+	{
+		TUsbKeyResult Base;
+		if (s_KeyMap.Resolve (nUsage, 0, &Base))
+		{
+			return FALSE;
+		}
+	}
+
+	return AtariKeyForUsage (nUsage) == ATARI_KEY_WARMSTART;
 }
 
 /* ---------------------------------------------------------------------------
@@ -589,6 +610,7 @@ void CUSBAtariKeyboard::DeviceChanged (unsigned nSlot, boolean bPresent)
 	{
 		memset (&s_Event[nSlot], 0, sizeof s_Event[nSlot]);
 		s_bMenuWarmKeyHandled = FALSE;
+		s_nMenuWarmUsage = 0;
 	}
 
 	s_SpinLock.Release ();
@@ -686,6 +708,12 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 
 		int nMenuKey = MenuKeyForUsage ((unsigned) nUsage, bNumpadAsCursor,
 						bMenuActive);
+		if (   nMenuKey == ATARI_KEY_NONE
+		    && bMenuActive
+		    && IsResetShortcutUsage ((unsigned) nUsage, nMods))
+		{
+			nMenuKey = ATARI_KEY_WARMSTART;
+		}
 		if (nMenuKey == ATARI_KEY_NONE)
 		{
 			continue;
@@ -706,6 +734,7 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 			if (nMenuKey == ATARI_KEY_WARMSTART)
 			{
 				s_bMenuWarmKeyHandled = TRUE;
+				s_nMenuWarmUsage = (unsigned) nUsage;
 			}
 		}
 	}
@@ -718,13 +747,19 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 	{
 		Gone.Words[nUsage >> 6] &= ~((u64) 1 << (nUsage & 63));
 
-		if (nUsage == USB_HID_F10)
+		boolean bResetKey = IsResetShortcutUsage ((unsigned) nUsage, nMods);
+		if (s_bMenuWarmKeyHandled && nUsage == s_nMenuWarmUsage)
 		{
 			s_bMenuWarmKeyHandled = FALSE;
+			s_nMenuWarmUsage = 0;
 		}
 
 		int nMenuKey = MenuKeyForUsage ((unsigned) nUsage, bNumpadAsCursor,
 						bMenuActive);
+		if (nMenuKey == ATARI_KEY_NONE && bMenuActive && bResetKey)
+		{
+			nMenuKey = ATARI_KEY_WARMSTART;
+		}
 		if (nMenuKey == ATARI_KEY_NONE)
 		{
 			continue;

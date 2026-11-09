@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `bdedf0a`; the Port 2 joystick remap and this
+**Last updated:** after commit `9f9276b`; the OSD reset-shortcut fix and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -257,7 +257,8 @@ carries this table; a commit cannot name its own hash.
 | `3ffee97` | USB Caps Lock did nothing on the Atari: the built-in map sent `0x7c`, which is Shift+Caps, instead of the Caps key's base code `0x3c` | `AtariKeyForUsage()` and the `A(Caps)` remap entry now use `ATARI_KEY_CAPSTOGGLE`.  `A(CapsToggle)` remains as an alias.  This matches the GPIO driver's note that the physical Caps key is `0x3c` and Shift+Caps is `0x7c`. |
 | `b650d5e` | the OSD Warm reset/Power cycle hints were hardcoded `<F10>`/`<Shift+F10>`, so they lied after a `usbkeys.cfg` remap and in GPIO keyboard mode | `CUSBKeyMap` now reports the last effective `A(Reset)` binding, and `CAtariMenuHost` carries the formatted labels to the menu.  Shift+Reset is power-cycle-only; no binding or GPIO mode shows `<unbound>`, and GPIO's Close menu hint is `<Esc>`.  The keymap is queried only while drawing the OSD; the input path is unchanged. |
 | `bdedf0a` | Joystick port 1 was wired to the GPIO keyboard pins and could not use the requested header layout | Port 1 now reads Up/Down from GPIO 2/3 (I2C1) and Right/Fire from GPIO 14/15 (UART), with Left on GPIO 4.  The inputs remain active-low with pull-ups; serial logger output and I2C1 become unavailable while the port is initialised.  Port 2 was unchanged at that commit. |
-| (this commit) | Joystick port 2 still used GPIO 10/11/12/13/16 | Port 2 now uses GPIO 17/27/22/18/23.  These remain active-low switch inputs; GPIO 18 is also PCM_CLK, so PWM/I2S audio would conflict, and the GPIO keyboard conflict remains. |
+| `71d782f` | Joystick port 2 still used GPIO 10/11/12/13/16 | Port 2 now uses GPIO 17/27/22/18/23.  These remain active-low switch inputs; GPIO 18 is also PCM_CLK, so PWM/I2S audio would conflict, and the GPIO keyboard conflict remains. |
+| (this commit) | F10 still reset the machine inside the OSD after `A(Reset)` was moved to F1, even though the OSD hint showed `<F1>` | `MenuKeyForUsage()` returned `ATARI_KEY_WARMSTART` for F10 unconditionally, bypassing the keymap.  The hard-coded F10 case is gone; the keyboard now asks the keymap whether a stroke is the effective Reset key and queues that as the menu reset event, with Shift selecting power cycle.  A removed F10 is therefore no longer a reset key inside or outside the menu. |
 
 ---
 
