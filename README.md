@@ -271,6 +271,7 @@ second set of build products to cover no model that the 64-bit one does not.
 | [Atari800 integration](docs/atari800-integration.md) | How the core is configured and the one change made to it |
 | [Troubleshooting](docs/troubleshooting.md) | What to do when there is no picture, no sound, or no disk |
 | [Progress](docs/progress.md) | The working ledger: what was changed and why, measured results, known limitations, what has been tested |
+| [Backlog](docs/backlog.md) | Planned work that is waiting on hardware or a decision |
 
 Two longer reference documents are also kept here. They are working notes rather
 than manuals, but they record the API details the port depends on, each cited to
