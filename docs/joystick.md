@@ -236,11 +236,15 @@ one reads LOW.  GPIO 14/15 are UART TX/RX.
 
 | Signal | BCM GPIO | Physical pin | Atari 9-pin pin |
 |---|---|---|---|
-| Up | GPIO 10 | 19 | 1 |
-| Down | GPIO 11 | 17 | 2 |
-| Left | GPIO 12 | 32 | 3 |
-| Right | GPIO 13 | 33 | 4 |
-| Fire | GPIO 16 | 36 | 6 |
+| Up | GPIO 17 | 11 | 1 |
+| Down | GPIO 27 | 13 | 2 |
+| Left | GPIO 22 | 15 | 3 |
+| Right | GPIO 18 | 12 | 4 |
+| Fire | GPIO 23 | 16 | 6 |
+
+Port 2's pins are GPIO keyboard column pins, so the keyboard conflict remains.
+GPIO 18 is also PCM_CLK; the current HDMI audio does not use it, but PWM/I2S
+audio would.
 
 **Ground** — any of pins 6, 9, 14, 20, 25, 30, 34, 39. Both ports' pin 8 go to
 one of these.
@@ -269,8 +273,9 @@ GPIO joysticks are off while the GPIO keyboard is selected: they need the same h
 ```
 
 The joystick pins do not all follow the keyboard's wiring any more: Port 1 uses
-GPIO 2/3/14/15 plus the keyboard's GPIO 4, while Port 2 keeps the keyboard
-pinout.  A ribbon can therefore no longer serve either function unchanged.
+GPIO 2/3/14/15 plus the keyboard's GPIO 4, while Port 2 uses the keyboard's
+GPIO 17/27/22/18/23 columns.  A ribbon can therefore no longer serve either
+function unchanged.
 
 The check is enforced, not merely documented. Each port asks the kernel which
 pins are already claimed before it configures anything, and a port whose pins are

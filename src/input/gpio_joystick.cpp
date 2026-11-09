@@ -33,7 +33,8 @@ static const char FromJoystick[] = "gpiojoy";
  * Port 1 uses GPIO 2/3 (I2C1 SDA/SCL) for Up/Down and GPIO 14/15 (UART TX/RX)
  * for Right/Fire.  Both work as pulled-up switch inputs, but initialising the
  * port reconfigures those pins, so the serial logger stops producing output
- * and I2C1 must not be used.  Port 2 keeps the keyboard wiring.
+ * and I2C1 must not be used.  Port 2 uses GPIO 17/27/22/18/23; GPIO 18 is also
+ * PCM_CLK, so PWM/I2S audio would conflict with it.
  * ------------------------------------------------------------------------- */
 
 static const unsigned s_PortPins[ATARI_GPIO_JOYSTICK_PORTS][ATARI_JOY_PINS_PER_PORT] =
@@ -41,7 +42,7 @@ static const unsigned s_PortPins[ATARI_GPIO_JOYSTICK_PORTS][ATARI_JOY_PINS_PER_P
 	/* Up, Down, Left, Right, Fire -- port 1 */
 	{ 2, 3, 4, 14, 15 },
 	/* Up, Down, Left, Right, Fire -- port 2 */
-	{ 10, 11, 12, 13, 16 }
+	{ 17, 27, 22, 18, 23 }
 };
 
 /* Names for the positions in a port's pin list, so the code below reads. */

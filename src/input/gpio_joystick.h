@@ -22,9 +22,9 @@
  * (GPIO 14/15), so its serial logger and I2C bus are unavailable while it is
  * active.
  *
- * The assignment is not arbitrary: Port 2 follows the keyboard's own wiring,
- * so that a single ribbon can serve either a keyboard or a pair of joysticks,
- * and the pin numbers are documented in docs/joystick.md.
+ * The assignment is deliberate: Port 2 reuses the keyboard's column pins and
+ * Port 1 mixes the keyboard's Start pin with I2C1/UART pins.  The pin numbers
+ * are documented in docs/joystick.md.
  *
  * ---------------------------------------------------------------------------
  * Wiring
