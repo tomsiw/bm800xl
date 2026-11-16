@@ -100,6 +100,7 @@ class CAtariStorage;
  */
 #define BOOTLOG_FILE_NAME	"bootlog.txt"
 #define BOOTLOG_PREV_FILE_NAME	"bootlog.prev.txt"
+#define BOOTLOG_CRASH_FILE_NAME	"bootlog.crash"
 
 /*
  * Errors that happen while the emulated machine is already running.
@@ -115,6 +116,7 @@ class CAtariStorage;
  * earlier session's errors would read as if they were this one's.
  */
 #define RUNTIME_LOG_FILE_NAME	"runtimelog.txt"
+#define RUNTIME_LOG_CRASH_FILE_NAME	"runtimelog.crash"
 
 class CBootLog
 {
@@ -240,6 +242,16 @@ public:
 	/// \note Called on the way out of a failed start-up, so that the file
 	///	  ends with the reason rather than simply stopping.
 	void CloseLogFile (const char *pFinalMessage);
+
+	/*
+	 * Closes both logs and moves them to BOOTLOG_CRASH_FILE_NAME and
+	 * RUNTIME_LOG_CRASH_FILE_NAME in the system directory.
+	 *
+	 * The file layer has no rename, so this copies the closed files and removes
+	 * the originals.  Use it only after the final crash lines have been written:
+	 * it closes the only record this session has.
+	 */
+	void CloseLogFileAndArchive (const CAtariStorage &Storage);
 
 	/// \return The last stage passed to Stage().
 	TBootStage GetStage (void) const	{ return m_Stage; }

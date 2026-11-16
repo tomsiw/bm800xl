@@ -153,6 +153,7 @@ public:
 	void RestartPi (void);
 	boolean PowerCycle (void);
 	void SwapJoystickPorts (void);
+	void ClearMediaFromSettings (void);
 	const char *GetLastError (void);
 	boolean GetResetShortcut (char *pName, unsigned nSize);
 	boolean GetPowerCycleShortcut (char *pName, unsigned nSize);
@@ -282,10 +283,11 @@ private:
 
 	/*
 	 * Frame errors are reported once per distinct reason rather than every
-	 * frame, and a CPU crash is the only one that resets the machine.  See
-	 * RunFrame().
+	 * frame.  A CPU crash is handled once: its logs are archived, the media is
+	 * cleared from settings, and the Pi restarts.  See RunFrame().
 	 */
 	boolean			m_bFrameErrorReported;
+	boolean			m_bCrashHandled;
 	char			m_LastFrameError[96];
 
 	/*

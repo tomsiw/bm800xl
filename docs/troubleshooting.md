@@ -77,6 +77,11 @@ It exists for the awkward case where the machine dies before it can write
 anything at all — a corrupted card, or a failure inside the SD interface itself.
 Without it, opening a new log would erase the only evidence there was.
 
+If the emulated CPU crashes, the current logs are closed and copied to
+`SD:/ATARI/bootlog.crash` and `SD:/ATARI/runtimelog.crash` before the emulator
+clears its media settings and restarts the Pi. The `.prev` file is the previous
+boot, not the crash copy.
+
 Both are shown on the failure screen, newest session last.
 
 ### What the log cannot capture
@@ -474,13 +479,16 @@ the upstream bug.
 ## The emulator resets itself, or a game crashes
 
 If the emulated CPU executes one of the illegal "crash" opcodes, the core
-abandons the frame and the kernel performs a warm reset. This is deliberate
-containment: the alternative is that the jump lands nowhere and takes the
-Raspberry Pi down with it.
+abandons the frame. The kernel treats this as unrecoverable: it writes the
+crash entries, closes the logs, moves them to `SD:/ATARI/bootlog.crash` and
+`SD:/ATARI/runtimelog.crash`, clears every disk, cartridge and cassette path
+from `settings.cfg`, and restarts the Raspberry Pi. It does not keep warm-resetting
+the same fault.
 
-The log records `Frame error: ...` with the core's description. A single reset is
-usually a game doing something the emulator cannot handle; a loop of resets means
-the image is broken or the wrong machine type (XL versus XE) is selected.
+The runtime log records `Frame error: ...` with the core's description. A single
+crash is usually a game doing something the emulator cannot handle; an image
+that crashes again after the restart is broken or the wrong machine type
+(XL versus XE) is selected.
 
 **BRK is not in that class by default.** It is a normal 6502 instruction and the
 emulator runs it as the machine does, because that is how a debugger takes

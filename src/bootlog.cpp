@@ -585,6 +585,99 @@ void CBootLog::CloseLogFile (const char *pFinalMessage)
 	m_bHaveFile = FALSE;
 }
 
+/*
+ * The file layer has no rename.  A closed log is copied to its crash name and
+ * the original removed only after the copy succeeds, so a failed copy leaves the
+ * readable log in place.
+ */
+static boolean MoveClosedLog (const char *pSource, const char *pDestination)
+{
+	if (pSource == 0 || pDestination == 0
+	    || pSource[0] == '\0' || pDestination[0] == '\0')
+	{
+		return FALSE;
+	}
+
+	FILE *pIn = ATARI_VFS_Open (pSource, "rb");
+	if (pIn == 0)
+	{
+		return FALSE;
+	}
+
+	FILE *pOut = ATARI_VFS_Open (pDestination, "wb");
+	if (pOut == 0)
+	{
+		ATARI_VFS_Close (pIn);
+		return FALSE;
+	}
+
+	boolean bOK = TRUE;
+	char Buffer[256];
+	size_t nRead;
+
+	while ((nRead = ATARI_VFS_Read (Buffer, 1, sizeof Buffer, pIn)) > 0)
+	{
+		if (ATARI_VFS_Write (Buffer, 1, nRead, pOut) != nRead)
+		{
+			bOK = FALSE;
+			break;
+		}
+	}
+
+	if (ATARI_VFS_Close (pOut) != 0)
+	{
+		bOK = FALSE;
+	}
+	ATARI_VFS_Close (pIn);
+
+	if (!bOK)
+	{
+		CAtariStorage::Remove (pDestination);
+		return FALSE;
+	}
+
+	CAtariStorage::Remove (pSource);
+
+	return TRUE;
+}
+
+void CBootLog::CloseLogFileAndArchive (const CAtariStorage &Storage)
+{
+	char BootPath[160];
+	char RuntimePath[160];
+	char CrashPath[160];
+
+	BootPath[0] = '\0';
+	RuntimePath[0] = '\0';
+
+	if (m_LogPath[0] != '\0')
+	{
+		strncpy (BootPath, m_LogPath, sizeof BootPath - 1);
+		BootPath[sizeof BootPath - 1] = '\0';
+	}
+	if (m_RuntimePath[0] != '\0')
+	{
+		strncpy (RuntimePath, m_RuntimePath, sizeof RuntimePath - 1);
+		RuntimePath[sizeof RuntimePath - 1] = '\0';
+	}
+
+	CloseLogFile ("=== end of boot log (CPU crash) ===");
+
+	if (BootPath[0] != '\0')
+	{
+		Storage.MakeSystemPath (CrashPath, sizeof CrashPath,
+					BOOTLOG_CRASH_FILE_NAME);
+		MoveClosedLog (BootPath, CrashPath);
+	}
+
+	if (RuntimePath[0] != '\0')
+	{
+		Storage.MakeSystemPath (CrashPath, sizeof CrashPath,
+					RUNTIME_LOG_CRASH_FILE_NAME);
+		MoveClosedLog (RuntimePath, CrashPath);
+	}
+}
+
 void CBootLog::PaintReport (const char *pTitle)
 {
 	if (!m_bHaveDisplay || m_pVideo == 0)

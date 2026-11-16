@@ -403,6 +403,7 @@ CAtariKernel::CAtariKernel (void)
 	m_bFirstFrameDrawn (FALSE),
 	m_bStaticOSDWasOpen (FALSE),
 	m_bFrameErrorReported (FALSE),
+	m_bCrashHandled (FALSE),
 	m_bKeyboardSeen (FALSE),
 	m_bKeyboardWarned (FALSE),
 	m_nKeyboardFrames (0)
@@ -1275,6 +1276,24 @@ void CAtariKernel::SwapJoystickPorts (void)
 						? "swapped" : "normal");
 }
 
+void CAtariKernel::ClearMediaFromSettings (void)
+{
+	for (unsigned n = 0; n < SETTINGS_MAX_DRIVES; n++)
+	{
+		m_Settings.DiskPath[n][0] = '\0';
+		m_Settings.DiskReadOnly[n] = FALSE;
+	}
+
+	m_Settings.CartridgePath[0] = '\0';
+	m_Settings.CassettePath[0] = '\0';
+	m_Settings.bCassetteReadOnly = FALSE;
+
+	if (m_SettingsPath[0] != '\0')
+	{
+		Settings_Save (m_Storage, m_SettingsPath, m_Settings);
+	}
+}
+
 void CAtariKernel::MenuOpened (void)
 {
 	m_MenuJoystick.SetActive (TRUE);
@@ -1652,8 +1671,25 @@ void CAtariKernel::RunFrame (void)
 
 		if (ATARI_LastErrorIsCpuCrash ())
 		{
-			m_pBootLog->Record ("Resetting the machine after a CPU crash");
-			ATARI_WarmReset ();
+			/*
+			 * A CPU crash cannot be recovered from inside the emulated machine.
+			 * Archive the evidence first, then remove every medium from the
+			 * saved configuration and restart the Pi.  Do not warm-reset: that
+			 * would hit the same fault again and keep appending the same error
+			 * while leaving the user unable to reach the menu.
+			 */
+			if (!m_bCrashHandled)
+			{
+				m_bCrashHandled = TRUE;
+
+				m_pBootLog->Record ("CPU crash: archiving the logs, clearing "
+						    "media and restarting the Pi");
+				m_pBootLog->CloseLogFileAndArchive (m_Storage);
+				ClearMediaFromSettings ();
+				m_bRestartPi = TRUE;
+			}
+
+			return;
 		}
 	}
 
