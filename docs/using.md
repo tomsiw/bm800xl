@@ -367,7 +367,9 @@ done once per session, and a generated name is one the user can rename later on
 a PC.
 
 **Load snapshot** lists the same directory. Loading one makes it the current
-snapshot, so a later **Save snapshot** overwrites it.
+snapshot, so a later **Save snapshot** overwrites it. In the snapshot browser,
+Escape goes up one directory and, from `SD:/ATARI`, leaves the browser for the
+snapshot screen instead of showing the SD card root.
 
 **Erase snapshot** is a screen of its own, and the only place a snapshot can be
 removed: the load browser never deletes anything, so a file cannot be lost

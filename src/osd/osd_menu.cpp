@@ -1962,6 +1962,32 @@ void CAtariMenu::BrowserEnterDirectory (void)
  *
  * \return TRUE if the listing now shows the parent directory
  */
+boolean CAtariMenu::AtBrowserRoot (void) const
+{
+	if (m_pStorage == 0)
+	{
+		return FALSE;
+	}
+
+	if (   m_BrowseTarget == BrowseDisk1 || m_BrowseTarget == BrowseDisk2
+	    || m_BrowseTarget == BrowseDisk3 || m_BrowseTarget == BrowseDisk4
+	    || m_BrowseTarget == BrowseCartridge
+	    || m_BrowseTarget == BrowseCassette)
+	{
+		return SamePath (m_BrowseDirectory, m_pStorage->GetUserBase ());
+	}
+
+	if (   m_BrowseTarget == BrowseSnapshotLoad
+	    || m_BrowseTarget == BrowseSnapshotSave
+	    || m_BrowseTarget == BrowseSnapshotErase)
+	{
+		return SamePath (m_BrowseDirectory,
+				 m_pStorage->GetSystemDirectory ());
+	}
+
+	return FALSE;
+}
+
 boolean CAtariMenu::BrowserGoUp (void)
 {
 	if (m_pStorage == 0)
@@ -1970,21 +1996,14 @@ boolean CAtariMenu::BrowserGoUp (void)
 	}
 
 	/*
-	 * The browser never leaves the user volume.  With the SD card chosen the
-	 * tree starts at SD:/USERDATA, and one step above it is the emulator's own
-	 * part of the card -- settings, snapshots, ROMs -- so "up" from there has
-	 * nowhere to go and Escape leaves the browser, exactly as it does from a
-	 * volume root.
+	 * Media browsers never leave the user volume.  Snapshot browsers never
+	 * leave the system directory: Escape from a subdirectory returns to that
+	 * directory, and Escape from it leaves for the snapshot screen rather than
+	 * showing SD:/ or whatever is above it.
 	 */
-	if (   m_BrowseTarget == BrowseDisk1 || m_BrowseTarget == BrowseDisk2
-	    || m_BrowseTarget == BrowseDisk3 || m_BrowseTarget == BrowseDisk4
-	    || m_BrowseTarget == BrowseCartridge
-	    || m_BrowseTarget == BrowseCassette)
+	if (AtBrowserRoot ())
 	{
-		if (SamePath (m_BrowseDirectory, m_pStorage->GetUserBase ()))
-		{
-			return FALSE;
-		}
+		return FALSE;
 	}
 
 	if (!CAtariStorage::TruncateToParent (m_BrowseDirectory))
@@ -1995,13 +2014,18 @@ boolean CAtariMenu::BrowserGoUp (void)
 	/*
 	 * A directory that lists nothing is not somewhere the user can be: it is
 	 * either a volume that failed to mount, or a directory that has since been
-	 * removed.  Walk up until the listing is non-empty or the root is reached,
-	 * with a bound so that a volume which never lists cannot spin here.
+	 * removed.  Walk up until the listing is non-empty or the browser's own
+	 * root is reached, with a bound so that a volume which never lists cannot
+	 * spin here.
 	 */
 	for (unsigned nAttempt = 0; nAttempt < 16; nAttempt++)
 	{
 		ListBrowserDirectory ();
 		if (m_pStorage->GetEntryCount () > 0)
+		{
+			break;
+		}
+		if (AtBrowserRoot ())
 		{
 			break;
 		}

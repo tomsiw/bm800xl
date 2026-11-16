@@ -382,6 +382,9 @@ private:
 	 */
 	boolean IsWithinUserBase (const char *pPath) const;
 
+	/* Is the browser already at the root it is allowed to leave from? */
+	boolean AtBrowserRoot (void) const;
+
 	/* Case-insensitive comparison of two paths. */
 	static boolean SamePath (const char *pA, const char *pB);
 
