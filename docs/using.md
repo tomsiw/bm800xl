@@ -338,13 +338,15 @@ Snapshots written by older builds of the emulator cannot be loaded: they carry n
 record of the media, so the machine would come back with the wrong disks in the
 drives and no way to tell. They are refused with a message that says so.
 
-**Save snapshot** opens a file browser rooted at `SD:/ATARI`, listing the `.SAV`
-files that are already there; picking one overwrites it. **Save as new
-snapshot** is the other half: it writes to the first unused name built from what
-is mounted, so a snapshot can be taken on a card that has none and the name says
-what it holds. The parts are, in this order, **the disk in drive 1, the cassette
-and the cartridge**, each included only if that media is mounted, so every part
-can be missing:
+**Save snapshot** overwrites the snapshot that is currently in use. If no snapshot
+has been loaded, saved or created yet, it does what **Save as new snapshot**
+does: it writes to the first unused name built from what is mounted and makes
+that file the current one. **Save as new snapshot** always creates a fresh file
+and makes it current. The current snapshot is remembered for the rest of this
+run; after a restart, the first **Save snapshot** creates a new file again. The
+parts of the generated name are, in this order, **the disk in drive 1, the
+cassette and the cartridge**, each included only if that media is mounted, so
+every part can be missing:
 
 | Mounted | Name |
 |---|---|
@@ -364,18 +366,20 @@ deliberate trade: typing would need a whole on-screen keyboard for something
 done once per session, and a generated name is one the user can rename later on
 a PC.
 
-**Load snapshot** lists the same directory.
+**Load snapshot** lists the same directory. Loading one makes it the current
+snapshot, so a later **Save snapshot** overwrites it.
 
 **Erase snapshot** is a screen of its own, and the only place a snapshot can be
-removed: the Save and Load browsers never delete anything, so a file cannot be
-lost from a screen you opened to load it. Pick *Erase snapshot*, highlight the
+removed: the load browser never deletes anything, so a file cannot be lost
+from a screen you opened to load it. Pick *Erase snapshot*, highlight the
 file, and press **Return** (or **Delete** — both mean "this one" here). The first
 press asks (`Erase SNAPSHOT3.SAV? Press again to confirm`); the second removes
 it. Anything else cancels, and the question disappears with the key that
 cancelled it: moving the selection, going up a directory, choosing another file,
 or letting the question time out. A press much later in the same place therefore
 starts the question again rather than removing something you had forgotten
-choosing.
+choosing. Erasing the current snapshot clears that pointer, so the next **Save
+snapshot** creates a new file.
 
 Erasing removes the file from the card, so it cannot be undone from the menu.
 Snapshot names are `SNAPSHOTn.SAV` in the system directory (`SD:/ATARI`), which

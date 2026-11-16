@@ -228,6 +228,12 @@ private:
 	void ActivateSelection (void);
 
 	/*
+	 * Saves the snapshot "Save snapshot" is currently pointed at.  With no
+	 * current file, it creates one through SaveNewSnapshot().
+	 */
+	void SaveCurrentSnapshot (void);
+
+	/*
 	 * Saves a snapshot under the first unused SNAPSHOTn.SAV.
 	 *
 	 * Needed because the file browser can only list files that already exist,
@@ -399,6 +405,7 @@ private:
 	TAtariSettings *m_pSettings;
 
 	char m_SettingsPath[SETTINGS_PATH_MAX];
+	char m_SnapshotPath[SETTINGS_PATH_MAX];
 
 	boolean m_bOpen;
 	TMenuScreen m_Screen;

@@ -118,6 +118,7 @@ CAtariMenu::CAtariMenu (void)
 	m_nVisibleRows (20)
 {
 	m_SettingsPath[0] = '\0';
+	m_SnapshotPath[0] = '\0';
 	m_BrowseDirectory[0] = '\0';
 	m_BrowseFilter[0] = '\0';
 	m_ErasePath[0] = '\0';
@@ -1527,9 +1528,42 @@ unsigned CAtariMenu::BuildSnapshotMedia (char *pBuffer, unsigned nSize) const
 	return (unsigned) strlen (pBuffer);
 }
 
+void CAtariMenu::SaveCurrentSnapshot (void)
+{
+	if (m_pHost == 0 || m_pStorage == 0 || m_pSettings == 0)
+	{
+		return;
+	}
+
+	/*
+	 * A missing file is treated like no current snapshot.  That covers a card
+	 * whose snapshot was erased or replaced outside the emulator, and keeps the
+	 * first save after such a change from opening the browser.
+	 */
+	if (   m_SnapshotPath[0] == '\0'
+	    || !m_pStorage->FileExists (m_SnapshotPath))
+	{
+		m_SnapshotPath[0] = '\0';
+		SaveNewSnapshot ();
+		return;
+	}
+
+	if (m_pHost->SaveSnapshot (m_SnapshotPath))
+	{
+		snprintf (m_Message, sizeof m_Message, "Saved %s",
+			  BaseName (m_SnapshotPath));
+	}
+	else
+	{
+		snprintf (m_Message, sizeof m_Message, "Could not save: %s",
+			  m_pHost->GetLastError ());
+	}
+	m_nMessageFrames = MESSAGE_FRAMES;
+}
+
 void CAtariMenu::SaveNewSnapshot (void)
 {
-	if (m_pHost == 0 || m_pStorage == 0)
+	if (m_pHost == 0 || m_pStorage == 0 || m_pSettings == 0)
 	{
 		return;
 	}
@@ -1570,6 +1604,7 @@ void CAtariMenu::SaveNewSnapshot (void)
 		{
 			if (m_pHost->SaveSnapshot (Path))
 			{
+				CopyText (m_SnapshotPath, Path, SETTINGS_PATH_MAX);
 				snprintf (m_Message, sizeof m_Message, "Saved as %s", Name);
 			}
 			else
@@ -1752,7 +1787,7 @@ void CAtariMenu::ActivateSelection (void)
 	case ScreenSnapshots:
 		switch (m_nSelected)
 		{
-		case 0: OpenBrowser (BrowseSnapshotSave); break;
+		case 0: SaveCurrentSnapshot (); break;
 		case 1: SaveNewSnapshot (); break;
 		case 2: OpenBrowser (BrowseSnapshotLoad); break;
 		case 3: OpenBrowser (BrowseSnapshotErase); break;
@@ -2062,10 +2097,18 @@ void CAtariMenu::BrowserChoose (void)
 
 	case BrowseSnapshotLoad:
 		bOK = m_pHost->LoadSnapshot (Path);
+		if (bOK)
+		{
+			CopyText (m_SnapshotPath, Path, SETTINGS_PATH_MAX);
+		}
 		break;
 
 	case BrowseSnapshotSave:
 		bOK = m_pHost->SaveSnapshot (Path);
+		if (bOK)
+		{
+			CopyText (m_SnapshotPath, Path, SETTINGS_PATH_MAX);
+		}
 		break;
 
 	default:
@@ -2206,6 +2249,11 @@ void CAtariMenu::BrowserErase (void)
 		m_nMessageFrames = MESSAGE_FRAMES;
 
 		return;
+	}
+
+	if (SamePath (m_SnapshotPath, Path))
+	{
+		m_SnapshotPath[0] = '\0';
 	}
 
 	ListBrowserDirectory ();

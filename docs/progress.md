@@ -8,8 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `0ad42dd`; the OSD gamepad navigation and this
-documentation update are in the commit that carries this line. USB keyboard
+**Last updated:** after commit `1d0e968`; the current-snapshot save change and
+this documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
 scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
@@ -259,8 +259,9 @@ carries this table; a commit cannot name its own hash.
 | `bdedf0a` | Joystick port 1 was wired to the GPIO keyboard pins and could not use the requested header layout | Port 1 now reads Up/Down from GPIO 2/3 (I2C1) and Right/Fire from GPIO 14/15 (UART), with Left on GPIO 4.  The inputs remain active-low with pull-ups; serial logger output and I2C1 become unavailable while the port is initialised.  Port 2 was unchanged at that commit. |
 | `71d782f` | Joystick port 2 still used GPIO 10/11/12/13/16 | Port 2 now uses GPIO 17/27/22/18/23.  These remain active-low switch inputs; GPIO 18 is also PCM_CLK, so PWM/I2S audio would conflict, and the GPIO keyboard conflict remains. |
 | `0ad42dd` | F10 still reset the machine inside the OSD after `A(Reset)` was moved to F1, even though the OSD hint showed `<F1>` | `MenuKeyForUsage()` returned `ATARI_KEY_WARMSTART` for F10 unconditionally, bypassing the keymap.  The hard-coded F10 case is gone; the keyboard now asks the keymap whether a stroke is the effective Reset key and queues that as the menu reset event, with Shift selecting power cycle.  A removed F10 is therefore no longer a reset key inside or outside the menu. |
-| (this commit) | A gamepad or 9-pin joystick could only play the emulated machine; the OSD was keyboard-only | Added a menu joystick source that polls the two controller handles and maps directions to the arrow keys and fire to Return.  The first pad with a fresh input owns the menu session; controls held when the OSD opens are ignored until neutral.  The platform layer answers both controller ports as centred while the OSD is open, so the same pad cannot also drive the emulated machine. |
-| (this commit) | Fixed submenus had no visible back row; a gamepad-only user had to use Escape or F12 | Added a synthetic `..` row as the first item of every fixed settings submenu.  Native item indexes are unchanged; only the displayed index is shifted.  Submenus open with `..` selected, and activating it returns to the main menu.  The file browser and main menu are unchanged. |
+| `1d0e968` | A gamepad or 9-pin joystick could only play the emulated machine; the OSD was keyboard-only | Added a menu joystick source that polls the two controller handles and maps directions to the arrow keys and fire to Return.  The first pad with a fresh input owns the menu session; controls held when the OSD opens are ignored until neutral.  The platform layer answers both controller ports as centred while the OSD is open, so the same pad cannot also drive the emulated machine. |
+| `1d0e968` | Fixed submenus had no visible back row; a gamepad-only user had to use Escape or F12 | Added a synthetic `..` row as the first item of every fixed settings submenu.  Native item indexes are unchanged; only the displayed index is shifted.  Submenus open with `..` selected, and activating it returns to the main menu.  The file browser and main menu are unchanged. |
+| (this commit) | "Save snapshot" always opened the file browser, even when nothing had been saved or loaded yet; there was no current snapshot to overwrite | Added a runtime-only current snapshot path.  Save snapshot writes that file directly; with no current file it calls the Save-as-new routine, which creates the first unused name and makes it current.  Loading or saving a snapshot makes it current, and erasing it clears the path.  The current path deliberately does not survive a restart. |
 
 ---
 
