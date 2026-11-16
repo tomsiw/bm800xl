@@ -444,6 +444,13 @@ void ATARI_SetJoystick(int index, atari_joystick_t *pJoystick);
 /* \return The controller registered for INDEX, or NULL if there is none. */
 atari_joystick_t *ATARI_GetJoystick(int index);
 
+/*
+ * While ACTIVE is non-zero the platform layer answers every controller port as
+ * centred with its trigger open.  The OSD sets this while it owns the screen so
+ * a gamepad used to navigate the menu does not also move the emulated machine.
+ */
+void ATARI_SetJoystickMenuActive(int active);
+
 /* ---------------------------------------------------------------------------
  * Machine state snapshot, for diagnostics
  *

@@ -41,6 +41,30 @@ off and on. The next start comes up with the interface you chose.
 
 ---
 
+## Navigating the OSD with a joystick
+
+A USB gamepad or a 9-pin joystick also drives the OSD while it is open:
+
+| Controller | Menu |
+|---|---|
+| Up / Down / Left / Right | cursor keys |
+| Fire | Enter |
+
+Up and Down repeat like the keyboard arrows; Left and Right adjust the current
+setting. The first controller that produces a fresh input owns the menu session,
+so two pads cannot move the selection against each other. A control held while
+the menu opens is ignored until it has been released once.
+
+Every settings submenu opens with a **`..`** row first, already selected. Fire on
+it returns to the main menu; Down reaches the first real setting.
+
+The USB-keyboard joystick interface is not used as a menu source: its keys are
+already handled by the keyboard driver, and feeding them in twice would double
+every press. Joystick input is withheld from the emulated machine while the menu
+is open.
+
+---
+
 ## The keyboard as a joystick
 
 Choose `USB keyboard keys` as the interface and the two Atari joysticks are driven

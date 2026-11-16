@@ -100,6 +100,7 @@ CAtariMenu::CAtariMenu (void)
 	m_bOpen (FALSE),
 	m_Screen (ScreenMain),
 	m_nSelected (0),
+	m_bBackSelected (FALSE),
 	m_nRepeatKey (ATARI_KEY_NONE),
 	m_nRepeatAtTicks (0),
 	m_BrowseTarget (BrowseNone),
@@ -255,6 +256,11 @@ void CAtariMenu::Toggle (void)
 	m_bOpen = TRUE;
 	OpenScreen (ScreenMain);
 
+	if (m_pHost != 0)
+	{
+		m_pHost->MenuOpened ();
+	}
+
 	/*
 	 * The OSD's presence changes how the frame is paced -- while it is open the
 	 * picture is redrawn on a reduced cadence, and with STATIC_OSD it is not
@@ -332,12 +338,20 @@ void CAtariMenu::ExitMenu (TMenuExit Action)
 
 void CAtariMenu::Close (void)
 {
+	boolean bWasOpen = m_bOpen;
+
 	m_bOpen = FALSE;
 	m_Screen = ScreenMain;
 	m_nSelected = 0;
+	m_bBackSelected = FALSE;
 	m_nRepeatKey = ATARI_KEY_NONE;
 	m_BrowseTarget = BrowseNone;
 	ClearPendingErase (FALSE);
+
+	if (bWasOpen && m_pHost != 0)
+	{
+		m_pHost->MenuClosed ();
+	}
 
 	/*
 	 * The panel is drawn over the black margins when the picture is narrower than
@@ -364,6 +378,7 @@ void CAtariMenu::OpenScreen (TMenuScreen Screen)
 {
 	m_Screen = Screen;
 	m_nSelected = 0;
+	m_bBackSelected = HasBackItem ();
 	m_nBrowseTop = 0;
 	m_nBrowserSelected = 0;
 }
@@ -374,29 +389,63 @@ void CAtariMenu::OpenScreen (TMenuScreen Screen)
 
 unsigned CAtariMenu::GetItemCount (void) const
 {
+	unsigned nCount;
+
 	switch (m_Screen)
 	{
 	case ScreenMain:
-		return MainItemCount;
+		nCount = MainItemCount;
+		break;
 	case ScreenDisks:
-		return DiskItemCount;
+		nCount = DiskItemCount;
+		break;
 	case ScreenCartridge:
-		return CartridgeItemCount;
+		nCount = CartridgeItemCount;
+		break;
 	case ScreenCassette:
-		return CassetteItemCount;
+		nCount = CassetteItemCount;
+		break;
 	case ScreenJoysticks:
-		return JoystickItemCount;
+		nCount = JoystickItemCount;
+		break;
 	case ScreenMachine:
-		return MachineItemCount;
+		nCount = MachineItemCount;
+		break;
 	case ScreenVideo:
-		return VideoItemCount;
+		nCount = VideoItemCount;
+		break;
 	case ScreenSound:
-		return SoundItemCount;
+		nCount = SoundItemCount;
+		break;
 	case ScreenSnapshots:
-		return SnapshotItemCount;
+		nCount = SnapshotItemCount;
+		break;
 	default:
-		return 0;
+		nCount = 0;
+		break;
 	}
+
+	return nCount + (HasBackItem () ? 1 : 0);
+}
+
+boolean CAtariMenu::HasBackItem (void) const
+{
+	return m_Screen != ScreenMain && m_Screen != ScreenBrowse;
+}
+
+boolean CAtariMenu::IsItemSelected (unsigned nIndex) const
+{
+	if (HasBackItem ())
+	{
+		if (nIndex == 0)
+		{
+			return m_bBackSelected;
+		}
+
+		nIndex--;
+	}
+
+	return !m_bBackSelected && nIndex == m_nSelected;
 }
 
 unsigned CAtariMenu::TextColumns (unsigned nPixels) const
@@ -488,6 +537,16 @@ boolean CAtariMenu::IsWithinUserBase (const char *pPath) const
 
 const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 {
+	if (HasBackItem ())
+	{
+		if (nIndex == 0)
+		{
+			return "..";
+		}
+
+		nIndex--;
+	}
+
 	switch (m_Screen)
 	{
 	case ScreenMain:
@@ -728,6 +787,16 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 	static char Text[MENU_TEXT_MAX];
 	const TAtariSettings &S = *m_pSettings;
 
+	if (HasBackItem ())
+	{
+		if (nIndex == 0)
+		{
+			return "";
+		}
+
+		nIndex--;
+	}
+
 	switch (m_Screen)
 	{
 	case ScreenMain:
@@ -928,6 +997,32 @@ void CAtariMenu::MoveSelection (int nDelta)
 		return;
 	}
 
+	if (HasBackItem ())
+	{
+		/*
+		 * The synthetic row is above native item 0.  Moving up from the first
+		 * real item selects it, moving down from the last real item wraps to
+		 * it, and moving off it enters the first or last real item.
+		 */
+		if (m_bBackSelected)
+		{
+			m_bBackSelected = FALSE;
+			m_nSelected = nDelta > 0 ? 0 : nCount - 2;
+			return;
+		}
+
+		int nSelected = (int) m_nSelected + nDelta;
+		if (nSelected < 0 || nSelected >= (int) nCount - 1)
+		{
+			m_bBackSelected = TRUE;
+			m_nSelected = 0;
+			return;
+		}
+
+		m_nSelected = (unsigned) nSelected;
+		return;
+	}
+
 	int nSelected = (int) m_nSelected + nDelta;
 
 	// Wrap, so the user never gets stuck at an end of the list.
@@ -963,6 +1058,11 @@ void CAtariMenu::MoveSelection (int nDelta)
  */
 void CAtariMenu::AdjustSetting (int nDelta)
 {
+	if (m_bBackSelected)
+	{
+		return;
+	}
+
 	TAtariSettings &S = *m_pSettings;
 	boolean bChanged = TRUE;
 
@@ -1489,6 +1589,11 @@ void CAtariMenu::SaveNewSnapshot (void)
 
 void CAtariMenu::EjectSelection (void)
 {
+	if (m_bBackSelected)
+	{
+		return;
+	}
+
 	if (m_pHost == 0 || m_pSettings == 0)
 	{
 		return;
@@ -1565,6 +1670,12 @@ void CAtariMenu::EjectSelection (void)
 void CAtariMenu::ActivateSelection (void)
 {
 	TAtariSettings &S = *m_pSettings;
+
+	if (m_bBackSelected)
+	{
+		OpenScreen (ScreenMain);
+		return;
+	}
 
 	switch (m_Screen)
 	{
@@ -1752,6 +1863,7 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
 	m_nBrowserSelected = 0;
 	m_Screen = ScreenBrowse;
 	m_nSelected = 0;
+	m_bBackSelected = FALSE;
 }
 
 /*
@@ -2453,7 +2565,7 @@ void CAtariMenu::DrawMainScreen (void)
 
 	for (unsigned i = 0; i < nCount; i++)
 	{
-		DrawItem (nY, i == m_nSelected, GetItemLabel (i), GetItemValue (i));
+		DrawItem (nY, IsItemSelected (i), GetItemLabel (i), GetItemValue (i));
 		nY += m_nRowPitch;
 	}
 

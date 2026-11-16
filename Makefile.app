@@ -78,6 +78,7 @@ MODULE_SRCS := \
 	src/input/usb_key_reports.cpp \
 	src/input/gpio_keyboard.cpp \
 	src/input/joystick.cpp \
+	src/input/joystick_menu.cpp \
 	src/input/usb_joystick.cpp \
 	src/input/gpio_joystick.cpp \
 	src/input/keyboard_joystick.cpp \

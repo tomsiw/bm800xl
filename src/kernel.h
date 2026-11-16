@@ -33,6 +33,7 @@
 #include "bootlog.h"
 #include "config/settings.h"
 #include "input/keyboard.h"
+#include "input/joystick_menu.h"
 #include "input/joystick_types.h"
 #include "osd/osd_menu.h"
 #include "storage/storage.h"
@@ -157,6 +158,8 @@ public:
 	boolean GetPowerCycleShortcut (char *pName, unsigned nSize);
 	const char *GetCloseMenuHint (void);
 	double GetFps (void);
+	void MenuOpened (void);
+	void MenuClosed (void);
 
 private:
 	// Builds the configuration the emulation core needs from the settings.
@@ -235,6 +238,7 @@ private:
 	CAtariStorage		m_Storage;
 	CAtariVideoOut		m_Video;
 	CAtariMenu		m_Menu;
+	CAtariMenuJoystick	m_MenuJoystick;
 	CAtariKeyboard	       *m_pKeyboard;
 	audio_sink_t	       *m_pAudioSink;
 

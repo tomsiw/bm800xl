@@ -1125,6 +1125,9 @@ void CAtariKernel::InitializeJoysticks (void)
 	boolean bGPIO = m_Settings.nJoystickInterface == AtariJoystickInterfaceGPIO;
 	boolean bKeyboard = m_Settings.nJoystickInterface == AtariJoystickInterfaceKeyboard;
 
+	/* No controllers are handed to the menu until the loop below has built them. */
+	m_MenuJoystick.SetHandles (0, 0, FALSE);
+
 	/*
 	 * A start-up record of the controller configuration.  The driver's own log
 	 * says nothing unless a controller is attached, so this line is what tells a
@@ -1201,6 +1204,13 @@ void CAtariKernel::InitializeJoysticks (void)
 
 	BindJoysticks ();
 
+	/*
+	 * The keyboard joystick is driven by the same reports the keyboard already
+	 * turns into menu keys; feeding it in again would double every press.
+	 */
+	m_MenuJoystick.SetHandles (m_pJoystickHandle[0], m_pJoystickHandle[1],
+				   bKeyboard ? FALSE : TRUE);
+
 	if (!bGPIO && !bKeyboard)
 	{
 		unsigned nAttached = 0;
@@ -1263,6 +1273,18 @@ void CAtariKernel::SwapJoystickPorts (void)
 	CBootLog::Get ()->RecordRuntimef ("joysticks: ports %s",
 					 m_Settings.bSwapJoystickPorts
 						? "swapped" : "normal");
+}
+
+void CAtariKernel::MenuOpened (void)
+{
+	m_MenuJoystick.SetActive (TRUE);
+	ATARI_SetJoystickMenuActive (1);
+}
+
+void CAtariKernel::MenuClosed (void)
+{
+	m_MenuJoystick.SetActive (FALSE);
+	ATARI_SetJoystickMenuActive (0);
 }
 
 void CAtariKernel::MountMediaFromSettings (void)
@@ -1500,6 +1522,27 @@ void CAtariKernel::RunFrame (void)
 		{
 			TMenuKeyEvent Event;
 			if (!m_pKeyboard->ConsumeMenuKeyEvent (&Event))
+			{
+				break;
+			}
+			m_Menu.HandleKeyEvent (Event.nKey, Event.bPressed, Event.bShift);
+			bMenuKeyHandled = TRUE;
+		}
+	}
+
+	/*
+	 * A gamepad or 9-pin joystick drives the same menu keys while the OSD is
+	 * open: directions are the cursor keys and fire is Enter.  Poll here, in the
+	 * frame loop, so no USB interrupt ever calls into the menu.
+	 */
+	if (m_Menu.IsOpen ())
+	{
+		m_MenuJoystick.Poll ();
+
+		for (int nGuard = 0; nGuard < 8 && m_Menu.IsOpen (); nGuard++)
+		{
+			TMenuKeyEvent Event;
+			if (!m_MenuJoystick.ConsumeEvent (&Event))
 			{
 				break;
 			}

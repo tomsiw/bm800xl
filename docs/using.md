@@ -37,6 +37,18 @@ Holding **Up** or **Down** repeats after a short delay, so a long list can be
 walked without pressing the key repeatedly. Return, Space, Escape and Delete
 act once.
 
+Every settings submenu opens with a **`..`** row first, already selected. Return,
+Fire or Space on it goes back to the main menu; Down moves to the first real
+setting. Escape still returns to the main menu directly.
+
+While the menu is open, the selected **joystick or gamepad** drives it too: its
+directions act as the cursor keys and its fire button as Return. This works for
+a USB gamepad and for a 9-pin joystick; the USB-keyboard joystick interface is
+left out because those keys already produce menu keys. The first controller used
+owns the menu session, and a direction or fire held while the menu opens is
+ignored until it has been released once. Controller input is withheld from the
+emulated machine while the menu is open.
+
 The **Warm reset**, **Power cycle** and **Close menu** rows show the effective
 shortcuts. The reset hints follow `usbkeys.cfg`: by default `<F10>`,
 `<Shift+F10>` and `<F12> / <Esc>`; a remapped reset key updates the first two,

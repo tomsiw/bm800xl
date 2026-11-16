@@ -198,12 +198,18 @@ int PLATFORM_Keyboard(void)
  * centred instead of as every direction held at once.
  */
 static atari_joystick_t *s_pJoystick[ATARI_JOYSTICK_COUNT];
+static int s_bJoystickMenuActive;
 
 void ATARI_SetJoystick(int index, atari_joystick_t *pJoystick)
 {
 	if (index >= 0 && index < ATARI_JOYSTICK_COUNT) {
 		s_pJoystick[index] = pJoystick;
 	}
+}
+
+void ATARI_SetJoystickMenuActive(int active)
+{
+	s_bJoystickMenuActive = active != 0;
 }
 
 atari_joystick_t *ATARI_GetJoystick(int index)
@@ -224,6 +230,9 @@ atari_joystick_t *ATARI_GetJoystick(int index)
 static unsigned JoystickDirections(int source)
 {
 	if (source < 0 || source >= ATARI_JOYSTICK_COUNT) {
+		return 0;
+	}
+	if (s_bJoystickMenuActive) {
 		return 0;
 	}
 	if (s_pJoystick[source] == 0 || !s_pJoystick[source]->is_present(s_pJoystick[source])) {
@@ -264,6 +273,9 @@ int PLATFORM_PORT(int num)
 int PLATFORM_TRIG(int num)
 {
 	if (num < 0 || num >= ATARI_JOYSTICK_COUNT) {
+		return ATARI_JOY_TRIG_OPEN;
+	}
+	if (s_bJoystickMenuActive) {
 		return ATARI_JOY_TRIG_OPEN;
 	}
 	if (s_pJoystick[num] == 0 || !s_pJoystick[num]->is_present(s_pJoystick[num])) {

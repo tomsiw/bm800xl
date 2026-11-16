@@ -117,6 +117,14 @@ public:
 
 	// Frames emulated per second, for the status display.
 	virtual double GetFps (void) = 0;
+
+	/*
+	 * Called once when the OSD actually opens or closes, whichever route was
+	 * taken.  The kernel uses these to hand the controllers to the menu and to
+	 * stop the emulated machine seeing their input while it is open.
+	 */
+	virtual void MenuOpened (void) { }
+	virtual void MenuClosed (void) { }
 };
 
 class CAtariMenu
@@ -342,6 +350,14 @@ private:
 	const char *GetItemValue (unsigned nIndex) const;
 
 	/*
+	 * The fixed submenus carry a synthetic ".." row at index 0.  Native item
+	 * indexes stay as they are; the display index is shifted by this helper.
+	 * The main menu and the file browser have no such row.
+	 */
+	boolean HasBackItem (void) const;
+	boolean IsItemSelected (unsigned nIndex) const;
+
+	/*
 	 * How many characters of the current font fit in PIXELS, and a cut-down
 	 * copy of a string to that many characters.  File names and paths have no
 	 * length limit; the panel does, and text drawn past its edge lands on the
@@ -387,6 +403,7 @@ private:
 	boolean m_bOpen;
 	TMenuScreen m_Screen;
 	unsigned m_nSelected;
+	boolean m_bBackSelected;
 
 	// Auto-repeat: the held navigation key, and when it next fires.
 	int m_nRepeatKey;
