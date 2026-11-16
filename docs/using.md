@@ -83,8 +83,10 @@ hidden above or below the visible rows.
 
 The browser always shows a **`..`** row above the listing. The first real entry
 is selected when the browser opens; Up from it selects `..`, and Down returns to
-the first entry. Return/Fire on `..` goes up one directory, or leaves the browser
-at its root. Escape does the same thing.
+the first entry. Left and Right move the selection one page of files at a time.
+Left on the first page selects `..`; Right on the last page selects the last
+file. Return/Fire on `..` goes up one directory, or leaves the browser at its
+root. Escape does the same thing.
 
 **Cartridge** — Load a cartridge image (CAR or ROM).
 

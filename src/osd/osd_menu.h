@@ -317,6 +317,7 @@ private:
 
 	/* Up one directory, or leave the browser when already at its root. */
 	void BrowserBack (void);
+	void BrowserMovePage (int nDelta);
 
 	/* Selects the first real entry, or ".." when the directory is empty. */
 	void BrowserResetSelection (void);

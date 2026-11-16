@@ -1995,6 +1995,69 @@ boolean CAtariMenu::AtBrowserRoot (void) const
 	return FALSE;
 }
 
+void CAtariMenu::BrowserMovePage (int nDelta)
+{
+	if (m_pStorage == 0)
+	{
+		return;
+	}
+
+	ClearPendingErase (TRUE);
+
+	unsigned nCount = m_pStorage->GetEntryCount ();
+	if (nCount == 0)
+	{
+		m_bBrowserBackSelected = TRUE;
+		m_nBrowserSelected = 0;
+		m_nBrowseTop = 0;
+		return;
+	}
+
+	unsigned nRows = m_nVisibleRows > 0 ? m_nVisibleRows - 1 : 0;
+	if (nRows == 0)
+	{
+		nRows = 1;
+	}
+
+	if (nDelta < 0)
+	{
+		if (m_bBrowserBackSelected)
+		{
+			return;
+		}
+
+		if (m_nBrowserSelected < nRows)
+		{
+			m_bBrowserBackSelected = TRUE;
+			m_nBrowseTop = 0;
+			return;
+		}
+
+		m_nBrowserSelected -= nRows;
+	}
+	else
+	{
+		if (m_bBrowserBackSelected)
+		{
+			m_bBrowserBackSelected = FALSE;
+			m_nBrowserSelected = 0;
+			m_nBrowseTop = 0;
+			return;
+		}
+
+		if (m_nBrowserSelected + nRows >= nCount)
+		{
+			m_nBrowserSelected = nCount - 1;
+		}
+		else
+		{
+			m_nBrowserSelected += nRows;
+		}
+	}
+
+	m_nBrowseTop = (m_nBrowserSelected / nRows) * nRows;
+}
+
 void CAtariMenu::BrowserBack (void)
 {
 	ClearPendingErase (TRUE);
@@ -2503,6 +2566,14 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 					m_nBrowseTop = m_nBrowserSelected - nVisibleRows + 1;
 				}
 			}
+			return TRUE;
+
+		case ATARI_KEY_LEFT:
+			BrowserMovePage (-1);
+			return TRUE;
+
+		case ATARI_KEY_RIGHT:
+			BrowserMovePage (1);
 			return TRUE;
 
 		case ATARI_KEY_RETURN:
