@@ -106,6 +106,7 @@ CAtariMenu::CAtariMenu (void)
 	m_BrowseTarget (BrowseNone),
 	m_nBrowseTop (0),
 	m_nBrowserSelected (0),
+	m_bBrowserBackSelected (FALSE),
 	m_nEraseFrames (0),
 	m_nMessageFrames (0),
 	m_nLineHeight (16),
@@ -1894,8 +1895,7 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
 
 	ClearPendingErase (FALSE);
 
-	m_nBrowseTop = 0;
-	m_nBrowserSelected = 0;
+	BrowserResetSelection ();
 	m_Screen = ScreenBrowse;
 	m_nSelected = 0;
 	m_bBackSelected = FALSE;
@@ -1920,6 +1920,14 @@ void CAtariMenu::ListBrowserDirectory (void)
 	// The listing shows names, not paths, so a volume root needs no leading
 	// separator; everywhere else the directory is passed as-is.
 	m_pStorage->ListWithDirectories (Volume, Directory, m_BrowseFilter);
+}
+
+void CAtariMenu::BrowserResetSelection (void)
+{
+	m_nBrowseTop = 0;
+	m_nBrowserSelected = 0;
+	m_bBrowserBackSelected = m_pStorage == 0
+			      || m_pStorage->GetEntryCount () == 0;
 }
 
 void CAtariMenu::BrowserEnterDirectory (void)
@@ -1949,8 +1957,7 @@ void CAtariMenu::BrowserEnterDirectory (void)
 
 	ListBrowserDirectory ();
 	ClearPendingErase (TRUE);
-	m_nBrowseTop = 0;
-	m_nBrowserSelected = 0;
+	BrowserResetSelection ();
 }
 
 /*
@@ -1986,6 +1993,16 @@ boolean CAtariMenu::AtBrowserRoot (void) const
 	}
 
 	return FALSE;
+}
+
+void CAtariMenu::BrowserBack (void)
+{
+	ClearPendingErase (TRUE);
+
+	if (!BrowserGoUp ())
+	{
+		OpenScreen (BrowseOrigin (m_BrowseTarget));
+	}
 }
 
 boolean CAtariMenu::BrowserGoUp (void)
@@ -2036,8 +2053,7 @@ boolean CAtariMenu::BrowserGoUp (void)
 	}
 
 	ClearPendingErase (TRUE);
-	m_nBrowseTop = 0;
-	m_nBrowserSelected = 0;
+	BrowserResetSelection ();
 
 	return TRUE;
 }
@@ -2046,6 +2062,12 @@ void CAtariMenu::BrowserChoose (void)
 {
 	if (m_pStorage == 0)
 	{
+		return;
+	}
+
+	if (m_bBrowserBackSelected)
+	{
+		BrowserBack ();
 		return;
 	}
 
@@ -2234,6 +2256,12 @@ void CAtariMenu::BrowserErase (void)
 		return;
 	}
 
+	if (m_bBrowserBackSelected)
+	{
+		ClearPendingErase (TRUE);
+		return;
+	}
+
 	const char *pEntry = m_pStorage->GetEntry (m_nBrowserSelected);
 	if (pEntry == 0 || pEntry[0] == '/')
 	{
@@ -2288,13 +2316,22 @@ void CAtariMenu::BrowserErase (void)
 	 * which is where the user is looking.
 	 */
 	unsigned nCount = m_pStorage->GetEntryCount ();
-	if (m_nBrowserSelected >= nCount)
+	m_bBrowserBackSelected = nCount == 0;
+	if (m_bBrowserBackSelected)
 	{
-		m_nBrowserSelected = nCount > 0 ? nCount - 1 : 0;
+		m_nBrowserSelected = 0;
+		m_nBrowseTop = 0;
 	}
-	if (m_nBrowseTop > m_nBrowserSelected)
+	else
 	{
-		m_nBrowseTop = m_nBrowserSelected;
+		if (m_nBrowserSelected >= nCount)
+		{
+			m_nBrowserSelected = nCount - 1;
+		}
+		if (m_nBrowseTop > m_nBrowserSelected)
+		{
+			m_nBrowseTop = m_nBrowserSelected;
+		}
 	}
 
 	snprintf (m_Message, sizeof m_Message, "Erased %s", Name);
@@ -2420,28 +2457,44 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 	{
 		unsigned nCount = m_pStorage != 0 ? m_pStorage->GetEntryCount () : 0;
 
-		// Enough rows to fill the panel; see m_nVisibleRows.
-		unsigned nVisibleRows = m_nVisibleRows;
+		// The ".." row takes one of the panel's rows.
+		unsigned nVisibleRows = m_nVisibleRows > 0 ? m_nVisibleRows - 1 : 0;
 
 		switch (nKey)
 		{
 		case ATARI_KEY_UP:
 			ClearPendingErase (TRUE);
-			if (nCount > 0)
+			if (m_bBrowserBackSelected)
 			{
-				if (m_nBrowserSelected > 0)
+				return TRUE;
+			}
+			if (m_nBrowserSelected > 0)
+			{
+				m_nBrowserSelected--;
+				if (m_nBrowserSelected < m_nBrowseTop)
 				{
-					m_nBrowserSelected--;
-					if (m_nBrowserSelected < m_nBrowseTop)
-					{
-						m_nBrowseTop = m_nBrowserSelected;
-					}
+					m_nBrowseTop = m_nBrowserSelected;
 				}
+			}
+			else
+			{
+				m_bBrowserBackSelected = TRUE;
+				m_nBrowseTop = 0;
 			}
 			return TRUE;
 
 		case ATARI_KEY_DOWN:
 			ClearPendingErase (TRUE);
+			if (m_bBrowserBackSelected)
+			{
+				if (nCount > 0)
+				{
+					m_bBrowserBackSelected = FALSE;
+					m_nBrowserSelected = 0;
+					m_nBrowseTop = 0;
+				}
+				return TRUE;
+			}
 			if (nCount > 0 && m_nBrowserSelected + 1 < nCount)
 			{
 				m_nBrowserSelected++;
@@ -2473,16 +2526,10 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 
 		case ATARI_KEY_ESCAPE:
 			/*
-			 * Escape goes up a directory, and leaves the browser only from a
-			 * volume root -- which is the point where there is nothing above
-			 * to go to, so the key always does something visible rather than
-			 * appearing to be ignored.
+			 * Escape goes up a directory, and leaves the browser at its root.
+			 * See BrowserBack().
 			 */
-			ClearPendingErase (TRUE);
-			if (!BrowserGoUp ())
-			{
-				OpenScreen (BrowseOrigin (m_BrowseTarget));
-			}
+			BrowserBack ();
 			return TRUE;
 
 		default:
@@ -2652,13 +2699,13 @@ void CAtariMenu::DrawBrowser (void)
 	char Title[MENU_TEXT_MAX];
 
 	unsigned nCount = m_pStorage != 0 ? m_pStorage->GetEntryCount () : 0;
-	unsigned nVisibleRows = m_nVisibleRows;
+	unsigned nEntryRows = m_nVisibleRows > 0 ? m_nVisibleRows - 1 : 0;
 
 	// A row above the first visible one, or below the last, means there is
 	// more to see.  The arrows are drawn in the header/footer corners, where
 	// there is no file name to collide with.
 	boolean bMoreAbove = m_nBrowseTop > 0;
-	boolean bMoreBelow = m_nBrowseTop + nVisibleRows < nCount;
+	boolean bMoreBelow = m_nBrowseTop + nEntryRows < nCount;
 
 	// The browser's title is the directory being listed, which can be longer
 	// than the title bar; CopyText truncates it to the buffer, and the second
@@ -2675,6 +2722,11 @@ void CAtariMenu::DrawBrowser (void)
 	Truncate (Title, TextColumns (nTitleWidth));
 	DrawHeader (Title);
 
+	unsigned nY = MenuMarginY + m_nItemTop;
+
+	DrawItem (nY, m_bBrowserBackSelected, "..", "");
+	nY += m_nRowPitch;
+
 	if (nCount == 0)
 	{
 		// Two different explanations: an empty directory, or a volume that is
@@ -2689,14 +2741,12 @@ void CAtariMenu::DrawBrowser (void)
 				 : "No USB drive detected";
 		}
 
-		m_pVideo->DrawText (MenuMarginX + MenuIndent, MenuMarginY + m_nItemTop,
+		m_pVideo->DrawText (MenuMarginX + MenuIndent, nY,
 				    ATARI_COLOR_TITLE, pMessage);
 	}
 	else
 	{
-		unsigned nY = MenuMarginY + m_nItemTop;
-
-		for (unsigned nRow = 0; nRow < nVisibleRows; nRow++)
+		for (unsigned nRow = 0; nRow < nEntryRows; nRow++)
 		{
 			unsigned nIndex = m_nBrowseTop + nRow;
 			if (nIndex >= nCount)
@@ -2721,7 +2771,8 @@ void CAtariMenu::DrawBrowser (void)
 
 			Truncate (Name, TextColumns (MenuPanelWidth - 2 * MenuIndent));
 
-			DrawItem (nY, nIndex == m_nBrowserSelected, Name, "");
+			DrawItem (nY, !m_bBrowserBackSelected && nIndex == m_nBrowserSelected,
+				  Name, "");
 			nY += m_nRowPitch;
 		}
 	}

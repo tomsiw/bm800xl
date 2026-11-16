@@ -81,6 +81,11 @@ When a directory has more files than the browser can show at once, an up arrow
 appears in the header and a down arrow in the footer while there are files
 hidden above or below the visible rows.
 
+The browser always shows a **`..`** row above the listing. The first real entry
+is selected when the browser opens; Up from it selects `..`, and Down returns to
+the first entry. Return/Fire on `..` goes up one directory, or leaves the browser
+at its root. Escape does the same thing.
+
 **Cartridge** — Load a cartridge image (CAR or ROM).
 
 **Joysticks** — Which interface feeds the two Atari joystick ports: **USB
@@ -368,8 +373,9 @@ a PC.
 
 **Load snapshot** lists the same directory. Loading one makes it the current
 snapshot, so a later **Save snapshot** overwrites it. In the snapshot browser,
-Escape goes up one directory and, from `SD:/ATARI`, leaves the browser for the
-snapshot screen instead of showing the SD card root.
+Up from the first entry selects `..`; Return/Fire on it goes up one directory and,
+from `SD:/ATARI`, leaves the browser for the snapshot screen instead of showing
+the SD card root. Escape does the same.
 
 **Erase snapshot** is a screen of its own, and the only place a snapshot can be
 removed: the load browser never deletes anything, so a file cannot be lost

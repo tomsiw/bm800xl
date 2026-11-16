@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `c524ccf`; the snapshot-browser root fix and this
+**Last updated:** after commit `7d12710`; the browser `..` row and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -262,7 +262,8 @@ carries this table; a commit cannot name its own hash.
 | `1d0e968` | A gamepad or 9-pin joystick could only play the emulated machine; the OSD was keyboard-only | Added a menu joystick source that polls the two controller handles and maps directions to the arrow keys and fire to Return.  The first pad with a fresh input owns the menu session; controls held when the OSD opens are ignored until neutral.  The platform layer answers both controller ports as centred while the OSD is open, so the same pad cannot also drive the emulated machine. |
 | `1d0e968` | Fixed submenus had no visible back row; a gamepad-only user had to use Escape or F12 | Added a synthetic `..` row as the first item of every fixed settings submenu.  Native item indexes are unchanged; only the displayed index is shifted.  Submenus open with `..` selected, and activating it returns to the main menu.  The file browser and main menu are unchanged. |
 | `c524ccf` | "Save snapshot" always opened the file browser, even when nothing had been saved or loaded yet; there was no current snapshot to overwrite | Added a runtime-only current snapshot path.  Save snapshot writes that file directly; with no current file it calls the Save-as-new routine, which creates the first unused name and makes it current.  Loading or saving a snapshot makes it current, and erasing it clears the path.  The current path deliberately does not survive a restart. |
-| (this commit) | Escape from the snapshot browser at `SD:/ATARI` walked up to `SD:/` instead of returning to the Snapshots menu | `BrowserGoUp()` bounded the media browsers to the user base but not the snapshot browsers.  Added `AtBrowserRoot()` for both families and used it when starting the ascent and when skipping empty directories.  Escape from the snapshot root now leaves for the Snapshots screen; subdirectories still go up one level first. |
+| `7d12710` | Escape from the snapshot browser at `SD:/ATARI` walked up to `SD:/` instead of returning to the Snapshots menu | `BrowserGoUp()` bounded the media browsers to the user base but not the snapshot browsers.  Added `AtBrowserRoot()` for both families and used it when starting the ascent and when skipping empty directories.  Escape from the snapshot root now leaves for the Snapshots screen; subdirectories still go up one level first. |
+| (this commit) | The browser had no backward choice for a gamepad-only user; Escape was keyboard-only | Added a synthetic `..` row above the listing without changing real entry indexes.  Up from the first entry selects it, Down returns to the first entry, and Return/Fire either goes up a directory or leaves the browser at its root.  The row costs one visible listing row; entry lookup, filtering and paths are unchanged. |
 
 ---
 

@@ -314,6 +314,13 @@ private:
 
 	/* \return TRUE if the listing now shows the parent directory */
 	boolean BrowserGoUp (void);
+
+	/* Up one directory, or leave the browser when already at its root. */
+	void BrowserBack (void);
+
+	/* Selects the first real entry, or ".." when the directory is empty. */
+	void BrowserResetSelection (void);
+
 	void BrowserChoose (void);
 
 	/*
@@ -425,6 +432,7 @@ private:
 	char m_BrowseFilter[STORAGE_MAX_FILTER];
 	unsigned m_nBrowseTop;		// first visible entry
 	unsigned m_nBrowserSelected;
+	boolean m_bBrowserBackSelected;
 
 	/*
 	 * An erasure waiting for its second press: the file, and how many drawn
