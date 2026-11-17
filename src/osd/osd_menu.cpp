@@ -49,7 +49,7 @@ static const unsigned MenuLabelColumn	= 450;	// x offset of the value column
 
 // Numbers of entries on each screen.  All five switch statements keyed on
 // m_Screen have to agree with these, so they are named rather than repeated.
-static const unsigned MainItemCount		= 13;
+static const unsigned MainItemCount		= 14;
 static const unsigned DiskItemCount		= SETTINGS_MAX_DRIVES * 2;	// insert and eject
 static const unsigned CartridgeItemCount	= 2;	// insert, eject
 static const unsigned CassetteItemCount		= 2;	// insert, eject
@@ -62,6 +62,7 @@ static const unsigned MAX_SNAPSHOT_MEDIA	= 24;
 static const unsigned VideoItemCount		= 6;	// standard, artifacting, resolution, aspect, scanlines, factor
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
+static const unsigned OtherItemCount		= 5;	// static OSD, BRK, numpad, keyboard, user dir
 
 static const char FromMenu[] = "menu";
 
@@ -422,6 +423,9 @@ unsigned CAtariMenu::GetItemCount (void) const
 	case ScreenSnapshots:
 		nCount = SnapshotItemCount;
 		break;
+	case ScreenOther:
+		nCount = OtherItemCount;
+		break;
 	default:
 		nCount = 0;
 		break;
@@ -562,11 +566,12 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 5: return "Screen";
 		case 6: return "Sound";
 		case 7: return "Save states";
-		case 8: return "Cold reset";
-		case 9: return "Warm reset";
-		case 10: return "Power cycle";
-		case 11: return "Restart Pi";
-		case 12: return "Close menu";
+		case 8: return "Other options";
+		case 9: return "Cold reset";
+		case 10: return "Warm reset";
+		case 11: return "Power cycle";
+		case 12: return "Restart Pi";
+		case 13: return "Close menu";
 		}
 		break;
 
@@ -650,6 +655,17 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 1: return "Save as new snapshot";
 		case 2: return "Load snapshot";
 		case 3: return "Erase snapshot";
+		}
+		break;
+
+	case ScreenOther:
+		switch (nIndex)
+		{
+		case 0: return "Static OSD";
+		case 1: return "Continue on BRK";
+		case 2: return "NumPad as cursor";
+		case 3: return "Keyboard";
+		case 4: return "User directory";
 		}
 		break;
 
@@ -847,7 +863,9 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			return Text;
 		case 7:
 			return "Save / load / erase";
-		case 9:
+		case 8:
+			return "";
+		case 10:
 			{
 				char Shortcut[32];
 				if (   m_pHost != 0
@@ -860,7 +878,7 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 
 				return m_pHost != 0 ? "<unbound>" : "<F10>";
 			}
-		case 10:
+		case 11:
 			{
 				char Shortcut[32];
 				if (   m_pHost != 0
@@ -873,7 +891,7 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 
 				return m_pHost != 0 ? "<unbound>" : "<Shift+F10>";
 			}
-		case 12:
+		case 13:
 			if (m_pHost != 0)
 			{
 				return m_pHost->GetCloseMenuHint ();
@@ -978,6 +996,20 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 		 * immediately or opens the browser, so there is nothing to show.
 		 */
 		return "";
+
+	case ScreenOther:
+		switch (nIndex)
+		{
+		case 0: return S.bStaticOSD ? "On" : "Off";
+		case 1: return S.bContinueOnBrk ? "On" : "Off";
+		case 2: return S.bNumpadAsCursor ? "On" : "Off";
+		case 3: return KeyboardName (S.nKeyboardMode);
+		case 4:
+			return (m_pStorage != 0
+				&& m_pStorage->OnSystemVolume (S.UserDirectory))
+				? "SD:" : "USB:";
+		}
+		break;
 
 	default:
 		break;
@@ -1405,6 +1437,58 @@ void CAtariMenu::AdjustSetting (int nDelta)
 		}
 		break;
 
+	case ScreenOther:
+		switch (m_nSelected)
+		{
+		case 0:
+			S.bStaticOSD = S.bStaticOSD ? FALSE : TRUE;
+			break;
+
+		case 1:
+			S.bContinueOnBrk = S.bContinueOnBrk ? FALSE : TRUE;
+			break;
+
+		case 2:
+			S.bNumpadAsCursor = S.bNumpadAsCursor ? FALSE : TRUE;
+			break;
+
+		case 3:
+			S.nKeyboardMode = S.nKeyboardMode == AtariKeyboardModeUSB
+					? AtariKeyboardModeGPIO : AtariKeyboardModeUSB;
+			snprintf (m_Message, sizeof m_Message,
+				  "%s: switch the Pi off and on",
+				  KeyboardName (S.nKeyboardMode));
+			m_nMessageFrames = MESSAGE_FRAMES;
+			break;
+
+		case 4:
+			{
+				boolean bOnSD = m_pStorage != 0
+					     && m_pStorage->OnSystemVolume (
+							S.UserDirectory);
+
+				snprintf (S.UserDirectory, sizeof S.UserDirectory,
+					  "%s", bOnSD ? STORAGE_VOLUME_USER
+						      : STORAGE_VOLUME_SYSTEM);
+
+				if (m_pStorage != 0)
+				{
+					m_pStorage->SetUserVolume (!bOnSD);
+				}
+
+				snprintf (m_Message, sizeof m_Message,
+					  "Media directory: %s",
+					  S.UserDirectory);
+				m_nMessageFrames = MESSAGE_FRAMES;
+			}
+			break;
+
+		default:
+			bChanged = FALSE;
+			break;
+		}
+		break;
+
 	default:
 		bChanged = FALSE;
 		break;
@@ -1781,11 +1865,12 @@ void CAtariMenu::ActivateSelection (void)
 		case 5: OpenScreen (ScreenVideo); break;
 		case 6: OpenScreen (ScreenSound); break;
 		case 7: OpenScreen (ScreenSnapshots); break;
-		case 8: ExitMenu (ExitColdReset); break;
-		case 9: ExitMenu (ExitWarmReset); break;
-		case 10: ExitMenu (ExitPowerCycle); break;
-		case 11: ExitMenu (ExitRestartPi); break;
-		case 12: ExitMenu (ExitClose); break;
+		case 8: OpenScreen (ScreenOther); break;
+		case 9: ExitMenu (ExitColdReset); break;
+		case 10: ExitMenu (ExitWarmReset); break;
+		case 11: ExitMenu (ExitPowerCycle); break;
+		case 12: ExitMenu (ExitRestartPi); break;
+		case 13: ExitMenu (ExitClose); break;
 		}
 		break;
 

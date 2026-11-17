@@ -16,6 +16,7 @@ screen, to close it.
 │ Display              PAL, 1280x720           │
 │ Sound                80%                     │
 │ Snapshots            Save / load / erase     │
+│ Other options        Static OSD, BRK, ...    │
 │ Close menu                                   │
 ├──────────────────────────────────────────────┤
 │ Atari XL  64 kB  PAL  49.9 fps               │
@@ -125,6 +126,23 @@ other way round: it is satisfied by that same *Power cycle* item.
 
 **Snapshots** — Save, load or erase a machine snapshot. Warm reset, cold reset and
 power cycle are separate items on the main screen.
+
+**Other options** — Settings that have no other menu home:
+
+| Row | Values | Effect |
+|---|---|---|
+| Static OSD | On / Off | Draw the menu over a frozen picture instead of repainting a dimmed live one |
+| Continue on BRK | On / Off | 1 runs BRK as the machine does; 0 stops the frame and logs it |
+| NumPad as cursor | On / Off | Keypad arrows act as cursor keys |
+| Keyboard | USB keyboard / GPIO keyboard | Chooses the keyboard source; takes effect on the next start |
+| User directory | `SD:` / `USB:` | Which volume the media browser starts from |
+
+The **Keyboard** row needs a Pi restart; the others take effect immediately. The
+**User directory** row selects the media volume, not an arbitrary path; the media
+browser still remembers the last directory it was in.
+
+`SYSTEM_DIR` is deliberately not on this screen: it is a file-only setting and is
+not used by the running storage setup.
 
 `Aspect ratio` is worth its own note. **`4:3`** is the picture as a
 television showed it: 336x240 fitted to the screen height, every pixel
@@ -500,7 +518,7 @@ SYSTEM_DIR=SD:/ATARI
 | `CARTRIDGE` | a path, or empty |
 | `CASSETTE` | a path, or empty |
 | `CASSETTE_READONLY` | 0 or 1 |
-| `USER_DIR` | the volume media live on, and where the browser last was: `USB:/disks`, or `SD:/USERDATA` for the SD card |
+| `USER_DIR` | which volume media live on; the OSD row offers `SD:` or `USB:`. The browser also stores its last directory here |
 | `SYSTEM_DIR` | where the emulator's own files are, e.g. `SD:/ATARI` |
 
 A missing or damaged file is not fatal: the defaults are used, unknown lines are

@@ -198,6 +198,7 @@ private:
 		ScreenVideo,
 		ScreenSound,
 		ScreenSnapshots,
+		ScreenOther,
 		ScreenBrowse,
 	};
 
