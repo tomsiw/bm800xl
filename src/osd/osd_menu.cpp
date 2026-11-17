@@ -1529,11 +1529,11 @@ unsigned CAtariMenu::BuildSnapshotMedia (char *pBuffer, unsigned nSize) const
 	return (unsigned) strlen (pBuffer);
 }
 
-void CAtariMenu::SaveCurrentSnapshot (void)
+boolean CAtariMenu::SaveCurrentSnapshot (void)
 {
 	if (m_pHost == 0 || m_pStorage == 0 || m_pSettings == 0)
 	{
-		return;
+		return FALSE;
 	}
 
 	/*
@@ -1545,28 +1545,30 @@ void CAtariMenu::SaveCurrentSnapshot (void)
 	    || !m_pStorage->FileExists (m_SnapshotPath))
 	{
 		m_SnapshotPath[0] = '\0';
-		SaveNewSnapshot ();
-		return;
+		return SaveNewSnapshot ();
 	}
 
 	if (m_pHost->SaveSnapshot (m_SnapshotPath))
 	{
 		snprintf (m_Message, sizeof m_Message, "Saved %s",
 			  BaseName (m_SnapshotPath));
+		m_nMessageFrames = MESSAGE_FRAMES;
+
+		return TRUE;
 	}
-	else
-	{
-		snprintf (m_Message, sizeof m_Message, "Could not save: %s",
-			  m_pHost->GetLastError ());
-	}
+
+	snprintf (m_Message, sizeof m_Message, "Could not save: %s",
+		  m_pHost->GetLastError ());
 	m_nMessageFrames = MESSAGE_FRAMES;
+
+	return FALSE;
 }
 
-void CAtariMenu::SaveNewSnapshot (void)
+boolean CAtariMenu::SaveNewSnapshot (void)
 {
 	if (m_pHost == 0 || m_pStorage == 0 || m_pSettings == 0)
 	{
-		return;
+		return FALSE;
 	}
 
 	/*
@@ -1607,20 +1609,73 @@ void CAtariMenu::SaveNewSnapshot (void)
 			{
 				CopyText (m_SnapshotPath, Path, SETTINGS_PATH_MAX);
 				snprintf (m_Message, sizeof m_Message, "Saved as %s", Name);
+				m_nMessageFrames = MESSAGE_FRAMES;
+
+				return TRUE;
 			}
-			else
-			{
-				snprintf (m_Message, sizeof m_Message, "Could not save: %s",
-					  m_pHost->GetLastError ());
-			}
+
+			snprintf (m_Message, sizeof m_Message, "Could not save: %s",
+				  m_pHost->GetLastError ());
 			m_nMessageFrames = MESSAGE_FRAMES;
-			return;
+
+			return FALSE;
 		}
 	}
 
 	snprintf (m_Message, sizeof m_Message,
 		  "SNAPSHOT1.SAV to SNAPSHOT99.SAV are all in use");
 	m_nMessageFrames = MESSAGE_FRAMES;
+
+	return FALSE;
+}
+
+boolean CAtariMenu::LoadLastSnapshot (void)
+{
+	if (m_pHost == 0 || m_pStorage == 0 || m_pSettings == 0)
+	{
+		return FALSE;
+	}
+
+	if (   m_SnapshotPath[0] == '\0'
+	    || !m_pStorage->FileExists (m_SnapshotPath))
+	{
+		m_SnapshotPath[0] = '\0';
+		OpenBrowser (BrowseSnapshotLoad);
+
+		return FALSE;
+	}
+
+	if (!m_pHost->LoadSnapshot (m_SnapshotPath))
+	{
+		snprintf (m_Message, sizeof m_Message, "Failed: %s",
+			  m_pHost->GetLastError ());
+		m_nMessageFrames = MESSAGE_FRAMES;
+
+		return FALSE;
+	}
+
+	const char *pNotice = m_pHost->GetCassetteModeMessage ();
+	const char *pSnapshotNotice = m_pHost->GetSnapshotNotice ();
+
+	if (pSnapshotNotice != 0 && pSnapshotNotice[0] != '\0')
+	{
+		pNotice = pSnapshotNotice;
+	}
+
+	if (pNotice != 0)
+	{
+		snprintf (m_Message, sizeof m_Message, "%s", pNotice);
+	}
+	else
+	{
+		snprintf (m_Message, sizeof m_Message, "Loaded %s",
+			  BaseName (m_SnapshotPath));
+	}
+
+	m_nMessageFrames = MESSAGE_FRAMES;
+	SaveSettings ();
+
+	return TRUE;
 }
 
 void CAtariMenu::EjectSelection (void)
@@ -2606,6 +2661,33 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 		default:
 			// Anything else closes the menu, so the user is never trapped.
 			Close ();
+			return TRUE;
+		}
+	}
+
+	if (m_Screen == ScreenMain)
+	{
+		/*
+		 * Main-screen shortcuts.  They are deliberately not global: in a
+		 * submenu or the browser these letters must not save or load.
+		 */
+		if (nKey == (int) ATARI_KeyCodeForLetter ('S'))
+		{
+			if (SaveCurrentSnapshot ())
+			{
+				ExitMenu (ExitClose);
+			}
+
+			return TRUE;
+		}
+
+		if (nKey == (int) ATARI_KeyCodeForLetter ('L'))
+		{
+			if (LoadLastSnapshot ())
+			{
+				ExitMenu (ExitClose);
+			}
+
 			return TRUE;
 		}
 	}

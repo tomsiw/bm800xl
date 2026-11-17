@@ -230,8 +230,10 @@ private:
 	/*
 	 * Saves the snapshot "Save snapshot" is currently pointed at.  With no
 	 * current file, it creates one through SaveNewSnapshot().
+	 *
+	 * \return TRUE if a snapshot was written.
 	 */
-	void SaveCurrentSnapshot (void);
+	boolean SaveCurrentSnapshot (void);
 
 	/*
 	 * Saves a snapshot under the first unused SNAPSHOTn.SAV.
@@ -239,8 +241,18 @@ private:
 	 * Needed because the file browser can only list files that already exist,
 	 * so on a fresh card there is nothing for it to save to and the first
 	 * snapshot could never be made.
+	 *
+	 * \return TRUE if a snapshot was written.
 	 */
-	void SaveNewSnapshot (void);
+	boolean SaveNewSnapshot (void);
+
+	/*
+	 * Loads the current snapshot directly.  With no current snapshot -- or a
+	 * current file that has disappeared -- opens the Load-snapshot browser.
+	 *
+	 * \return TRUE if a snapshot was loaded.
+	 */
+	boolean LoadLastSnapshot (void);
 
 	/* The media part of a snapshot name; returns its length. */
 	unsigned BuildSnapshotMedia (char *pBuffer, unsigned nSize) const;

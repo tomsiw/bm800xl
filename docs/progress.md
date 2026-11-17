@@ -8,8 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `8bcefb8`; the browser page navigation and this
-documentation update are in the commit that carries this line. USB keyboard
+**Last updated:** after commit `dbf3275`; the main-screen snapshot shortcuts and
+this documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
 scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
@@ -265,7 +265,8 @@ carries this table; a commit cannot name its own hash.
 | `7d12710` | Escape from the snapshot browser at `SD:/ATARI` walked up to `SD:/` instead of returning to the Snapshots menu | `BrowserGoUp()` bounded the media browsers to the user base but not the snapshot browsers.  Added `AtBrowserRoot()` for both families and used it when starting the ascent and when skipping empty directories.  Escape from the snapshot root now leaves for the Snapshots screen; subdirectories still go up one level first. |
 | `7247c0d` | The browser had no backward choice for a gamepad-only user; Escape was keyboard-only | Added a synthetic `..` row above the listing without changing real entry indexes.  Up from the first entry selects it, Down returns to the first entry, and Return/Fire either goes up a directory or leaves the browser at its root.  The row costs one visible listing row; entry lookup, filtering and paths are unchanged. |
 | `8bcefb8` | A CPU crash warm-reset the machine into the same fault, writing "Resetting the machine after a CPU crash" indefinitely and leaving the user unable to reach the menu | The first CPU crash now writes the frame-error and crash entries, closes both logs, copies them to `bootlog.crash` and `runtimelog.crash`, clears all disk/cartridge/cassette paths from the settings file, and restarts the Pi.  The crash is handled once; no warm reset is attempted. |
-| (this commit) | Left/Right in the file browser fell through to the menu's default action and closed the OSD | Left/Right now move one page of file rows.  Left on the first page selects `..`; Right on the last page selects the last file.  Page size is the number of visible file rows, and scrolling follows the selected page. |
+| `dbf3275` | Left/Right in the file browser fell through to the menu's default action and closed the OSD | Left/Right now move one page of file rows.  Left on the first page selects `..`; Right on the last page selects the last file.  Page size is the number of visible file rows, and scrolling follows the selected page. |
+| (this commit) | Saving or loading the current snapshot required opening the Snapshots submenu and its browser | Added main-screen shortcuts: `S` runs Save snapshot and `L` loads the current snapshot directly.  A successful save or load closes the OSD; no current snapshot makes `L` open the normal Load-snapshot browser.  The current path remains runtime-only. |
 
 ---
 

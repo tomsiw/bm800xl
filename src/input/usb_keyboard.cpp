@@ -473,6 +473,18 @@ int CUSBAtariKeyboard::MenuKeyForUsage (unsigned nUsage, boolean bNumpadAsCursor
 
 	int nKeyCode = AtariKeyForUsage (nUsage);
 
+	/*
+	 * S and L are the main-screen save/load shortcuts.  They are classified as
+	 * menu keys so the USB driver hands them to the OSD instead of withholding
+	 * them from the emulated machine.  HandleKey() decides whether the current
+	 * screen uses them.
+	 */
+	if (   nKeyCode == (int) ATARI_KeyCodeForLetter ('S')
+	    || nKeyCode == (int) ATARI_KeyCodeForLetter ('L'))
+	{
+		return nKeyCode;
+	}
+
 	switch (nKeyCode)
 	{
 	case ATARI_KEY_UP:

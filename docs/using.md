@@ -41,6 +41,10 @@ Every settings submenu opens with a **`..`** row first, already selected. Return
 Fire or Space on it goes back to the main menu; Down moves to the first real
 setting. Escape still returns to the main menu directly.
 
+While the main menu is open, **S** saves the current snapshot and **L** loads
+the last snapshot. On success the OSD closes and the emulator continues. If
+there is no current snapshot, L opens the normal Load-snapshot browser instead.
+
 While the menu is open, the selected **joystick or gamepad** drives it too: its
 directions act as the cursor keys and its fire button as Return. This works for
 a USB gamepad and for a 9-pin joystick; the USB-keyboard joystick interface is
@@ -568,6 +572,16 @@ With a USB keyboard (Mode 1):
 Full tables, including every letter, digit and punctuation key, are in
 [Keyboard: USB](keyboard-usb.md). Any of them can be moved to another USB key
 with [`usbkeys.cfg`](usbkeys.md).
+
+On the **main OSD screen** only:
+
+| Key | Action |
+|---|---|
+| `S` | save the current snapshot |
+| `L` | load the last snapshot; if none, open the Load-snapshot browser |
+
+A successful S or L closes the OSD. A failed save or load leaves it open with the
+error message.
 
 With an Atari keyboard on GPIO (Mode 2), every key behaves as it does on the
 real machine, and **Shift+Help** opens the menu. See

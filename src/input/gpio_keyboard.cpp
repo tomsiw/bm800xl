@@ -330,7 +330,20 @@ static int MenuKeyForPosition (unsigned nRow, unsigned nCol)
 		return ATARI_KEY_ESCAPE;
 	}
 
-	switch (s_KeyMatrix[nRow][nCol])
+	int nKeyCode = (int) s_KeyMatrix[nRow][nCol];
+
+	/*
+	 * S and L are the main-screen save/load shortcuts.  They are classified as
+	 * menu keys so they reach the OSD; HandleKey() decides whether the current
+	 * screen uses them.
+	 */
+	if (   nKeyCode == (int) ATARI_KeyCodeForLetter ('S')
+	    || nKeyCode == (int) ATARI_KeyCodeForLetter ('L'))
+	{
+		return nKeyCode;
+	}
+
+	switch (nKeyCode)
 	{
 	case ATARI_KEY_RETURN:
 		return ATARI_KEY_RETURN;
