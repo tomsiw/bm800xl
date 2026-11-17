@@ -52,6 +52,14 @@ public:
 
 	u8 GetLEDStatus (void) const;	// returns USB LED status to be handed-over to SetLEDs()
 
+	/*
+	 * Copies the last report Circle received before a raw handler was attached.
+	 *
+	 * Layout: [0] modifiers, [1] reserved, [2..7] six HID key usages.  This lets
+	 * a late raw handler see a key that was already held during enumeration.
+	 */
+	void GetLastReport (u8 Report[USBKEYB_REPORT_SIZE]) const;
+
 	// raw mode (if bMixedMode is FALSE, the cooked handlers are ignored)
 	void RegisterKeyStatusHandlerRaw (TKeyStatusHandlerRawEx *pKeyStatusHandlerRaw,
 					  boolean bMixedMode, void* pArg);

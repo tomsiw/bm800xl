@@ -347,5 +347,23 @@ void CUSBKeyReports::Update (void)
 		 * now, not the owner.
 		 */
 		pKeyboard->RegisterKeyStatusHandlerRaw (s_pTrampoline[nFree], FALSE);
+
+		/*
+		 * Circle may already have received the keyboard's first report before
+		 * this raw handler was attached.  A key held during enumeration then
+		 * produces no further report until it changes, so replay the report
+		 * Circle kept: otherwise Option (F8) held at power-on is lost.
+		 */
+		u8 Last[USBKEYB_REPORT_SIZE];
+		pKeyboard->GetLastReport (Last);
+
+		for (unsigned i = 0; i < m_nListeners; i++)
+		{
+			if (m_Listener[i].pListener != 0)
+			{
+				m_Listener[i].pListener (m_Listener[i].pContext,
+							 nFree, Last[0], Last + 2);
+			}
+		}
 	}
 }

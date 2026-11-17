@@ -313,6 +313,10 @@ that enumeration to the frame loop, so a bad device costs frames rather than the
 boot. If you see this on a current build, the log will show the last
 `input: …` step reached.
 
+A key held while the keyboard is first enumerated is replayed from the report
+Circle has already received. This is what makes F8/Option held at power-on visible
+to the emulated machine without releasing and pressing it again.
+
 ---
 
 ## A joystick or gamepad does not work

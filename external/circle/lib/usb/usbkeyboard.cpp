@@ -149,6 +149,20 @@ u8 CUSBKeyboardDevice::GetLEDStatus (void) const
 	return ucResult;
 }
 
+void CUSBKeyboardDevice::GetLastReport (u8 Report[USBKEYB_REPORT_SIZE]) const
+{
+	assert (Report != 0);
+
+	/*
+	 * m_LastReport is written from the USB interrupt while the keyboard is
+	 * still in cooked mode.  Copy it with interrupts disabled so the raw
+	 * handler sees one complete report.
+	 */
+	EnterCritical ();
+	memcpy (Report, m_LastReport, USBKEYB_REPORT_SIZE);
+	LeaveCritical ();
+}
+
 void CUSBKeyboardDevice::RegisterKeyStatusHandlerRaw (TKeyStatusHandlerRawEx *pKeyStatusHandlerRaw,
 					boolean bMixedMode, void* pArg)
 {

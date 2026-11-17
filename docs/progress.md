@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `1cc5b0a`; the OSD theme option and this
+**Last updated:** after commit `18082ca`; the held-key startup fix and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -269,7 +269,8 @@ carries this table; a commit cannot name its own hash.
 | `a7f632c` | Saving or loading the current snapshot required opening the Snapshots submenu and its browser | Added main-screen shortcuts: `S` runs Save snapshot and `L` loads the current snapshot directly.  A successful save or load closes the OSD; no current snapshot makes `L` open the normal Load-snapshot browser.  The current path remains runtime-only. |
 | `24cadbf` | `STATIC_OSD`, `CONTINUE_ON_BRK`, `NUMPAD_CURSOR`, `KEYBOARD` and `USER_DIR` were settings-file-only, with no OSD entry | Added an Other options screen under the main menu.  It exposes Static OSD, Continue on BRK, NumPad as cursor, Keyboard (USB/GPIO, next start) and User directory (SD:/USB:).  SYSTEM_DIR remains file-only because the storage setup ignores it. |
 | `1cc5b0a` | A CPU crash always cleared the media and restarted the Pi; there was no way to inspect the halted state or get a visible warning first | Added `CRASH_ACTION` and an Other options row.  `COLOURS_RESTART` is the default: archive the logs, clear media, show white/yellow/red for one second each and reboot.  `RESTART` archives and reboots without the colour delay; `HALT` archives, shows red and halts without clearing media. |
-| (this commit) | The OSD bars, cursor and panel were fixed blue/grey, with no way to change the theme | Added `OSD_THEME` and an Other options row with Blue, Red, Green, Black, Orange, Purple, Teal and Magenta.  Bars, cursor and static panel use the light/dark theme pair; with `STATIC_OSD=0`, the live picture is tinted with the dark theme instead of being dimmed toward black. |
+| `18082ca` | The OSD bars, cursor and panel were fixed blue/grey, with no way to change the theme | Added `OSD_THEME` and an Other options row with Blue, Red, Green, Black, Orange, Purple, Teal and Magenta.  Bars, cursor and static panel use the light/dark theme pair; with `STATIC_OSD=0`, the live picture is tinted with the dark theme instead of being dimmed toward black. |
+| (this commit) | A key held while the USB keyboard was first enumerated was lost: Circle processed the first report before the raw handler was attached, and no new report arrived while the key stayed held | Added `CUSBKeyboardDevice::GetLastReport()` to Circle and replayed that report to the listeners when the raw handler is attached.  F8/Option held at power-on, and any other pre-enumeration key, is now present on the first emulated frame. |
 
 ---
 
@@ -875,7 +876,8 @@ nothing skipped; the dim-row renderer was 14.4 ms on.  The four aspects and both
   support**: one device-table entry in `lib/usb/usbdevicefactory.cpp`, the
   LED-on/auth-done GIP init packets in `lib/usb/usbgamepadxboxone.cpp`, and
   acceptance of its 36-byte GIP reports there.  All three are limited to the
-  three 8BitDo IDs.  It is carried by
+  three 8BitDo IDs.  It also carries the small `CUSBKeyboardDevice::GetLastReport()`
+  accessor used to replay a key held during USB enumeration.  It is carried by
   `patches/circle-8bitdo-xbox.patch` and reapplied by `fetch-sources.ps1`; any
   Circle update must keep it.
 - `external/atari800` carries one permitted patch (`STATESAV_MAX_SIZE`).
