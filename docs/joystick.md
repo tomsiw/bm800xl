@@ -101,6 +101,38 @@ as the keyboard. So the keyboard keeps working while the joystick does: a game
 that asks for both — a typist's joystick, a racing game's steering keys — gets
 both, as long as the bindings do not overlap.
 
+### Keyboard rollover and ghosting
+
+A normal USB keyboard is a matrix of rows and columns, and most keyboards do not
+put a diode on every key. Pressing three keys can therefore create a fourth,
+phantom path through the matrix. The keyboard controller detects that and drops
+one of the keys rather than reporting the phantom one.
+
+This is a property of the keyboard, not of the emulator. Different keyboards have
+different matrix layouts, so one may drop Fire on `Left + Down + Fire` while
+another drops it on `Right + Down + Fire`. Two keys, including diagonals, are
+normally fine; the problem appears when a third key completes the wrong rectangle.
+
+The emulator receives only the six key usages in the USB HID report. When the
+keyboard omits Fire, there is nothing left to read: the keyboard joystick driver
+loops over all six reported keys and has no three-key limit of its own.
+
+To work around it:
+
+- bind Fire to a key in a different part of the keyboard matrix (trial and error
+  is needed, because matrices differ);
+- use a keyboard with N-key rollover or a genuine anti-ghosting zone;
+- use a USB gamepad instead of the keyboard for directions and Fire;
+- bind an alternative Fire key as well, if one of the two is outside the blocked
+  combination.
+
+Adding a software “hold Fire until released” latch is not a fix: if Fire
+disappears while the directions stay held, the emulator cannot tell a blocked key
+from a real release, and the result is stuck fire.
+
+See [Troubleshooting](troubleshooting.md#a-keyboard-joystick-drops-fire-with-some-diagonals)
+for how to confirm it with the keyboard on another machine or in a text editor.
+
 ---
 
 ## USB gamepads

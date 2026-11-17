@@ -385,6 +385,10 @@ now, not a character -- and only the keyboard joystick driver acts on it, so thi
 works while the keyboard itself keeps working. They are read only when
 `JOY_INTERFACE=KEYBOARD`; see [Joysticks](joystick.md#the-keyboard-as-a-joystick).
 
+A keyboard with limited rollover can drop Fire on some three-key combinations;
+that is a keyboard matrix limitation, not a limit in the emulator. See
+[Keyboard rollover and ghosting](joystick.md#keyboard-rollover-and-ghosting).
+
 ### 5.6 `A(None)`
 
 `A(None)` is not an Atari function. It means "this stroke does nothing", and it

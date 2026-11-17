@@ -385,6 +385,44 @@ is the most common mistake in a hand-made cable.
 
 ---
 
+## A keyboard joystick drops Fire with some diagonals
+
+If the keyboard joystick moves and fires normally, but Fire is missed on a
+particular three-key combination — for example `Left + Down + Fire` on one
+keyboard and `Right + Down + Fire` on another — the keyboard is dropping the key.
+
+Keyboards are scanned as a row/column matrix. Without a diode at every key,
+certain three-key combinations create a phantom path, so the keyboard controller
+blocks or omits one of the real keys instead of reporting a key that was never
+pressed. Different keyboards have different matrices, which is why the failing
+diagonal changes with the keyboard.
+
+This is not the HID six-key limit: three keys are well inside it. It is also not
+the emulator imposing a limit. The keyboard joystick driver reads all six key
+slots from every HID report; if the keyboard does not include Fire, there is
+nothing to read.
+
+To confirm it:
+
+- type the same three keys into a text editor or keyboard tester on a PC;
+- move only the Fire binding to another key and try the same combination;
+- use the same keyboard on another Pi — the same combination should fail.
+
+Workarounds:
+
+- remap Fire to a key outside the keyboard's problematic matrix area;
+- use a keyboard with N-key rollover or a real anti-ghosting zone;
+- use a USB gamepad for directions and Fire;
+- bind a second, alternative Fire key.
+
+Do not expect a software latch to solve it: when Fire disappears while the
+directions remain held, the emulator cannot distinguish a blocked key from a
+genuine release.
+
+See [Joysticks](joystick.md#keyboard-rollover-and-ghosting) for the background.
+
+---
+
 ## The GPIO keyboard does not work
 
 1. **Is the keyboard source set to GPIO?** F12 → the keyboard mode setting. It
