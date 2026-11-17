@@ -138,6 +138,7 @@ power cycle are separate items on the main screen.
 | Keyboard | USB keyboard / GPIO keyboard | Chooses the keyboard source; takes effect on the next start |
 | User directory | `SD:` / `USB:` | Which volume the media browser starts from |
 | CPU crash | Colours+Restart / Restart / Red halt | What the emulator does after a CPU crash; the default is Colours+Restart |
+| Check for updates | — | Install kernel files from a USB drive; asks for confirmation |
 
 The **Keyboard** row needs a Pi restart; the others take effect immediately. The
 **User directory** row selects the media volume, not an arbitrary path; the media
@@ -155,6 +156,55 @@ OSD theme pairs, used for the light bars/cursor and dark panel/tint:
 | Purple | `#7040C0` | `#1A1030` |
 | Teal | `#008080` | `#002A2A` |
 | Magenta | `#B03080` | `#300818` |
+
+### Updating the emulator from USB
+
+The emulator can replace its own kernel image from a USB drive. This is the
+supported way to move between releases without taking the SD card out.
+
+**The USB drive must be inserted before the Raspberry Pi is switched on.** The
+storage layer does not remount a drive that is removed and reinserted while the
+emulator is running.
+
+Prepare the drive:
+
+1. Copy one or more of these files to the **root** of the USB drive:
+
+   ```text
+   kernel8.img
+   kernel8-rpi4.img
+   kernel_2712.img
+   armstub8-rpi4.bin
+   ```
+
+2. Create a file called `update.emu` in the same root. Its content must be
+   exactly:
+
+   ```text
+   Noal
+   ```
+
+   Surrounding spaces, tabs, CR and LF are ignored. The code identifies a
+   package this build is allowed to install; a different or missing code is
+   rejected.
+
+3. Start the Pi with the drive already inserted.
+4. Open **Other options** and select **Check for updates**.
+5. The menu reports what it found. Press Return again to update, or Esc to
+   cancel.
+6. After a successful copy the Pi restarts.
+
+The updater copies the files to temporary `.new` names on the SD card, verifies
+each copy, and only then replaces the existing files. After a successful update,
+`update.emu` is renamed to `update.done` on the USB drive. If the rename fails,
+the marker is deleted instead; if that also fails, the update is still complete
+and the marker simply remains for the next check.
+
+There is deliberately **no check that the image matches the current Pi**, no
+backup and no automatic rollback. A wrong or incompatible image can leave the
+card unbootable; the original release ZIP then has to be copied back from a PC.
+Kernel-only updates may also need matching firmware, `config.txt` or an armstub.
+The compatibility code is the only release-level guard.
 
 `SYSTEM_DIR` is deliberately not on this screen: it is a file-only setting and is
 not used by the running storage setup.

@@ -46,6 +46,7 @@ static const unsigned MenuLabelColumn	= 450;	// x offset of the value column
 
 // How many frames a transient message stays on screen (about two seconds).
 #define MESSAGE_FRAMES 120
+#define UPDATE_CONFIRM_FRAMES 600
 
 // Numbers of entries on each screen.  All five switch statements keyed on
 // m_Screen have to agree with these, so they are named rather than repeated.
@@ -62,7 +63,7 @@ static const unsigned MAX_SNAPSHOT_MEDIA	= 24;
 static const unsigned VideoItemCount		= 6;	// standard, artifacting, resolution, aspect, scanlines, factor
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
-static const unsigned OtherItemCount		= 7;	// static OSD, theme, BRK, numpad, keyboard, user dir, crash action
+static const unsigned OtherItemCount		= 8;	// static OSD, theme, BRK, numpad, keyboard, user dir, crash action, updates
 
 static const char FromMenu[] = "menu";
 
@@ -155,6 +156,7 @@ CAtariMenu::CAtariMenu (void)
 	m_bBrowserBackSelected (FALSE),
 	m_nEraseFrames (0),
 	m_nMessageFrames (0),
+	m_nUpdateFrames (0),
 	m_nLineHeight (16),
 	m_nRowPitch (26),
 	m_nHeaderHeight (40),
@@ -320,6 +322,8 @@ void CAtariMenu::Toggle (void)
 
 void CAtariMenu::ExitMenu (TMenuExit Action)
 {
+	CancelUpdate ();
+
 	/*
 	 * A tape that needs the other SIO mode is resolved here, whatever the user
 	 * asked for: see the declaration.  The rebuild replaces the requested
@@ -713,6 +717,7 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 4: return "Keyboard";
 		case 5: return "User directory";
 		case 6: return "CPU crash";
+		case 7: return "Check for updates";
 		}
 		break;
 
@@ -1079,6 +1084,8 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			default:
 				return "Colours+Restart";
 			}
+		case 7:
+			return "";
 		}
 		break;
 
@@ -1093,8 +1100,20 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
  * Navigation
  * ------------------------------------------------------------------------- */
 
+void CAtariMenu::CancelUpdate (void)
+{
+	if (m_Updater.HasFiles () || m_nUpdateFrames != 0)
+	{
+		m_Updater.Clear ();
+		m_nUpdateFrames = 0;
+		m_Message[0] = '\0';
+		m_nMessageFrames = 0;
+	}
+}
+
 void CAtariMenu::MoveSelection (int nDelta)
 {
+	CancelUpdate ();
 	unsigned nCount = GetItemCount ();
 
 	if (nCount == 0)
@@ -1609,6 +1628,10 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			}
 			break;
 
+		case 7:
+			bChanged = FALSE;
+			break;
+
 		default:
 			bChanged = FALSE;
 			break;
@@ -2058,6 +2081,46 @@ void CAtariMenu::ActivateSelection (void)
 		case 1: SaveNewSnapshot (); break;
 		case 2: OpenBrowser (BrowseSnapshotLoad); break;
 		case 3: OpenBrowser (BrowseSnapshotErase); break;
+		}
+		break;
+
+	case ScreenOther:
+		if (m_nSelected == 7)
+		{
+			if (m_Updater.HasFiles () && m_nUpdateFrames != 0)
+			{
+				if (m_pStorage != 0
+				    && m_Updater.Apply (*m_pStorage, m_Message,
+							sizeof m_Message))
+				{
+					m_nUpdateFrames = 0;
+					if (m_pHost != 0)
+					{
+						m_pHost->RestartPi ();
+					}
+				}
+				else
+				{
+					m_nMessageFrames = MESSAGE_FRAMES;
+				}
+			}
+			else if (m_pStorage != 0
+				 && m_Updater.Scan (*m_pStorage, m_Message,
+						    sizeof m_Message))
+			{
+				m_nUpdateFrames = UPDATE_CONFIRM_FRAMES;
+				m_nMessageFrames = UPDATE_CONFIRM_FRAMES;
+
+				char Text[sizeof m_Message];
+				CopyText (Text, m_Message, sizeof Text);
+				snprintf (m_Message, sizeof m_Message,
+					  "%s. Return=Update Esc=Cancel", Text);
+			}
+			else
+			{
+				m_nUpdateFrames = 0;
+				m_nMessageFrames = MESSAGE_FRAMES;
+			}
 		}
 		break;
 
@@ -2940,6 +3003,7 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 		return TRUE;
 
 	case ATARI_KEY_ESCAPE:
+		CancelUpdate ();
 		if (m_Screen == ScreenMain)
 		{
 			ExitMenu (ExitClose);
@@ -3238,5 +3302,15 @@ void CAtariMenu::Draw (void)
 	if (m_nEraseFrames > 0 && --m_nEraseFrames == 0)
 	{
 		m_ErasePath[0] = '\0';
+	}
+
+	/*
+	 * The update question expires with its message.  A second Return much later
+	 * must scan again rather than install a kernel image the user has stopped
+	 * thinking about.
+	 */
+	if (m_nUpdateFrames > 0 && --m_nUpdateFrames == 0)
+	{
+		m_Updater.Clear ();
 	}
 }

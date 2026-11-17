@@ -205,6 +205,10 @@ Copy-Item build\kernel64-pi5\kernel_2712.img D:\
 Copy both. They do not conflict: each is a complete emulator for a different
 board, and the firmware loads one of them.
 
+Once the emulator is running, a release can also be installed from a USB drive
+without removing the card; see
+[Updating the emulator from USB](using.md#updating-the-emulator-from-usb).
+
 #### Which image gets loaded
 
 | Board | File the firmware looks for |

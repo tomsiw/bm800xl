@@ -405,6 +405,38 @@ long CAtariStorage::FileSize (const char *pPath)
 	return (long) Info.fsize;
 }
 
+long CAtariStorage::GetFreeSpace (const char *pVolume)
+{
+	DWORD nFreeClusters;
+	FATFS *pFileSystem = 0;
+
+	if (pVolume == 0 || pVolume[0] == '\0')
+	{
+		return -1;
+	}
+	if (f_getfree (pVolume, &nFreeClusters, &pFileSystem) != FR_OK
+	    || pFileSystem == 0)
+	{
+		return -1;
+	}
+
+	unsigned long long nBytes = (unsigned long long) nFreeClusters
+				  * pFileSystem->csize * FF_MIN_SS;
+
+	return nBytes > 0x7fffffffULL ? 0x7fffffffL : (long) nBytes;
+}
+
+boolean CAtariStorage::Rename (const char *pOldPath, const char *pNewPath)
+{
+	if (pOldPath == 0 || pOldPath[0] == '\0'
+	    || pNewPath == 0 || pNewPath[0] == '\0')
+	{
+		return FALSE;
+	}
+
+	return f_rename (pOldPath, pNewPath) == FR_OK;
+}
+
 boolean CAtariStorage::EnsureDirectory (const char *pDirectory)
 {
 	FRESULT Result;

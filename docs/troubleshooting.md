@@ -319,6 +319,33 @@ to the emulated machine without releasing and pressing it again.
 
 ---
 
+## Check for updates fails
+
+The USB drive used for an update must be inserted **before** the Pi is switched
+on. The storage layer deliberately does not remount a drive that is removed and
+reinserted while the emulator runs.
+
+Common messages on the Other options screen:
+
+| Message | Meaning |
+|---|---|
+| `USB drive not found; insert it before power-on` | The update check cannot see a USB volume |
+| `No update.emu on the USB drive` | The marker file is missing from the USB root |
+| `Cannot read update.emu` | The marker exists but could not be read |
+| `Update rejected: version code mismatch` | `update.emu` does not contain the expected compatibility code |
+| `No update files in the USB root` | The marker is present, but none of the accepted kernel/armstub files are |
+| `Update rejected: bad size for …` | A found file is empty or outside the accepted size range |
+| `Not enough free space on SD:` | The staged copy would not fit |
+| `Copy failed for …` | A source read, destination write or read-back check failed |
+| `Cannot replace …` / `Cannot install …` | The replacement step failed; restore from the release ZIP if the card no longer boots |
+
+A failed update does not change `update.emu`, so it can be retried. A successful
+update renames it to `update.done`; if the rename fails, the marker is deleted
+instead. If both operations fail, the marker stays and the next check asks for
+confirmation again, which is harmless.
+
+---
+
 ## A joystick or gamepad does not work
 
 First, which kind is it?

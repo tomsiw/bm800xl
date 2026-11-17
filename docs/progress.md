@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `18082ca`; the held-key startup fix and this
+**Last updated:** after commit `0a8ac32`; the USB updater and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -270,7 +270,8 @@ carries this table; a commit cannot name its own hash.
 | `24cadbf` | `STATIC_OSD`, `CONTINUE_ON_BRK`, `NUMPAD_CURSOR`, `KEYBOARD` and `USER_DIR` were settings-file-only, with no OSD entry | Added an Other options screen under the main menu.  It exposes Static OSD, Continue on BRK, NumPad as cursor, Keyboard (USB/GPIO, next start) and User directory (SD:/USB:).  SYSTEM_DIR remains file-only because the storage setup ignores it. |
 | `1cc5b0a` | A CPU crash always cleared the media and restarted the Pi; there was no way to inspect the halted state or get a visible warning first | Added `CRASH_ACTION` and an Other options row.  `COLOURS_RESTART` is the default: archive the logs, clear media, show white/yellow/red for one second each and reboot.  `RESTART` archives and reboots without the colour delay; `HALT` archives, shows red and halts without clearing media. |
 | `18082ca` | The OSD bars, cursor and panel were fixed blue/grey, with no way to change the theme | Added `OSD_THEME` and an Other options row with Blue, Red, Green, Black, Orange, Purple, Teal and Magenta.  Bars, cursor and static panel use the light/dark theme pair; with `STATIC_OSD=0`, the live picture is tinted with the dark theme instead of being dimmed toward black. |
-| (this commit) | A key held while the USB keyboard was first enumerated was lost: Circle processed the first report before the raw handler was attached, and no new report arrived while the key stayed held | Added `CUSBKeyboardDevice::GetLastReport()` to Circle and replayed that report to the listeners when the raw handler is attached.  F8/Option held at power-on, and any other pre-enumeration key, is now present on the first emulated frame. |
+| `0a8ac32` | A key held while the USB keyboard was first enumerated was lost: Circle processed the first report before the raw handler was attached, and no new report arrived while the key stayed held | Added `CUSBKeyboardDevice::GetLastReport()` to Circle and replayed that report to the listeners when the raw handler is attached.  F8/Option held at power-on, and any other pre-enumeration key, is now present on the first emulated frame. |
+| (this commit) | A new kernel image could only be installed by removing the SD card and copying it from a PC | Added `Check for updates` to Other options.  The USB root must contain `update.emu` with the current compatibility code (`Noal`) and one or more accepted kernel/armstub files; the updater validates sizes and SD free space, stages and verifies copies, replaces the files, then renames the marker to `update.done` or deletes it if the rename fails.  There is no target-board check, backup or rollback, and the USB drive must be inserted before power-on. |
 
 ---
 

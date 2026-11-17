@@ -29,6 +29,7 @@
 #include "atari_port.h"
 #include "settings.h"
 #include "storage.h"
+#include "update/updater.h"
 #include "video_out.h"
 
 // The menu needs to be able to apply the settings it edits, and to ask for a
@@ -361,6 +362,13 @@ private:
 	 */
 	void ClearPendingErase (boolean bHideMessage);
 
+	/*
+	 * A kernel update waiting for its second press.  The scanned file list
+	 * lives in m_Updater; m_nUpdateFrames expires the question so a much later
+	 * Return cannot start an update the user has forgotten about.
+	 */
+	void CancelUpdate (void);
+
 	void SaveSettings (void);
 
 	// Drawing helpers, all of them in terms of the video output's primitives
@@ -458,6 +466,10 @@ private:
 	// Transient message shown at the bottom, and how many frames are left
 	char m_Message[80];
 	unsigned m_nMessageFrames;
+
+	// Kernel update: scanned files, and how long the confirmation stays open.
+	CAtariUpdater m_Updater;
+	unsigned m_nUpdateFrames;
 
 	/*
 	 * Vertical layout, derived from the font in Initialize().

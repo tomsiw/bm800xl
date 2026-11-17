@@ -219,6 +219,17 @@ public:
 	static long FileSize (const char *pPath);
 
 	/*
+	 * \return Free bytes on PVolume, or -1 if it cannot be queried.
+	 *
+	 * The value is a rough figure (whole free clusters), which is enough to
+	 * refuse an update that cannot fit.
+	 */
+	static long GetFreeSpace (const char *pVolume);
+
+	/* Renames or moves a file.  Used only by the updater's staged replace. */
+	static boolean Rename (const char *pOldPath, const char *pNewPath);
+
+	/*
 	 * Deletes the file at PATH.
 	 *
 	 * Directories are refused: the one caller removes snapshots, and a

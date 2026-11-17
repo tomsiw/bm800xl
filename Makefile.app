@@ -73,6 +73,7 @@ MODULE_SRCS := \
 	src/config/settings.cpp \
 	src/video/video_out.cpp \
 	src/storage/storage.cpp \
+	src/update/updater.cpp \
 	src/input/usb_keyboard.cpp \
 	src/input/usb_keymap.cpp \
 	src/input/usb_key_reports.cpp \
