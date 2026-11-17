@@ -136,6 +136,7 @@ power cycle are separate items on the main screen.
 | NumPad as cursor | On / Off | Keypad arrows act as cursor keys |
 | Keyboard | USB keyboard / GPIO keyboard | Chooses the keyboard source; takes effect on the next start |
 | User directory | `SD:` / `USB:` | Which volume the media browser starts from |
+| CPU crash | Colours+Restart / Restart / Red halt | What the emulator does after a CPU crash; the default is Colours+Restart |
 
 The **Keyboard** row needs a Pi restart; the others take effect immediately. The
 **User directory** row selects the media volume, not an arbitrary path; the media
@@ -483,6 +484,7 @@ CONTINUE_ON_BRK=1
 STATIC_OSD=1
 JOY_INTERFACE=USB
 JOY_SWAP=0
+CRASH_ACTION=COLOURS_RESTART
 DISK1_PATH=USB:/disks/BOUNTYBOB.ATR
 DISK1_READONLY=0
 DISK2_PATH=
@@ -513,6 +515,7 @@ SYSTEM_DIR=SD:/ATARI
 | `STATIC_OSD` | 0 or 1 — 1 (the default) draws the menu over a frozen picture on an opaque panel; 0 repaints and dims the picture behind it, which costs noticeably more |
 | `JOY_INTERFACE` | `USB`, `GPIO` or `KEYBOARD` — which interface feeds the two joystick ports; the same setting as the menu's Joysticks → Interface, and it takes effect the next time the Pi is switched off and on |
 | `JOY_SWAP` | 0 or 1 — 1 exchanges the two joystick ports, and takes effect immediately |
+| `CRASH_ACTION` | `COLOURS_RESTART` (default), `RESTART` or `HALT` — what happens after a CPU crash; the same setting as Other options → CPU crash |
 | `DISK1_PATH` … `DISK4_PATH` | a path, or empty for "no disk in this drive" |
 | `DISK1_READONLY` … `DISK4_READONLY` | 0 or 1 |
 | `CARTRIDGE` | a path, or empty |

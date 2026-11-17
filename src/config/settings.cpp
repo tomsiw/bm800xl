@@ -95,6 +95,8 @@ void Settings_SetDefaults (TAtariSettings *pSettings)
 	pSettings->nJoystickInterface = AtariJoystickInterfaceUSB;
 	pSettings->bSwapJoystickPorts = FALSE;
 
+	pSettings->nCrashAction = AtariCrashActionColoursRestart;
+
 	strcpy (pSettings->UserDirectory, STORAGE_VOLUME_USER);
 	strcpy (pSettings->SystemDirectory, STORAGE_VOLUME_SYSTEM);
 }
@@ -426,6 +428,23 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 			pSettings->bSwapJoystickPorts = bValue;
 		}
 	}
+	else if (strcmp (pKey, "CRASH_ACTION") == 0)
+	{
+		if (   EqualsIgnoreCase (pValue, "COLOURS_RESTART")
+		    || EqualsIgnoreCase (pValue, "COLOURS"))
+		{
+			pSettings->nCrashAction = AtariCrashActionColoursRestart;
+		}
+		else if (EqualsIgnoreCase (pValue, "RESTART"))
+		{
+			pSettings->nCrashAction = AtariCrashActionRestart;
+		}
+		else if (   EqualsIgnoreCase (pValue, "HALT")
+			 || EqualsIgnoreCase (pValue, "RED_HALT"))
+		{
+			pSettings->nCrashAction = AtariCrashActionRedHalt;
+		}
+	}
 	/*
 	 * USB_JOYSTICKS and GPIO_JOYSTICKS are deliberately not read, now that one
 	 * interface is chosen instead of two independent switches.
@@ -647,6 +666,11 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 			? "KEYBOARD" : "USB");
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "JOY_SWAP=%d\n",
 		    Settings.bSwapJoystickPorts ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "CRASH_ACTION=%s\n",
+		    Settings.nCrashAction == AtariCrashActionRestart
+			? "RESTART"
+		    : Settings.nCrashAction == AtariCrashActionRedHalt
+			? "HALT" : "COLOURS_RESTART");
 
 	for (int i = 0; i < SETTINGS_MAX_DRIVES; i++)
 	{

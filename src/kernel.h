@@ -283,11 +283,13 @@ private:
 
 	/*
 	 * Frame errors are reported once per distinct reason rather than every
-	 * frame.  A CPU crash is handled once: its logs are archived, the media is
-	 * cleared from settings, and the Pi restarts.  See RunFrame().
+	 * frame.  A CPU crash is handled once according to CRASH_ACTION: its logs
+	 * are archived, then the configured restart, colour warning or red halt
+	 * runs.  See RunFrame().
 	 */
 	boolean			m_bFrameErrorReported;
 	boolean			m_bCrashHandled;
+	boolean			m_bCrashHalt;
 	char			m_LastFrameError[96];
 
 	/*

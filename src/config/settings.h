@@ -69,6 +69,15 @@ enum TAtariJoystickInterface
 	AtariJoystickInterfaceUnknown
 };
 
+/* What to do after a CPU crash has been logged and archived. */
+enum TAtariCrashAction
+{
+	AtariCrashActionColoursRestart = 0,	///< white/yellow/red, then reboot
+	AtariCrashActionRestart,		///< reboot immediately
+	AtariCrashActionRedHalt,		///< red screen and halt
+	AtariCrashActionUnknown
+};
+
 struct TAtariSettings
 {
 	// Emulated machine
@@ -143,6 +152,9 @@ struct TAtariSettings
 	 */
 	int		nJoystickInterface;	///< TAtariJoystickInterface
 	boolean		bSwapJoystickPorts;
+
+	/* What happens after a CPU crash; see TAtariCrashAction. */
+	int		nCrashAction;
 
 	// Media.  Empty means nothing loaded.
 	char		DiskPath[SETTINGS_MAX_DRIVES][SETTINGS_PATH_MAX];

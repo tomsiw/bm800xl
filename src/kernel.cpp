@@ -404,6 +404,7 @@ CAtariKernel::CAtariKernel (void)
 	m_bStaticOSDWasOpen (FALSE),
 	m_bFrameErrorReported (FALSE),
 	m_bCrashHandled (FALSE),
+	m_bCrashHalt (FALSE),
 	m_bKeyboardSeen (FALSE),
 	m_bKeyboardWarned (FALSE),
 	m_nKeyboardFrames (0)
@@ -1384,6 +1385,11 @@ TShutdownMode CAtariKernel::Run (void)
 		{
 			return ShutdownReboot;
 		}
+
+		if (m_bCrashHalt)
+		{
+			return ShutdownHalt;
+		}
 	}
 
 	return ShutdownNone;
@@ -1673,20 +1679,44 @@ void CAtariKernel::RunFrame (void)
 		{
 			/*
 			 * A CPU crash cannot be recovered from inside the emulated machine.
-			 * Archive the evidence first, then remove every medium from the
-			 * saved configuration and restart the Pi.  Do not warm-reset: that
-			 * would hit the same fault again and keep appending the same error
-			 * while leaving the user unable to reach the menu.
+			 * Archive the evidence first, then apply the configured action.
+			 * Do not warm-reset: that would hit the same fault again and keep
+			 * appending the same error.
 			 */
 			if (!m_bCrashHandled)
 			{
 				m_bCrashHandled = TRUE;
 
-				m_pBootLog->Record ("CPU crash: archiving the logs, clearing "
-						    "media and restarting the Pi");
+				m_pBootLog->Record ("CPU crash: archiving the logs and "
+						    "applying the configured action");
 				m_pBootLog->CloseLogFileAndArchive (m_Storage);
-				ClearMediaFromSettings ();
-				m_bRestartPi = TRUE;
+
+				switch (m_Settings.nCrashAction)
+				{
+				case AtariCrashActionRedHalt:
+					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0x00, 0x00));
+					m_bCrashHalt = TRUE;
+					break;
+
+				case AtariCrashActionRestart:
+					ClearMediaFromSettings ();
+					m_bRestartPi = TRUE;
+					break;
+
+				case AtariCrashActionColoursRestart:
+				default:
+					ClearMediaFromSettings ();
+
+					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0xff, 0xff));
+					m_Timer.MsDelay (1000);
+					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0xff, 0x00));
+					m_Timer.MsDelay (1000);
+					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0x00, 0x00));
+					m_Timer.MsDelay (1000);
+
+					m_bRestartPi = TRUE;
+					break;
+				}
 			}
 
 			return;

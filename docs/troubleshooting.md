@@ -78,8 +78,9 @@ anything at all — a corrupted card, or a failure inside the SD interface itsel
 Without it, opening a new log would erase the only evidence there was.
 
 If the emulated CPU crashes, the current logs are closed and copied to
-`SD:/ATARI/bootlog.crash` and `SD:/ATARI/runtimelog.crash` before the emulator
-clears its media settings and restarts the Pi. The `.prev` file is the previous
+`SD:/ATARI/bootlog.crash` and `SD:/ATARI/runtimelog.crash`. What happens next
+depends on `CRASH_ACTION`: by default the media settings are cleared and the Pi
+restarts after a white/yellow/red warning. The `.prev` file is the previous
 boot, not the crash copy.
 
 Both are shown on the failure screen, newest session last.
@@ -519,14 +520,24 @@ the upstream bug.
 If the emulated CPU executes one of the illegal "crash" opcodes, the core
 abandons the frame. The kernel treats this as unrecoverable: it writes the
 crash entries, closes the logs, moves them to `SD:/ATARI/bootlog.crash` and
-`SD:/ATARI/runtimelog.crash`, clears every disk, cartridge and cassette path
-from `settings.cfg`, and restarts the Raspberry Pi. It does not keep warm-resetting
-the same fault.
+`SD:/ATARI/runtimelog.crash`, and then follows `CRASH_ACTION`:
+
+| `CRASH_ACTION` | What happens |
+|---|---|
+| `COLOURS_RESTART` (default) | clears every disk, cartridge and cassette path, shows white, yellow and red for one second each, then restarts the Pi |
+| `RESTART` | clears every disk, cartridge and cassette path, then restarts the Pi |
+| `HALT` | shows a red screen and halts; media are not cleared and the Pi is not restarted |
+
+It does not keep warm-resetting the same fault.
 
 The runtime log records `Frame error: ...` with the core's description. A single
 crash is usually a game doing something the emulator cannot handle; an image
-that crashes again after the restart is broken or the wrong machine type
+that crashes again after a restart is broken or the wrong machine type
 (XL versus XE) is selected.
+
+For `HALT`, the logs are already archived and the red screen stays until power
+is removed. This is the mode to use when the crash itself needs to be inspected:
+the machine is not restarted and the media settings are left intact.
 
 **BRK is not in that class by default.** It is a normal 6502 instruction and the
 emulator runs it as the machine does, because that is how a debugger takes

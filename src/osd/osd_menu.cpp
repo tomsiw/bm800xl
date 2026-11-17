@@ -62,7 +62,7 @@ static const unsigned MAX_SNAPSHOT_MEDIA	= 24;
 static const unsigned VideoItemCount		= 6;	// standard, artifacting, resolution, aspect, scanlines, factor
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
-static const unsigned OtherItemCount		= 5;	// static OSD, BRK, numpad, keyboard, user dir
+static const unsigned OtherItemCount		= 6;	// static OSD, BRK, numpad, keyboard, user dir, crash action
 
 static const char FromMenu[] = "menu";
 
@@ -666,6 +666,7 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 2: return "NumPad as cursor";
 		case 3: return "Keyboard";
 		case 4: return "User directory";
+		case 5: return "CPU crash";
 		}
 		break;
 
@@ -1008,6 +1009,17 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			return (m_pStorage != 0
 				&& m_pStorage->OnSystemVolume (S.UserDirectory))
 				? "SD:" : "USB:";
+		case 5:
+			switch (S.nCrashAction)
+			{
+			case AtariCrashActionRestart:
+				return "Restart";
+			case AtariCrashActionRedHalt:
+				return "Red halt";
+			case AtariCrashActionColoursRestart:
+			default:
+				return "Colours+Restart";
+			}
 		}
 		break;
 
@@ -1480,6 +1492,31 @@ void CAtariMenu::AdjustSetting (int nDelta)
 					  "Media directory: %s",
 					  S.UserDirectory);
 				m_nMessageFrames = MESSAGE_FRAMES;
+			}
+			break;
+
+		case 5:
+			{
+				static const int Actions[] =
+				{
+					AtariCrashActionColoursRestart,
+					AtariCrashActionRestart,
+					AtariCrashActionRedHalt
+				};
+				const int nCount = (int) (sizeof Actions / sizeof Actions[0]);
+
+				int nIndex = 0;
+				for (int i = 0; i < nCount; i++)
+				{
+					if (Actions[i] == S.nCrashAction)
+					{
+						nIndex = i;
+						break;
+					}
+				}
+
+				nIndex = (nIndex + nDelta + nCount) % nCount;
+				S.nCrashAction = Actions[nIndex];
 			}
 			break;
 
