@@ -48,7 +48,7 @@ machine hangs immediately afterwards or the power is cut. **Read it on a PC**;
 that is the point of it. It is plain text:
 
 ```
-[       0 ms] Atari XL/XE emulator for Raspberry Pi
+[       0 ms] BM800XL v0.8.8 emulator for Raspberry Pi
 [       0 ms] Build: Feb 14 2026 11:02:31
 [       0 ms] --- stage: power-on (Circle started) ---
 [      12 ms] SD card interface started
@@ -339,8 +339,8 @@ Common messages on the Other options screen:
 | `Copy failed for …` | A source read, destination write or read-back check failed |
 | `Cannot replace …` / `Cannot install …` | The replacement step failed; restore from the release ZIP if the card no longer boots |
 
-A failed update does not change `update.emu`, so it can be retried. A successful
-update renames it to `update.done`; if the rename fails, the marker is deleted
+A failed update does not remove `update.emu`, so it can be retried. A successful
+update deletes it; if deletion fails, the marker is renamed to `update.done`
 instead. If both operations fail, the marker stays and the next check asks for
 confirmation again, which is harmless.
 

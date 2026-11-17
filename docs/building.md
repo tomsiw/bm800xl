@@ -106,6 +106,19 @@ The ELF, map and disassembly are named after this project's internal target
 rather than after the boot image, because Circle's own link rules write them
 under the makefile's target name.
 
+### Emulator version
+
+The release version is one line in `src/version.h`:
+
+```cpp
+#define ATARI_VERSION		"0.8.8"
+```
+
+It appears in the main OSD header as `BM800XL v0.8.8` and in the first line of
+the boot log. Changing the line and rebuilding is the whole procedure; the OSD
+adds the `v`. The separate updater compatibility code in
+`src/update/updater.h` is not tied to this number.
+
 ### `build.ps1` options
 
 | Option | Meaning |

@@ -403,17 +403,17 @@ boolean CAtariUpdater::Apply (CAtariStorage &Storage, char *pMessage,
 	}
 
 	/*
-	 * Mark the package as installed.  Rename is preferred so the drive shows
-	 * update.done, but if the rename fails the marker is removed instead.  A
-	 * failed removal is ignored: the update itself is already complete.
+	 * Mark the package as installed by removing the marker.  If removal is
+	 * refused, try renaming it to update.done instead.  Both failures are
+	 * ignored: the update itself is already complete.
 	 */
 	if (CAtariStorage::FileExists (UPDATE_DONE_MARKER))
 	{
 		CAtariStorage::Remove (UPDATE_DONE_MARKER);
 	}
-	if (!CAtariStorage::Rename (UPDATE_MARKER, UPDATE_DONE_MARKER))
+	if (!CAtariStorage::Remove (UPDATE_MARKER))
 	{
-		CAtariStorage::Remove (UPDATE_MARKER);
+		CAtariStorage::Rename (UPDATE_MARKER, UPDATE_DONE_MARKER);
 	}
 
 	Clear ();

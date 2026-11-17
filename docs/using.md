@@ -8,7 +8,7 @@ screen, to close it.
 
 ```
 ┌──────────────────────────────────────────────┐
-│ Atari XL/XE                                  │
+│ BM800XL v0.8.8                               │
 ├──────────────────────────────────────────────┤
 │ Disk drives          2 of 4 loaded           │
 │ Cartridge            (none)                  │
@@ -23,6 +23,9 @@ screen, to close it.
 │ Up/Down move  Left/Right change  Return sel  │
 └──────────────────────────────────────────────┘
 ```
+
+The version in the header is the release currently running. It is also written
+to the boot log at start-up.
 
 ### Keys
 
@@ -196,9 +199,9 @@ Prepare the drive:
 
 The updater copies the files to temporary `.new` names on the SD card, verifies
 each copy, and only then replaces the existing files. After a successful update,
-`update.emu` is renamed to `update.done` on the USB drive. If the rename fails,
-the marker is deleted instead; if that also fails, the update is still complete
-and the marker simply remains for the next check.
+`update.emu` is deleted from the USB drive. If the deletion fails, the marker is
+renamed to `update.done` instead; if both fail, the update is still complete and
+the marker simply remains for the next check.
 
 There is deliberately **no check that the image matches the current Pi**, no
 backup and no automatic rollback. A wrong or incompatible image can leave the

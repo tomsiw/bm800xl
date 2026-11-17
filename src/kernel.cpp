@@ -27,6 +27,7 @@
 
 #include "host_services.h"
 #include "audio_out.h"
+#include "version.h"
 
 #include <errno.h>
 
@@ -556,7 +557,7 @@ boolean CAtariKernel::Initialize (void)
 	 * comes later.  Until then the screen shows whatever the firmware left, which
 	 * is preferable to a text console appearing and being replaced.
 	 */
-	m_pBootLog->Record ("Atari XL/XE emulator for Raspberry Pi");
+	m_pBootLog->Recordf ("%s emulator for Raspberry Pi", ATARI_OSD_TITLE);
 	m_pBootLog->Recordf ("Build: %s %s", __DATE__, __TIME__);
 
 	boolean bOK = TRUE;

@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `0a8ac32`; the USB updater and this
+**Last updated:** after commit `48bbd4b`; the version header and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -271,7 +271,8 @@ carries this table; a commit cannot name its own hash.
 | `1cc5b0a` | A CPU crash always cleared the media and restarted the Pi; there was no way to inspect the halted state or get a visible warning first | Added `CRASH_ACTION` and an Other options row.  `COLOURS_RESTART` is the default: archive the logs, clear media, show white/yellow/red for one second each and reboot.  `RESTART` archives and reboots without the colour delay; `HALT` archives, shows red and halts without clearing media. |
 | `18082ca` | The OSD bars, cursor and panel were fixed blue/grey, with no way to change the theme | Added `OSD_THEME` and an Other options row with Blue, Red, Green, Black, Orange, Purple, Teal and Magenta.  Bars, cursor and static panel use the light/dark theme pair; with `STATIC_OSD=0`, the live picture is tinted with the dark theme instead of being dimmed toward black. |
 | `0a8ac32` | A key held while the USB keyboard was first enumerated was lost: Circle processed the first report before the raw handler was attached, and no new report arrived while the key stayed held | Added `CUSBKeyboardDevice::GetLastReport()` to Circle and replayed that report to the listeners when the raw handler is attached.  F8/Option held at power-on, and any other pre-enumeration key, is now present on the first emulated frame. |
-| (this commit) | A new kernel image could only be installed by removing the SD card and copying it from a PC | Added `Check for updates` to Other options.  The USB root must contain `update.emu` with the current compatibility code (`Noal`) and one or more accepted kernel/armstub files; the updater validates sizes and SD free space, stages and verifies copies, replaces the files, then renames the marker to `update.done` or deletes it if the rename fails.  There is no target-board check, backup or rollback, and the USB drive must be inserted before power-on. |
+| `48bbd4b` | A new kernel image could only be installed by removing the SD card and copying it from a PC | Added `Check for updates` to Other options.  The USB root must contain `update.emu` with the current compatibility code (`Noal`) and one or more accepted kernel/armstub files; the updater validates sizes and SD free space, stages and verifies copies, replaces the files, then renames the marker to `update.done` or deletes it if the rename fails.  There is no target-board check, backup or rollback, and the USB drive must be inserted before power-on. |
+| (this commit) | The OSD header said only `Atari XL/XE`, with no visible way to identify the running release | Added `src/version.h` with a single `ATARI_VERSION` string, shown as `BM800XL v0.8.8` in the main OSD header and recorded in the first boot-log line.  Submenu titles are unchanged.  The updater now deletes `update.emu` first and only renames it to `update.done` if deletion fails. |
 
 ---
 

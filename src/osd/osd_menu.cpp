@@ -10,6 +10,8 @@
 
 #include "osd_menu.h"
 
+#include "version.h"
+
 #include <circle/logger.h>
 #include <circle/timer.h>
 
@@ -3108,7 +3110,7 @@ void CAtariMenu::DrawStatusLine (void)
 
 void CAtariMenu::DrawMainScreen (void)
 {
-	DrawHeader ("Atari XL/XE");
+	DrawHeader (ATARI_OSD_TITLE);
 
 	unsigned nY = MenuMarginY + m_nItemTop;
 	unsigned nCount = GetItemCount ();

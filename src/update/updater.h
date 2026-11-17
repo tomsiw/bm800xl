@@ -36,8 +36,8 @@ public:
 
 	/*
 	 * Copies every scanned file to a staging name on SD:, verifies it, then
-	 * replaces the destination.  The marker is renamed to update.done after all
-	 * replacements succeed; if the rename fails it is deleted instead.  Either
+	 * replaces the destination.  The marker is deleted after all replacements
+	 * succeed; if deletion fails it is renamed to update.done instead.  Either
 	 * failure is ignored and the update still counts as complete.
 	 *
 	 * \return TRUE if every destination was replaced.
