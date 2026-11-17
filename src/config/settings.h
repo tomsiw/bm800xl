@@ -78,6 +78,20 @@ enum TAtariCrashAction
 	AtariCrashActionUnknown
 };
 
+/* Colour theme for the OSD bars, cursor and panel. */
+enum TAtariOsdTheme
+{
+	AtariOsdThemeBlue = 0,
+	AtariOsdThemeRed,
+	AtariOsdThemeGreen,
+	AtariOsdThemeBlack,
+	AtariOsdThemeOrange,
+	AtariOsdThemePurple,
+	AtariOsdThemeTeal,
+	AtariOsdThemeMagenta,
+	AtariOsdThemeUnknown
+};
+
 struct TAtariSettings
 {
 	// Emulated machine
@@ -105,6 +119,9 @@ struct TAtariSettings
 	 */
 	boolean		bScanlines;
 	int		nScanlineFactor;	///< 85, 90 or 95
+
+	// OSD
+	int		nOsdTheme;		///< TAtariOsdTheme
 
 	// Input
 	int		nKeyboardMode;		///< TAtariKeyboardMode

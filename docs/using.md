@@ -132,6 +132,7 @@ power cycle are separate items on the main screen.
 | Row | Values | Effect |
 |---|---|---|
 | Static OSD | On / Off | Draw the menu over a frozen picture instead of repainting a dimmed live one |
+| OSD theme | Blue / Red / Green / Black / Orange / Purple / Teal / Magenta | Colour of the OSD bars, cursor and central panel |
 | Continue on BRK | On / Off | 1 runs BRK as the machine does; 0 stops the frame and logs it |
 | NumPad as cursor | On / Off | Keypad arrows act as cursor keys |
 | Keyboard | USB keyboard / GPIO keyboard | Chooses the keyboard source; takes effect on the next start |
@@ -141,6 +142,19 @@ power cycle are separate items on the main screen.
 The **Keyboard** row needs a Pi restart; the others take effect immediately. The
 **User directory** row selects the media volume, not an arbitrary path; the media
 browser still remembers the last directory it was in.
+
+OSD theme pairs, used for the light bars/cursor and dark panel/tint:
+
+| Theme | Light | Dark |
+|---|---|---|
+| Blue | `#0060C0` | `#101828` |
+| Red | `#C03030` | `#300808` |
+| Green | `#208040` | `#082810` |
+| Black | `#606060` | `#000000` |
+| Orange | `#C06000` | `#301800` |
+| Purple | `#7040C0` | `#1A1030` |
+| Teal | `#008080` | `#002A2A` |
+| Magenta | `#B03080` | `#300818` |
 
 `SYSTEM_DIR` is deliberately not on this screen: it is a file-only setting and is
 not used by the running storage setup.
@@ -185,18 +199,19 @@ One thing is the exception, and the menu says so when you change it:
 
 ### On a slower board: `STATIC_OSD`
 
-The menu normally repaints the emulated picture behind it and sits on a dimmed copy
-of it, so you can see the machine carrying on while the OSD is open. Repainting a
+The menu normally repaints the emulated picture behind it and sits on a
+theme-tinted copy of it, so you can see the machine carrying on while the OSD is
+open. Repainting a
 960x720 picture with the menu on top does not fit in one 20 ms frame on a Pi Zero
 2 W, and the machine misses its frame deadline — games that depend on 50 Hz timing
 can crash.
 
 `STATIC_OSD` is on by default. With it, the menu is drawn over the frame that is
 already on screen, on an opaque panel: the picture underneath stops updating while
-the menu is open, and closing it repaints as usual. That is one line in the settings
-file, not a menu item, because it describes the board rather than the session.
+the menu is open, and closing it repaints as usual. It is available as the
+**Static OSD** row in **Other options** and as a line in the settings file.
 
-Set `STATIC_OSD=0` to have the menu sit on a dimmed, live picture instead — the
+Set `STATIC_OSD=0` to have the menu sit on a tinted, live picture instead — the
 machine keeps moving behind it, which is pleasant on a Pi 4 and costly on a Zero 2 W,
 where the redraw competes with the emulation for the frame.
 
@@ -482,6 +497,7 @@ KEYBOARD=0
 NUMPAD_CURSOR=1
 CONTINUE_ON_BRK=1
 STATIC_OSD=1
+OSD_THEME=BLUE
 JOY_INTERFACE=USB
 JOY_SWAP=0
 CRASH_ACTION=COLOURS_RESTART
@@ -512,7 +528,8 @@ SYSTEM_DIR=SD:/ATARI
 | `KEYBOARD` | 0 = USB, 1 = GPIO |
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
-| `STATIC_OSD` | 0 or 1 — 1 (the default) draws the menu over a frozen picture on an opaque panel; 0 repaints and dims the picture behind it, which costs noticeably more |
+| `STATIC_OSD` | 0 or 1 — 1 (the default) draws the menu over a frozen picture on an opaque panel; 0 repaints and tints the picture behind it, which costs noticeably more |
+| `OSD_THEME` | `BLUE` (default), `RED`, `GREEN`, `BLACK`, `ORANGE`, `PURPLE`, `TEAL` or `MAGENTA` — colour of the OSD bars, cursor and panel; the same setting as Other options → OSD theme |
 | `JOY_INTERFACE` | `USB`, `GPIO` or `KEYBOARD` — which interface feeds the two joystick ports; the same setting as the menu's Joysticks → Interface, and it takes effect the next time the Pi is switched off and on |
 | `JOY_SWAP` | 0 or 1 — 1 exchanges the two joystick ports, and takes effect immediately |
 | `CRASH_ACTION` | `COLOURS_RESTART` (default), `RESTART` or `HALT` — what happens after a CPU crash; the same setting as Other options → CPU crash |

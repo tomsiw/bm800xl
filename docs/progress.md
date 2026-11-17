@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `24cadbf`; the crash-action option and this
+**Last updated:** after commit `1cc5b0a`; the OSD theme option and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -268,7 +268,8 @@ carries this table; a commit cannot name its own hash.
 | `dbf3275` | Left/Right in the file browser fell through to the menu's default action and closed the OSD | Left/Right now move one page of file rows.  Left on the first page selects `..`; Right on the last page selects the last file.  Page size is the number of visible file rows, and scrolling follows the selected page. |
 | `a7f632c` | Saving or loading the current snapshot required opening the Snapshots submenu and its browser | Added main-screen shortcuts: `S` runs Save snapshot and `L` loads the current snapshot directly.  A successful save or load closes the OSD; no current snapshot makes `L` open the normal Load-snapshot browser.  The current path remains runtime-only. |
 | `24cadbf` | `STATIC_OSD`, `CONTINUE_ON_BRK`, `NUMPAD_CURSOR`, `KEYBOARD` and `USER_DIR` were settings-file-only, with no OSD entry | Added an Other options screen under the main menu.  It exposes Static OSD, Continue on BRK, NumPad as cursor, Keyboard (USB/GPIO, next start) and User directory (SD:/USB:).  SYSTEM_DIR remains file-only because the storage setup ignores it. |
-| (this commit) | A CPU crash always cleared the media and restarted the Pi; there was no way to inspect the halted state or get a visible warning first | Added `CRASH_ACTION` and an Other options row.  `COLOURS_RESTART` is the default: archive the logs, clear media, show white/yellow/red for one second each and reboot.  `RESTART` archives and reboots without the colour delay; `HALT` archives, shows red and halts without clearing media. |
+| `1cc5b0a` | A CPU crash always cleared the media and restarted the Pi; there was no way to inspect the halted state or get a visible warning first | Added `CRASH_ACTION` and an Other options row.  `COLOURS_RESTART` is the default: archive the logs, clear media, show white/yellow/red for one second each and reboot.  `RESTART` archives and reboots without the colour delay; `HALT` archives, shows red and halts without clearing media. |
+| (this commit) | The OSD bars, cursor and panel were fixed blue/grey, with no way to change the theme | Added `OSD_THEME` and an Other options row with Blue, Red, Green, Black, Orange, Purple, Teal and Magenta.  Bars, cursor and static panel use the light/dark theme pair; with `STATIC_OSD=0`, the live picture is tinted with the dark theme instead of being dimmed toward black. |
 
 ---
 

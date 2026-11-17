@@ -88,6 +88,7 @@ void Settings_SetDefaults (TAtariSettings *pSettings)
 	 * who wants to see the machine keep moving behind the menu.
 	 */
 	pSettings->bStaticOSD = TRUE;
+	pSettings->nOsdTheme = AtariOsdThemeBlue;
 
 	pSettings->bScanlines = FALSE;
 	pSettings->nScanlineFactor = 90;
@@ -371,6 +372,41 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 			pSettings->bStaticOSD = bValue;
 		}
 	}
+	else if (strcmp (pKey, "OSD_THEME") == 0)
+	{
+		if (EqualsIgnoreCase (pValue, "RED"))
+		{
+			pSettings->nOsdTheme = AtariOsdThemeRed;
+		}
+		else if (EqualsIgnoreCase (pValue, "GREEN"))
+		{
+			pSettings->nOsdTheme = AtariOsdThemeGreen;
+		}
+		else if (EqualsIgnoreCase (pValue, "BLACK"))
+		{
+			pSettings->nOsdTheme = AtariOsdThemeBlack;
+		}
+		else if (EqualsIgnoreCase (pValue, "ORANGE"))
+		{
+			pSettings->nOsdTheme = AtariOsdThemeOrange;
+		}
+		else if (EqualsIgnoreCase (pValue, "PURPLE"))
+		{
+			pSettings->nOsdTheme = AtariOsdThemePurple;
+		}
+		else if (EqualsIgnoreCase (pValue, "TEAL"))
+		{
+			pSettings->nOsdTheme = AtariOsdThemeTeal;
+		}
+		else if (EqualsIgnoreCase (pValue, "MAGENTA"))
+		{
+			pSettings->nOsdTheme = AtariOsdThemeMagenta;
+		}
+		else
+		{
+			pSettings->nOsdTheme = AtariOsdThemeBlue;
+		}
+	}
 	else if (strcmp (pKey, "JOY_INTERFACE") == 0)
 	{
 		if (EqualsIgnoreCase (pValue, "USB") || strcmp (pValue, "0") == 0)
@@ -650,6 +686,15 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 		    Settings.bContinueOnBrk ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "STATIC_OSD=%d\n",
 		    Settings.bStaticOSD ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "OSD_THEME=%s\n",
+		    Settings.nOsdTheme == AtariOsdThemeRed ? "RED"
+		    : Settings.nOsdTheme == AtariOsdThemeGreen ? "GREEN"
+		    : Settings.nOsdTheme == AtariOsdThemeBlack ? "BLACK"
+		    : Settings.nOsdTheme == AtariOsdThemeOrange ? "ORANGE"
+		    : Settings.nOsdTheme == AtariOsdThemePurple ? "PURPLE"
+		    : Settings.nOsdTheme == AtariOsdThemeTeal ? "TEAL"
+		    : Settings.nOsdTheme == AtariOsdThemeMagenta ? "MAGENTA"
+		    : "BLUE");
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "SCANLINES=%d\n",
 		    Settings.bScanlines ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "SCANLINE_FACTOR=%d\n",

@@ -185,6 +185,10 @@ public:
 	void DimRect (unsigned nX, unsigned nY, unsigned nWidth, unsigned nHeight,
 		      unsigned nPercent);
 
+	/// Blends a rectangle towards a colour; nPercent is the amount of Color.
+	void TintRect (unsigned nX, unsigned nY, unsigned nWidth, unsigned nHeight,
+		       TAtariColor Color, unsigned nPercent);
+
 	/// Draws a single line of text.
 	/// \param nDoubleSize Draw at twice the height, for headings
 	void DrawText (unsigned nX, unsigned nY, TAtariColor Color, const char *pText,

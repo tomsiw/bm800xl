@@ -1049,8 +1049,104 @@ void CAtariVideoOut::DrawRectOutline (unsigned nX, unsigned nY, unsigned nWidth,
 	DrawRect (nX + nWidth - 1, nY, 1, nHeight, Color);
 }
 
-void CAtariVideoOut::DimRect (unsigned nX, unsigned nY, unsigned nWidth, unsigned nHeight,
-			      unsigned nPercent)
+void CAtariVideoOut::TintRect (unsigned nX, unsigned nY, unsigned nWidth,
+			       unsigned nHeight, TAtariColor Color,
+			       unsigned nPercent)
+{
+	assert (m_bInitialized);
+
+	if (nX >= m_nWidth || nY >= m_nHeight)
+	{
+		return;
+	}
+	if (nX + nWidth > m_nWidth)
+	{
+		nWidth = m_nWidth - nX;
+	}
+	if (nY + nHeight > m_nHeight)
+	{
+		nHeight = m_nHeight - nY;
+	}
+	if (nPercent > 100)
+	{
+		nPercent = 100;
+	}
+
+	/*
+	 * Blend each component towards the theme colour:
+	 *     result = source * (100 - nPercent) + target * nPercent
+	 *
+	 * The channel tables avoid a multiply and divide per pixel.  The staging
+	 * buffer is the same one DimRect uses; only one menu pass runs at a time.
+	 */
+	unsigned nKeep = 100 - nPercent;
+	unsigned nTargetR = (Color >> 11) & 0x1f;
+	unsigned nTargetG = (Color >>  5) & 0x3f;
+	unsigned nTargetB =  Color        & 0x1f;
+
+	u16 Source5[32];
+	u16 Source6[64];
+	u16 Target5[32];
+	u16 Target6[64];
+
+	for (unsigned nLevel = 0; nLevel < 32; nLevel++)
+	{
+		Source5[nLevel] = (u16) (nLevel * nKeep / 100);
+		Target5[nLevel] = (u16) (nTargetR * nPercent / 100);
+	}
+	for (unsigned nLevel = 0; nLevel < 64; nLevel++)
+	{
+		Source6[nLevel] = (u16) (nLevel * nKeep / 100);
+		Target6[nLevel] = (u16) (nTargetG * nPercent / 100);
+	}
+
+	const bool bStage = nWidth <= MaxDestinationWidth;
+
+	for (unsigned nRow = 0; nRow < nHeight; nRow++)
+	{
+		u16 *pRow = m_pBackBuffer + (uintptr) (nY + nRow) * m_nPitchPixels + nX;
+
+		if (!bStage)
+		{
+			for (unsigned nCol = 0; nCol < nWidth; nCol++)
+			{
+				u16 nPixel = pRow[nCol];
+
+				unsigned nR = Source5[(nPixel >> 11) & 0x1f]
+					    + Target5[nTargetR];
+				unsigned nG = Source6[(nPixel >>  5) & 0x3f]
+					    + Target6[nTargetG];
+				unsigned nB = Source5[ nPixel        & 0x1f]
+					    + Target5[nTargetB];
+
+				pRow[nCol] = (u16) ((nR << 11) | (nG << 5) | nB);
+			}
+
+			continue;
+		}
+
+		memcpy (s_DimRow, pRow, nWidth * sizeof (u16));
+
+		for (unsigned nCol = 0; nCol < nWidth; nCol++)
+		{
+			u16 nPixel = s_DimRow[nCol];
+
+			unsigned nR = Source5[(nPixel >> 11) & 0x1f]
+				    + Target5[nTargetR];
+			unsigned nG = Source6[(nPixel >>  5) & 0x3f]
+				    + Target6[nTargetG];
+			unsigned nB = Source5[ nPixel        & 0x1f]
+				    + Target5[nTargetB];
+
+			s_DimRow[nCol] = (u16) ((nR << 11) | (nG << 5) | nB);
+		}
+
+		memcpy (pRow, s_DimRow, nWidth * sizeof (u16));
+	}
+}
+
+void CAtariVideoOut::DimRect (unsigned nX, unsigned nY, unsigned nWidth,
+			      unsigned nHeight, unsigned nPercent)
 {
 	assert (m_bInitialized);
 

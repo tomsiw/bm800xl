@@ -62,9 +62,54 @@ static const unsigned MAX_SNAPSHOT_MEDIA	= 24;
 static const unsigned VideoItemCount		= 6;	// standard, artifacting, resolution, aspect, scanlines, factor
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
-static const unsigned OtherItemCount		= 6;	// static OSD, BRK, numpad, keyboard, user dir, crash action
+static const unsigned OtherItemCount		= 7;	// static OSD, theme, BRK, numpad, keyboard, user dir, crash action
 
 static const char FromMenu[] = "menu";
+
+struct TMenuTheme
+{
+	TAtariColor Light;
+	TAtariColor Dark;
+};
+
+static TMenuTheme ThemeFor (int nTheme)
+{
+	switch (nTheme)
+	{
+	case AtariOsdThemeRed:
+		return { ATARI_COLOR_RGB (0xc0, 0x30, 0x30),
+			 ATARI_COLOR_RGB (0x30, 0x08, 0x08) };
+
+	case AtariOsdThemeGreen:
+		return { ATARI_COLOR_RGB (0x20, 0x80, 0x40),
+			 ATARI_COLOR_RGB (0x08, 0x28, 0x10) };
+
+	case AtariOsdThemeBlack:
+		return { ATARI_COLOR_RGB (0x60, 0x60, 0x60),
+			 ATARI_COLOR_RGB (0x00, 0x00, 0x00) };
+
+	case AtariOsdThemeOrange:
+		return { ATARI_COLOR_RGB (0xc0, 0x60, 0x00),
+			 ATARI_COLOR_RGB (0x30, 0x18, 0x00) };
+
+	case AtariOsdThemePurple:
+		return { ATARI_COLOR_RGB (0x70, 0x40, 0xc0),
+			 ATARI_COLOR_RGB (0x1a, 0x10, 0x30) };
+
+	case AtariOsdThemeTeal:
+		return { ATARI_COLOR_RGB (0x00, 0x80, 0x80),
+			 ATARI_COLOR_RGB (0x00, 0x2a, 0x2a) };
+
+	case AtariOsdThemeMagenta:
+		return { ATARI_COLOR_RGB (0xb0, 0x30, 0x80),
+			 ATARI_COLOR_RGB (0x30, 0x08, 0x18) };
+
+	case AtariOsdThemeBlue:
+	default:
+		return { ATARI_COLOR_RGB (0x00, 0x60, 0xc0),
+			 ATARI_COLOR_RGB (0x10, 0x18, 0x28) };
+	}
+}
 
 /*
  * Copies SOURCE into DESTINATION, always terminating and never overflowing.
@@ -662,11 +707,12 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		switch (nIndex)
 		{
 		case 0: return "Static OSD";
-		case 1: return "Continue on BRK";
-		case 2: return "NumPad as cursor";
-		case 3: return "Keyboard";
-		case 4: return "User directory";
-		case 5: return "CPU crash";
+		case 1: return "OSD theme";
+		case 2: return "Continue on BRK";
+		case 3: return "NumPad as cursor";
+		case 4: return "Keyboard";
+		case 5: return "User directory";
+		case 6: return "CPU crash";
 		}
 		break;
 
@@ -1002,14 +1048,27 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 		switch (nIndex)
 		{
 		case 0: return S.bStaticOSD ? "On" : "Off";
-		case 1: return S.bContinueOnBrk ? "On" : "Off";
-		case 2: return S.bNumpadAsCursor ? "On" : "Off";
-		case 3: return KeyboardName (S.nKeyboardMode);
-		case 4:
+		case 1:
+			switch (S.nOsdTheme)
+			{
+			case AtariOsdThemeRed:		return "Red";
+			case AtariOsdThemeGreen:	return "Green";
+			case AtariOsdThemeBlack:	return "Black";
+			case AtariOsdThemeOrange:	return "Orange";
+			case AtariOsdThemePurple:	return "Purple";
+			case AtariOsdThemeTeal:		return "Teal";
+			case AtariOsdThemeMagenta:	return "Magenta";
+			case AtariOsdThemeBlue:
+			default:			return "Blue";
+			}
+		case 2: return S.bContinueOnBrk ? "On" : "Off";
+		case 3: return S.bNumpadAsCursor ? "On" : "Off";
+		case 4: return KeyboardName (S.nKeyboardMode);
+		case 5:
 			return (m_pStorage != 0
 				&& m_pStorage->OnSystemVolume (S.UserDirectory))
 				? "SD:" : "USB:";
-		case 5:
+		case 6:
 			switch (S.nCrashAction)
 			{
 			case AtariCrashActionRestart:
@@ -1457,14 +1516,44 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			break;
 
 		case 1:
-			S.bContinueOnBrk = S.bContinueOnBrk ? FALSE : TRUE;
+			{
+				static const int Themes[] =
+				{
+					AtariOsdThemeBlue,
+					AtariOsdThemeRed,
+					AtariOsdThemeGreen,
+					AtariOsdThemeBlack,
+					AtariOsdThemeOrange,
+					AtariOsdThemePurple,
+					AtariOsdThemeTeal,
+					AtariOsdThemeMagenta
+				};
+				const int nCount = (int) (sizeof Themes / sizeof Themes[0]);
+
+				int nIndex = 0;
+				for (int i = 0; i < nCount; i++)
+				{
+					if (Themes[i] == S.nOsdTheme)
+					{
+						nIndex = i;
+						break;
+					}
+				}
+
+				nIndex = (nIndex + nDelta + nCount) % nCount;
+				S.nOsdTheme = Themes[nIndex];
+			}
 			break;
 
 		case 2:
-			S.bNumpadAsCursor = S.bNumpadAsCursor ? FALSE : TRUE;
+			S.bContinueOnBrk = S.bContinueOnBrk ? FALSE : TRUE;
 			break;
 
 		case 3:
+			S.bNumpadAsCursor = S.bNumpadAsCursor ? FALSE : TRUE;
+			break;
+
+		case 4:
 			S.nKeyboardMode = S.nKeyboardMode == AtariKeyboardModeUSB
 					? AtariKeyboardModeGPIO : AtariKeyboardModeUSB;
 			snprintf (m_Message, sizeof m_Message,
@@ -1473,7 +1562,7 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			m_nMessageFrames = MESSAGE_FRAMES;
 			break;
 
-		case 4:
+		case 5:
 			{
 				boolean bOnSD = m_pStorage != 0
 					     && m_pStorage->OnSystemVolume (
@@ -1495,7 +1584,7 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			}
 			break;
 
-		case 5:
+		case 6:
 			{
 				static const int Actions[] =
 				{
@@ -2874,9 +2963,10 @@ void CAtariMenu::DrawHeader (const char *pTitle)
 {
 	unsigned nPanelX = MenuMarginX;
 	unsigned nPanelY = MenuMarginY;
+	TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
 
 	m_pVideo->DrawRect (nPanelX, nPanelY, MenuPanelWidth, m_nHeaderHeight,
-			       ATARI_COLOR_SELECT);
+			       Theme.Light);
 	m_pVideo->DrawText (nPanelX + MenuIndent,
 			    nPanelY + (m_nHeaderHeight - m_nLineHeight) / 2,
 			    ATARI_COLOR_WHITE, pTitle);
@@ -2885,9 +2975,10 @@ void CAtariMenu::DrawHeader (const char *pTitle)
 void CAtariMenu::DrawFooter (const char *pHint)
 {
 	unsigned nPanelY = MenuMarginY + MenuPanelHeight - m_nFooterHeight;
+	TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
 
 	m_pVideo->DrawRect (MenuMarginX, nPanelY, MenuPanelWidth, m_nFooterHeight,
-			       ATARI_COLOR_SELECT);
+			       Theme.Light);
 	m_pVideo->DrawText (MenuMarginX + MenuIndent,
 			    nPanelY + (m_nFooterHeight - m_nLineHeight) / 2,
 			    ATARI_COLOR_WHITE, pHint);
@@ -2899,11 +2990,12 @@ void CAtariMenu::DrawItem (unsigned nY, boolean bSelected, const char *pLabel,
 	unsigned nPanelX = MenuMarginX;
 	unsigned nRowX = nPanelX + MenuIndent;
 	unsigned nRowWidth = MenuPanelWidth - MenuIndent * 2;
+	TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
 
 	if (bSelected)
 	{
 		m_pVideo->DrawRect (nPanelX + 4, nY - 2, MenuPanelWidth - 8,
-				    m_nRowPitch - 4, ATARI_COLOR_SELECT);
+				    m_nRowPitch - 4, Theme.Light);
 	}
 
 	TAtariColor Color = bSelected ? ATARI_COLOR_WHITE : ATARI_COLOR_PANEL;
@@ -3096,12 +3188,17 @@ void CAtariMenu::Draw (void)
 	 */
 	if (m_pSettings->bStaticOSD)
 	{
+		TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
+
 		m_pVideo->DrawRect (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight,
-				    ATARI_COLOR_DARK);
+				    Theme.Dark);
 	}
 	else
 	{
-		m_pVideo->DimRect (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight, 65);
+		TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
+
+		m_pVideo->TintRect (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight,
+				    Theme.Dark, 35);
 	}
 
 	m_pVideo->DrawRectOutline (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight,
