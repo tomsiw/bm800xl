@@ -3121,7 +3121,7 @@ void CAtariMenu::DrawMainScreen (void)
 		nY += m_nRowPitch;
 	}
 
-	DrawFooter ("Up/Down  Left/Right  Return  Esc");
+	DrawFooter ("Up/Down  Left/Right  Return  Esc  S-save  L-load");
 }
 
 void CAtariMenu::DrawBrowser (void)
