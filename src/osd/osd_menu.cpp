@@ -1969,7 +1969,7 @@ void CAtariMenu::EjectSelection (void)
 		}
 		m_pHost->MountCartridge ("");
 		S.CartridgePath[0] = '\0';
-		pWhat = "Cartridge removed";
+		pWhat = "Cartridge removed; reset on close";
 		break;
 
 	case ScreenCassette:

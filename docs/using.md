@@ -521,8 +521,10 @@ that key is held, so a cold reset boots as though OPTION were down — BASIC is
 skipped, and with nothing in the drive the boot ends in BOOT ERROR. Power cycle
 clears that, because it builds the machine again rather than resetting it.
 
-Inserting a cartridge applies a cold start automatically, because that is what a
-real Atari does when you plug one in.
+Inserting or removing a cartridge applies a cold start automatically, because that
+is what a real Atari does when a cartridge is plugged in or taken out. The reset
+is deferred until the OSD menu closes, so it happens once after the menu has
+released the machine.
 
 An ordinary warm reset — the Reset button on a real machine — is also available
 as **F10** on a USB keyboard.

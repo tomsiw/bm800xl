@@ -8,8 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `9c74869`; the updater timestamp preservation and
-this documentation update are in the commit that carries this line. USB keyboard
+**Last updated:** after commit `1385551`; the cartridge-eject reset and this
+documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
 scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
@@ -273,7 +273,8 @@ carries this table; a commit cannot name its own hash.
 | `0a8ac32` | A key held while the USB keyboard was first enumerated was lost: Circle processed the first report before the raw handler was attached, and no new report arrived while the key stayed held | Added `CUSBKeyboardDevice::GetLastReport()` to Circle and replayed that report to the listeners when the raw handler is attached.  F8/Option held at power-on, and any other pre-enumeration key, is now present on the first emulated frame. |
 | `48bbd4b` | A new kernel image could only be installed by removing the SD card and copying it from a PC | Added `Check for updates` to Other options.  The USB root must contain `update.emu` with the current compatibility code (`Noal`) and one or more accepted kernel/armstub files; the updater validates sizes and SD free space, stages and verifies copies, replaces the files, then renames the marker to `update.done` or deletes it if the rename fails.  There is no target-board check, backup or rollback, and the USB drive must be inserted before power-on. |
 | `9c74869` | The OSD header said only `Atari XL/XE`, with no visible way to identify the running release | Added `src/version.h` with a single `ATARI_VERSION` string, shown as `BM800XL v0.8.8` in the main OSD header and recorded in the first boot-log line.  Submenu titles are unchanged.  The updater now deletes `update.emu` first and only renames it to `update.done` if deletion fails. |
-| (this commit) | Updated kernel files were created with zero FAT dates because the bare-metal board has no valid clock, and no metadata was carried over from the USB source | `CAtariStorage::CopyTimestamps()` applies the source `FILINFO` with `f_utime()` to each staged file before replacement.  FatFs is built with `FF_FS_CRTIME=1`, so both creation and modification times are preserved; the Circle patch carries the option. |
+| `1385551` | Updated kernel files were created with zero FAT dates because the bare-metal board has no valid clock, and no metadata was carried over from the USB source | `CAtariStorage::CopyTimestamps()` applies the source `FILINFO` with `f_utime()` to each staged file before replacement.  FatFs is built with `FF_FS_CRTIME=1`, so both creation and modification times are preserved; the Circle patch carries the option. |
+| (this commit) | Inserting a cartridge queued a cold start at menu close, but ejecting one left the machine running with the old cartridge removed | `ATARI_MountCartridge("")` now queues the same deferred cold start after removing the cartridge.  The OSD message says `Cartridge removed; reset on close`. |
 
 ---
 

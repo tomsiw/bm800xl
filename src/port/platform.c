@@ -2606,6 +2606,16 @@ int ATARI_MountCartridge(const char *path)
 	if (path == 0 || path[0] == '\0') {
 		ATARI_RuntimeLog("cartridge: removed");
 		CARTRIDGE_Remove();
+
+		/*
+		 * Removing a cartridge changes the machine's memory map just as
+		 * inserting one does.  Defer the cold start until the menu closes,
+		 * for the same reason insertion does: the OSD still owns the display
+		 * and the CPU must not run from inside the menu's key handler.
+		 */
+		s_bColdStartPending = 1;
+		ATARI_RuntimeLog("cartridge: cold start deferred until the menu "
+				 "closes");
 		return 1;
 	}
 
