@@ -44,6 +44,19 @@ struct TMenuKeyEvent
 };
 
 /*
+ * An emulator action requested by a key binding.
+ *
+ * Unlike an Atari key code, these do not reach the emulated machine.  The
+ * kernel consumes them at a frame boundary.
+ */
+enum TAtariMetaAction
+{
+	AtariMetaNone = 0,
+	AtariMetaQuickSave,
+	AtariMetaQuickLoad
+};
+
+/*
  * A keyboard source.
  *
  * Implementations are polled once per emulated frame.  They must be safe to
@@ -97,6 +110,18 @@ public:
 	 * menu selection instead of the emulated cursor.
 	 */
 	virtual boolean ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent) = 0;
+
+	/*
+	 * Takes the next emulator action requested by a key binding.
+	 *
+	 * Returns FALSE when nothing is pending.  Sources that have no meta
+	 * bindings keep the default, which never reports one.
+	 */
+	virtual boolean ConsumeMetaAction (TAtariMetaAction *pAction)
+	{
+		(void) pAction;
+		return FALSE;
+	}
 
 	/*
 	 * Polls for a keyboard that has appeared since the last call.

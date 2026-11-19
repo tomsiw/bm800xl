@@ -286,6 +286,13 @@ static const TFunctionName s_AtariNames[] =
 	{ "NONE",	UsbKeyActionNone, 0,				0,    0 },
 
 	/*
+	 * Emulator meta actions.  They have no default stroke: a card without
+	 * usbkeys.cfg keeps F2/F3 as the Atari function keys.
+	 */
+	{ "META_QUICKSAVE", UsbKeyActionQuickSave, 0,		0,    0 },
+	{ "META_QUICKLOAD", UsbKeyActionQuickLoad, 0,		0,    0 },
+
+	/*
 	 * The joystick actions.
 	 *
 	 * Nothing is bound to these by default and nothing can be: a direction works

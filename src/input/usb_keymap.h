@@ -62,7 +62,10 @@ enum TUsbKeyAction
 	 * joystick driver instead, which listens to the same key reports for its
 	 * own purposes.
 	 */
-	UsbKeyActionJoystick
+	UsbKeyActionJoystick,
+	/* Emulator actions, not Atari key codes.  See CAtariKeyboard. */
+	UsbKeyActionQuickSave,
+	UsbKeyActionQuickLoad
 };
 
 /* One bit per direction, plus fire, and a byte for which port it belongs to. */

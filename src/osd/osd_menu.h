@@ -141,6 +141,13 @@ public:
 	/// \return Is the menu currently on screen?
 	boolean IsOpen (void) const		{ return m_bOpen; }
 
+	/*
+	 * The snapshot path the menu currently treats as "current": the file the
+	 * Save action would overwrite and the Load action last used.  Empty until
+	 * a snapshot is saved or loaded in this session.
+	 */
+	const char *GetCurrentSnapshotPath (void) const	{ return m_SnapshotPath; }
+
 	/// Opens or closes the menu.  Closing commits any pending setting.
 	void Toggle (void);
 

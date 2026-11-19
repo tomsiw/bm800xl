@@ -389,7 +389,36 @@ A keyboard with limited rollover can drop Fire on some three-key combinations;
 that is a keyboard matrix limitation, not a limit in the emulator. See
 [Keyboard rollover and ghosting](joystick.md#keyboard-rollover-and-ghosting).
 
-### 5.6 `A(None)`
+### 5.6 `A(Meta_QuickSave)` and `A(Meta_QuickLoad)`
+
+Two names are emulator actions rather than Atari functions:
+
+| Name | Effect |
+|---|---|
+| `A(Meta_QuickSave)` | save a snapshot to the quick target |
+| `A(Meta_QuickLoad)` | load that snapshot |
+
+They have **no default key binding**. F2 and F3 remain the Atari function keys
+unless a line gives them a different job:
+
+```ini
+U(F2) = A(Meta_QuickSave)
+U(F3) = A(Meta_QuickLoad)
+```
+
+The quick target is chosen when the key is pressed:
+
+1. If the OSD has a current snapshot and that file still exists, use it.
+2. Otherwise use `SD:/ATARI/QuickSave.sav`.
+
+So after saving or loading a named snapshot in the OSD, quick save updates that
+snapshot. With no current snapshot, it uses the dedicated quick slot.
+
+The actions work only while the OSD is closed. The file is read at start-up, so
+editing `usbkeys.cfg` requires a restart. A bound meta key types nothing on the
+emulated machine. See [Saving and loading](using.md#snapshots) for the OSD side.
+
+### 5.7 `A(None)`
 
 `A(None)` is not an Atari function. It means "this stroke does nothing", and it
 is the way to take a stroke out of service without giving its function somewhere

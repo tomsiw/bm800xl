@@ -117,6 +117,12 @@ public:
 	 */
 	boolean ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent) override;
 
+	/*
+	 * Quick-save/load requests from usbkeys.cfg.  These are edge triggered
+	 * on the press and never reach the Atari keyboard state.
+	 */
+	boolean ConsumeMetaAction (TAtariMetaAction *pAction) override;
+
 	boolean IsPresent (void) override;
 
 	/* Installs usbkeys.cfg; see keyboard.h.  Call before Initialize(). */
@@ -247,6 +253,14 @@ private:
 	static TMenuKeyEvent	s_MenuQueue[USB_KEYBOARD_MAX_DEVICES][MenuQueueSize];
 	static unsigned		s_nMenuHead[USB_KEYBOARD_MAX_DEVICES];
 	static unsigned		s_nMenuTail[USB_KEYBOARD_MAX_DEVICES];
+
+	/*
+	 * Pending meta actions, as a bit mask.  There are only two, and two
+	 * actions pressed in the same report are equivalent to either order, so
+	 * a bit per action is enough.  Protected by s_SpinLock.
+	 */
+	static void QueueMetaAction (TAtariMetaAction Action);
+	static unsigned		s_nMetaPending;
 
 	/*
 	 * The remapping table.

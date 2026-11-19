@@ -1644,6 +1644,13 @@ void CAtariKernel::RunFrame (void)
 		ATARI_AudioSinkSetMuted (m_pAudioSink, m_Menu.IsOpen ());
 	}
 
+	/*
+	 * Quick save/load keys are emulator actions, not Atari keystrokes.  Run them
+	 * at this frame boundary, with the menu closed, so a snapshot never races
+	 * the frame that is being emulated or the OSD's key handling.
+	 */
+	HandleMetaActions ();
+
 	// Emulate one frame.  The emulation core pulls the keyboard state itself,
 	// through the callback installed in InitializeKeyboard().
 	if (!ATARI_RunFrame ())
@@ -2502,6 +2509,121 @@ boolean CAtariKernel::LoadSnapshot (const char *pPath)
 	m_AppliedSettings = m_Settings;
 
 	return TRUE;
+}
+
+boolean CAtariKernel::ResolveQuickSnapshotPath (char *pPath, unsigned nSize)
+{
+	if (pPath == 0 || nSize == 0)
+	{
+		return FALSE;
+	}
+
+	/*
+	 * The OSD's current snapshot wins while it still exists.  A stale path --
+	 * the file was erased or removed from a PC -- falls back to the dedicated
+	 * quick slot rather than failing to save anywhere.
+	 */
+	const char *pCurrent = m_Menu.GetCurrentSnapshotPath ();
+
+	if (   pCurrent != 0
+	    && pCurrent[0] != '\0'
+	    && CAtariStorage::FileExists (pCurrent))
+	{
+		snprintf (pPath, nSize, "%s", pCurrent);
+		return TRUE;
+	}
+
+	m_Storage.MakeSystemPath (pPath, nSize, "QuickSave.sav");
+
+	return pPath[0] != '\0';
+}
+
+void CAtariKernel::QuickSave (void)
+{
+	char Path[SETTINGS_PATH_MAX];
+
+	if (!ResolveQuickSnapshotPath (Path, sizeof Path))
+	{
+		CBootLog::Get ()->RecordRuntime ("quick save: no usable path");
+		return;
+	}
+
+	if (SaveSnapshot (Path))
+	{
+		CBootLog::Get ()->RecordRuntimef ("quick save: %s", Path);
+	}
+	else
+	{
+		CBootLog::Get ()->RecordRuntimef ("quick save failed: %s: %s",
+						 Path, GetLastError ());
+	}
+}
+
+void CAtariKernel::QuickLoad (void)
+{
+	char Path[SETTINGS_PATH_MAX];
+
+	if (!ResolveQuickSnapshotPath (Path, sizeof Path))
+	{
+		CBootLog::Get ()->RecordRuntime ("quick load: no usable path");
+		return;
+	}
+
+	if (!CAtariStorage::FileExists (Path))
+	{
+		CBootLog::Get ()->RecordRuntimef ("quick load: %s does not exist",
+						 Path);
+		return;
+	}
+
+	if (!LoadSnapshot (Path))
+	{
+		CBootLog::Get ()->RecordRuntimef ("quick load failed: %s: %s",
+						 Path, GetLastError ());
+		return;
+	}
+
+	ATARI_AudioReset ();
+
+	CBootLog::Get ()->RecordRuntimef ("quick load: %s", Path);
+
+	const char *pNotice = GetSnapshotNotice ();
+	if (pNotice != 0 && pNotice[0] != '\0')
+	{
+		CBootLog::Get ()->RecordRuntimef ("quick load: %s", pNotice);
+	}
+}
+
+void CAtariKernel::HandleMetaActions (void)
+{
+	if (m_pKeyboard == 0 || m_Menu.IsOpen ())
+	{
+		return;
+	}
+
+	for (int nGuard = 0; nGuard < 4; nGuard++)
+	{
+		TAtariMetaAction Action = AtariMetaNone;
+
+		if (!m_pKeyboard->ConsumeMetaAction (&Action))
+		{
+			break;
+		}
+
+		switch (Action)
+		{
+		case AtariMetaQuickSave:
+			QuickSave ();
+			break;
+
+		case AtariMetaQuickLoad:
+			QuickLoad ();
+			break;
+
+		default:
+			break;
+		}
+	}
 }
 
 void CAtariKernel::ColdReset (void)

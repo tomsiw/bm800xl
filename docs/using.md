@@ -488,6 +488,35 @@ Erasing removes the file from the card, so it cannot be undone from the menu.
 Snapshot names are `SNAPSHOTn.SAV` in the system directory (`SD:/ATARI`), which
 is one thing to check on a PC if space runs short.
 
+### Quick save and quick load
+
+Quick Save and Quick Load can be bound in
+[`usbkeys.cfg`](usbkeys.md#56-ameta_quicksave-and-ameta_quickload). There are no
+default bindings; for example:
+
+```ini
+U(F2) = A(Meta_QuickSave)
+U(F3) = A(Meta_QuickLoad)
+```
+
+The file is read at start-up, so a restart is needed after editing it. The keys
+work only while the OSD is closed.
+
+The quick target follows the current snapshot:
+
+- if a named snapshot is current and still exists, Quick Save overwrites it and
+  Quick Load loads it;
+- otherwise both use the dedicated quick slot
+  `SD:/ATARI/QuickSave.sav`.
+
+Quick Save does not change which snapshot is current. If it used
+`QuickSave.sav`, that file stays the fallback until a named snapshot is saved or
+loaded in the OSD. Quick Load does not change the current snapshot either.
+
+A quick action has no on-screen message while the OSD is closed; success and
+failure are written to the runtime log. A quick load with no file to load logs a
+failure and leaves the machine running.
+
 What a snapshot does **not** include is the mounted media. Disk, cartridge and
 cassette images are re-mounted from the settings when the emulator starts, so
 after loading a snapshot the machine has the right memory and chip state, but if

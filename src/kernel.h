@@ -207,6 +207,16 @@ private:
 	// Runs one frame: keyboard, emulation, screen, sound, menu.
 	void RunFrame (void);
 
+	/*
+	 * Executes quick-save/load requests queued by the keyboard.  The target is
+	 * the OSD's current snapshot when it still exists, otherwise the dedicated
+	 * QuickSave.sav slot.
+	 */
+	void HandleMetaActions (void);
+	boolean ResolveQuickSnapshotPath (char *pPath, unsigned nSize);
+	void QuickSave (void);
+	void QuickLoad (void);
+
 	// Reports keyboard presence once it is a fact rather than a guess about
 	// enumeration timing.  Called at the top of every frame.
 	void UpdateKeyboardStatus (void);

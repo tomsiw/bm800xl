@@ -94,6 +94,8 @@ CUSBAtariKeyboard::TEventState CUSBAtariKeyboard::s_Event[USB_KEYBOARD_MAX_DEVIC
 
 CUSBAtariKeyboard::TReport CUSBAtariKeyboard::s_Report[USB_KEYBOARD_MAX_DEVICES];
 
+unsigned CUSBAtariKeyboard::s_nMetaPending = 0;
+
 TMenuKeyEvent CUSBAtariKeyboard::s_MenuQueue[USB_KEYBOARD_MAX_DEVICES][CUSBAtariKeyboard::MenuQueueSize];
 
 unsigned CUSBAtariKeyboard::s_nMenuHead[USB_KEYBOARD_MAX_DEVICES];
@@ -715,6 +717,15 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 		TUsbKeyResult Bound;
 		if (!bMenuActive && s_KeyMap.Resolve ((unsigned) nUsage, nMods, &Bound))
 		{
+			if (Bound.Action == UsbKeyActionQuickSave)
+			{
+				QueueMetaAction (AtariMetaQuickSave);
+			}
+			else if (Bound.Action == UsbKeyActionQuickLoad)
+			{
+				QueueMetaAction (AtariMetaQuickLoad);
+			}
+
 			continue;		/* bound: the file decides */
 		}
 
@@ -1348,6 +1359,57 @@ boolean CUSBAtariKeyboard::ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent)
 	return bHaveEvent;
 }
 
+/*
+ * Queues one meta action for the kernel.
+ *
+ * Called from HandleReport(), whose callers already hold s_SpinLock.
+ */
+void CUSBAtariKeyboard::QueueMetaAction (TAtariMetaAction Action)
+{
+	switch (Action)
+	{
+	case AtariMetaQuickSave:
+		s_nMetaPending |= 0x01;
+		break;
+
+	case AtariMetaQuickLoad:
+		s_nMetaPending |= 0x02;
+		break;
+
+	default:
+		break;
+	}
+}
+
+boolean CUSBAtariKeyboard::ConsumeMetaAction (TAtariMetaAction *pAction)
+{
+	if (pAction == 0)
+	{
+		return FALSE;
+	}
+
+	s_SpinLock.Acquire ();
+
+	boolean bHaveAction = FALSE;
+
+	if ((s_nMetaPending & 0x01) != 0)
+	{
+		s_nMetaPending &= ~0x01u;
+		*pAction = AtariMetaQuickSave;
+		bHaveAction = TRUE;
+	}
+	else if ((s_nMetaPending & 0x02) != 0)
+	{
+		s_nMetaPending &= ~0x02u;
+		*pAction = AtariMetaQuickLoad;
+		bHaveAction = TRUE;
+	}
+
+	s_SpinLock.Release ();
+
+	return bHaveAction;
+}
+
 /* ---------------------------------------------------------------------------
  * Settings from the OSD
  * ------------------------------------------------------------------------- */
@@ -1370,6 +1432,15 @@ void CUSBAtariKeyboard::SetMenuActive (boolean bActive)
 	s_bMenuActive = bActive;
 
 	s_SpinLock.Acquire ();
+
+	if (bActive)
+	{
+		/*
+		 * The OSD owns the keyboard now.  Drop any meta action queued at the
+		 * transition, so it cannot fire after the menu closes.
+		 */
+		s_nMetaPending = 0;
+	}
 
 	if (!bActive)
 	{
