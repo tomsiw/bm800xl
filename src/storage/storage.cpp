@@ -437,6 +437,40 @@ boolean CAtariStorage::Rename (const char *pOldPath, const char *pNewPath)
 	return f_rename (pOldPath, pNewPath) == FR_OK;
 }
 
+boolean CAtariStorage::CopyTimestamps (const char *pSource,
+				       const char *pDestination)
+{
+	FILINFO Info;
+
+	if (pSource == 0 || pDestination == 0
+	    || f_stat (pSource, &Info) != FR_OK)
+	{
+		return FALSE;
+	}
+
+	FILINFO Time;
+	memset (&Time, 0, sizeof Time);
+	Time.fdate = Info.fdate;
+	Time.ftime = Info.ftime;
+#if FF_FS_CRTIME
+	Time.crdate = Info.crdate;
+	Time.crtime = Info.crtime;
+#endif
+
+	// A source without any date has nothing to transfer; f_utime() would only
+	// sync the staging file.
+	if (Time.fdate == 0
+#if FF_FS_CRTIME
+	    && Time.crdate == 0
+#endif
+	   )
+	{
+		return TRUE;
+	}
+
+	return f_utime (pDestination, &Time) == FR_OK;
+}
+
 boolean CAtariStorage::EnsureDirectory (const char *pDirectory)
 {
 	FRESULT Result;

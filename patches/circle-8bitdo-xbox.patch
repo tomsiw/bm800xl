@@ -1,3 +1,16 @@
+diff --git a/addon/fatfs/ffconf.h b/addon/fatfs/ffconf.h
+index 9011a9a..b965c64 100644
+--- a/addon/fatfs/ffconf.h
++++ b/addon/fatfs/ffconf.h
+@@ -263,7 +263,7 @@
+ /  These options have no effect in read-only configuration (FF_FS_READONLY = 1). */
+ 
+ 
+-#define FF_FS_CRTIME	0
++#define FF_FS_CRTIME	1
+ /* This option enables(1)/disables(0) the timestamp of the file created. When
+ /  set 1, the file created time is available in FILINFO structure. */
+ 
 diff --git a/include/circle/usb/usbkeyboard.h b/include/circle/usb/usbkeyboard.h
 index 476d462..b9b3c61 100644
 --- a/include/circle/usb/usbkeyboard.h

@@ -267,7 +267,16 @@ boolean CAtariUpdater::CopyFile (const char *pSource, const char *pDestination)
 		return FALSE;
 	}
 
-	return SameContents (pSource, pDestination);
+	if (!SameContents (pSource, pDestination))
+	{
+		return FALSE;
+	}
+
+	/*
+	 * The destination was created just now, and this board has no valid clock,
+	 * so give it the source file's FAT dates before it is renamed into place.
+	 */
+	return CAtariStorage::CopyTimestamps (pSource, pDestination);
 }
 
 boolean CAtariUpdater::SameContents (const char *pA, const char *pB)

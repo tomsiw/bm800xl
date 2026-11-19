@@ -230,6 +230,15 @@ public:
 	static boolean Rename (const char *pOldPath, const char *pNewPath);
 
 	/*
+	 * Copies the source file's FAT timestamps to DESTINATION.
+	 *
+	 * FatFs creates a new file with the current clock, which is unset on this
+	 * bare-metal board; copying the source FILINFO avoids leaving updated kernel
+	 * files with zero dates.  Creation time needs FF_FS_CRTIME in ffconf.h.
+	 */
+	static boolean CopyTimestamps (const char *pSource, const char *pDestination);
+
+	/*
 	 * Deletes the file at PATH.
 	 *
 	 * Directories are refused: the one caller removes snapshots, and a

@@ -231,14 +231,15 @@ atari800 https://codeload.github.com/atari800/atari800/tar.gz/refs/tags/ATARI800
        patches/atari800-statesav-size.patch
 ```
 
-The Circle patch carries two changes: the 8BitDo Pro 2 Wired for Xbox support —
+The Circle patch carries three changes: the 8BitDo Pro 2 Wired for Xbox support —
 the single device-table entry for `2dc8-2000/2014/201e`, the LED-on/auth-done
 GIP init packets in the Xbox One driver, and acceptance of its 36-byte GIP
-reports there — plus a small `GetLastReport()` accessor used to replay the first
-keyboard report after the raw handler is attached. All of the gamepad changes are
-limited to those IDs, so a genuine Xbox pad is unaffected. The Atari800 patch
-raises `STATESAV_MAX_SIZE` (see
-[Atari800 integration](atari800-integration.md#the-one-change-to-upstream)).
+reports there — a small `GetLastReport()` accessor used to replay the first
+keyboard report after the raw handler is attached, and FatFs's
+`FF_FS_CRTIME=1` option so the updater can preserve file creation times as well
+as modification times. All of the gamepad changes are limited to those IDs, so a
+genuine Xbox pad is unaffected. The Atari800 patch raises `STATESAV_MAX_SIZE`
+(see [Atari800 integration](atari800-integration.md#the-one-change-to-upstream)).
 
 The **SHA-256 is the point of the file**. It is checked after the download: a
 mismatch means the server produced something other than the revision that was

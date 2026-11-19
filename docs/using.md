@@ -198,10 +198,12 @@ Prepare the drive:
 6. After a successful copy the Pi restarts.
 
 The updater copies the files to temporary `.new` names on the SD card, verifies
-each copy, and only then replaces the existing files. After a successful update,
-`update.emu` is deleted from the USB drive. If the deletion fails, the marker is
-renamed to `update.done` instead; if both fail, the update is still complete and
-the marker simply remains for the next check.
+each copy, and only then replaces the existing files. The source file's FAT
+creation and modification dates are copied to the new file before it is renamed
+into place. After a successful update, `update.emu` is deleted from the USB
+drive. If the deletion fails, the marker is renamed to `update.done` instead; if
+both fail, the update is still complete and the marker simply remains for the
+next check.
 
 There is deliberately **no check that the image matches the current Pi**, no
 backup and no automatic rollback. A wrong or incompatible image can leave the
