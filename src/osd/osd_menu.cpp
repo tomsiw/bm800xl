@@ -3327,7 +3327,9 @@ void CAtariMenu::DrawMainScreen (void)
 		nY += m_nRowPitch;
 	}
 
-	DrawFooter ("Up/Down  Left/Right  Return  Esc  S-save  L-load");
+	DrawFooter (m_Screen == ScreenMain
+		    ? "Up/Down  Left/Right  Return  Esc  S-save  L-load"
+		    : "Up/Down  Left/Right  Return  Esc");
 }
 
 void CAtariMenu::DrawBrowser (void)
