@@ -88,6 +88,12 @@ public:
 	 */
 	virtual void RestartPi (void) = 0;
 
+	/*
+	 * Enables printable-key reporting while a file browser is open, so typing
+	 * filters the list instead of reaching the emulated machine.
+	 */
+	virtual void SetTextInputActive (boolean bActive) = 0;
+
 	// Rebuilds the emulated machine from scratch: RAM cleared, every chip at its
 	// power-up state, the media mounted again.  A cold reset is not this -- GTIA
 	// has no reset pin, so its state (and the console-key mask software can set
@@ -166,7 +172,8 @@ public:
 	 *
 	 * \return TRUE if the transition was used by the menu.
 	 */
-	boolean HandleKeyEvent (int nKey, boolean bPressed, boolean bShift);
+	boolean HandleKeyEvent (int nKey, boolean bPressed, boolean bShift,
+				char c = 0);
 
 	/*
 	 * Advances auto-repeat.  Called once per frame while the menu is open.
@@ -370,6 +377,17 @@ private:
 	void ClearPendingErase (boolean bHideMessage);
 
 	/*
+	 * Browse filtering.  The storage listing is cached; these helpers build a
+	 * smaller view of its indices without touching the card again.
+	 */
+	void BrowserRebuildView (void);
+	const char *BrowserEntry (void) const;
+	const char *BrowserEntryAt (unsigned nIndex) const;
+	void BrowserAddFilterChar (char c);
+	void BrowserRemoveFilterChar (void);
+	void BrowserClearFilter (void);
+
+	/*
 	 * A kernel update waiting for its second press.  The scanned file list
 	 * lives in m_Updater; m_nUpdateFrames expires the question so a much later
 	 * Return cannot start an update the user has forgotten about.
@@ -459,6 +477,10 @@ private:
 	TBrowseTarget m_BrowseTarget;
 	char m_BrowseDirectory[SETTINGS_PATH_MAX];
 	char m_BrowseFilter[STORAGE_MAX_FILTER];
+	char m_BrowseSearch[32];	// typed filter, empty when unused
+	unsigned m_nBrowseSearchLength;
+	unsigned m_BrowserView[STORAGE_MAX_ENTRIES];	// indices into the listing
+	unsigned m_nBrowserViewCount;
 	unsigned m_nBrowseTop;		// first visible entry
 	unsigned m_nBrowserSelected;
 	boolean m_bBrowserBackSelected;

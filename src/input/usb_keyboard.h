@@ -134,6 +134,9 @@ public:
 	/* Tells the driver whether the OSD menu is open; see ConsumeMenuKeyEvent(). */
 	void SetMenuActive (boolean bActive) override;
 
+	/* Enables printable-key events for the file browser. */
+	void SetTextInputActive (boolean bActive) override;
+
 	/*
 	 * Entry points from CUSBKeyReports.
 	 *
@@ -262,6 +265,10 @@ private:
 	static void QueueMetaAction (TAtariMetaAction Action);
 	static unsigned		s_nMetaPending;
 
+	/* Adds one press/release, including an optional printable character. */
+	static void QueueMenuEvent (unsigned nEvent, int nKey, boolean bPressed,
+				    boolean bShift, char c);
+
 	/*
 	 * The remapping table.
 	 *
@@ -280,6 +287,7 @@ private:
 	 */
 	static boolean		s_bNumpadAsCursor;
 	static boolean		s_bMenuActive;
+	static boolean		s_bTextInputActive;
 
 	/* Only the main thread touches these two, so they need no lock. */
 	/* TRUE once the two callbacks are registered with CUSBKeyReports. */

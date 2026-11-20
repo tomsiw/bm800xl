@@ -306,6 +306,51 @@ static int KeyCodeForPosition (unsigned nRow, unsigned nCol)
 }
 
 /*
+ * Printable character for a matrix position, or 0 when the key is not text.
+ */
+static char TextCharForPosition (unsigned nRow, unsigned nCol, boolean bShift)
+{
+	int nCell = s_KeyMatrix[nRow][nCol];
+
+	if (nCell >= 'A' && nCell <= 'Z')
+	{
+		return bShift ? (char) nCell : (char) (nCell - 'A' + 'a');
+	}
+
+	int nKeyCode = KeyCodeForCell (nCell);
+
+	switch (nKeyCode)
+	{
+	case ATARI_KEY_0: return bShift ? ')' : '0';
+	case ATARI_KEY_1: return bShift ? '!' : '1';
+	case ATARI_KEY_2: return bShift ? '@' : '2';
+	case ATARI_KEY_3: return bShift ? '#' : '3';
+	case ATARI_KEY_4: return bShift ? '$' : '4';
+	case ATARI_KEY_5: return bShift ? '%' : '5';
+	case ATARI_KEY_6: return bShift ? '^' : '6';
+	case ATARI_KEY_7: return bShift ? '&' : '7';
+	case ATARI_KEY_8: return bShift ? '*' : '8';
+	case ATARI_KEY_9: return bShift ? '(' : '9';
+
+	case ATARI_KEY_COMMA:		return bShift ? '<' : ',';
+	case ATARI_KEY_FULLSTOP:	return bShift ? '>' : '.';
+	case ATARI_KEY_SLASH:		return bShift ? '?' : '/';
+	case ATARI_KEY_SEMICOLON:	return bShift ? ':' : ';';
+	case ATARI_KEY_MINUS:		return bShift ? '_' : '-';
+	case ATARI_KEY_EQUAL:		return bShift ? '+' : '=';
+	case ATARI_KEY_PLUS:		return '+';
+	case ATARI_KEY_ASTERISK:	return '*';
+	case ATARI_KEY_SPACE:		return ' ';
+	case ATARI_KEY_BACKSPACE:	return (char) 8;
+	case ATARI_KEY_CODE_LESS:	return '<';
+	case ATARI_KEY_CODE_GREATER:	return '>';
+
+	default:
+		return 0;
+	}
+}
+
+/*
  * The menu key a position produces, or ATARI_KEY_NONE if the menu has no use
  * for it.  A press is classified by position, not by the reported key code,
  * because only one key can be reported per frame.
@@ -416,6 +461,7 @@ CGPIOAtariKeyboard::CGPIOAtariKeyboard (void)
 	m_bMenuRequest (FALSE),
 	m_bMenuComboLatch (FALSE),
 	m_bMenuActive (FALSE),
+	m_bTextInputActive (FALSE),
 	m_nMenuQueueHead (0),
 	m_nMenuQueueCount (0)
 {
@@ -628,6 +674,42 @@ void CGPIOAtariKeyboard::Debounce (void)
 			 * needs the release as well as the first press.
 			 */
 			int nMenuKey = MenuKeyForPosition (nRow, nCol);
+
+			if (m_bTextInputActive && bRaw)
+			{
+				boolean bNavigation =
+					   nMenuKey == ATARI_KEY_UP
+					|| nMenuKey == ATARI_KEY_DOWN
+					|| nMenuKey == ATARI_KEY_LEFT
+					|| nMenuKey == ATARI_KEY_RIGHT
+					|| nMenuKey == ATARI_KEY_RETURN
+					|| nMenuKey == ATARI_KEY_ESCAPE;
+
+				boolean bControl =
+					m_bKeyPressed[GPIO_KEYBOARD_CONTROL_ROW]
+						     [GPIO_KEYBOARD_CONTROL_COL];
+				boolean bShift =
+					m_bKeyPressed[GPIO_KEYBOARD_SHIFT_ROW]
+						     [GPIO_KEYBOARD_SHIFT_COL];
+
+				/*
+				 * Delete is Control+Backspace on the Atari keyboard.  Keep it
+				 * as the menu's erase action; plain Backspace edits the filter.
+				 */
+				boolean bDelete = nMenuKey == ATARI_KEY_DELETE_CHAR
+					       && bControl;
+
+				if (!bNavigation && !bDelete)
+				{
+					char c = TextCharForPosition (nRow, nCol, bShift);
+					if (c != 0)
+					{
+						PushMenuKey (ATARI_KEY_NONE, TRUE, c);
+						continue;
+					}
+				}
+			}
+
 			if (nMenuKey != ATARI_KEY_NONE)
 			{
 				PushMenuKey (nMenuKey, bRaw);
@@ -741,6 +823,16 @@ void CGPIOAtariKeyboard::GetState (atari_keyboard_state_t *pState)
 		return;
 	}
 
+	/*
+	 * In browser-search mode every printable key belongs to the filter; none of
+	 * them may also type into the emulated machine.  Reset above is still
+	 * allowed to leave the machine recoverable.
+	 */
+	if (m_bTextInputActive)
+	{
+		return;
+	}
+
 	if (   m_bKeyPressed[GPIO_KEYBOARD_BREAK_ROW][GPIO_KEYBOARD_BREAK_COL]
 	    && !m_bMenuActive)
 	{
@@ -833,7 +925,12 @@ void CGPIOAtariKeyboard::SetMenuActive (boolean bActive)
 	m_bMenuActive = bActive;
 }
 
-void CGPIOAtariKeyboard::PushMenuKey (int nKeyCode, boolean bPressed)
+void CGPIOAtariKeyboard::SetTextInputActive (boolean bActive)
+{
+	m_bTextInputActive = bActive;
+}
+
+void CGPIOAtariKeyboard::PushMenuKey (int nKeyCode, boolean bPressed, char c)
 {
 	if (m_nMenuQueueCount >= GPIO_KEYBOARD_MENU_QUEUE_SIZE)
 	{
@@ -851,6 +948,7 @@ void CGPIOAtariKeyboard::PushMenuKey (int nKeyCode, boolean bPressed)
 	m_MenuQueue[nTail].nKey = nKeyCode;
 	m_MenuQueue[nTail].bPressed = bPressed;
 	m_MenuQueue[nTail].bShift = FALSE;
+	m_MenuQueue[nTail].c = c;
 	m_nMenuQueueCount++;
 }
 

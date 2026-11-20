@@ -95,6 +95,7 @@ void CAtariMenuJoystick::QueueKey (int nKey, boolean bPressed)
 	m_Queue[m_nTail].nKey = nKey;
 	m_Queue[m_nTail].bPressed = bPressed;
 	m_Queue[m_nTail].bShift = FALSE;
+	m_Queue[m_nTail].c = 0;
 	m_nTail = nNext;
 }
 

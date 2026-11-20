@@ -301,6 +301,28 @@ images are all loaded through the menu:
    Escape to go back up.
 5. Press Return on a file to load it.
 
+### Finding a file quickly
+
+The browser can filter its list as you type:
+
+- Type letters, digits or punctuation; the footer shows `Filter: ...` and the
+  list is reduced to names containing that text, case-insensitively.
+- Backspace removes the last character.
+- Escape clears the filter first; a second Escape behaves as before.
+- Up/Down, Left/Right, Return and Fire work on the reduced list.
+- Delete keeps its normal browser meaning; it never edits the filter.
+
+The filter applies to directory names as well as files. If nothing matches, only
+the `..` row remains, with no message below it. Entering or leaving a directory
+clears the filter.
+
+This works with both the USB keyboard and a real Atari keyboard on the GPIO
+header. A joystick can navigate the filtered list but cannot type into it.
+
+A directory listing is capped at 192 entries by the storage layer; the filter can
+only search entries in that listing. This is the existing browser limit, not a
+new filter limit.
+
 ### Keeping media on the SD card instead
 
 The volume is a setting, not a build option. `USER_DIR` in `settings.cfg` names

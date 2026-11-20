@@ -77,6 +77,58 @@
 #define USB_HID_KP_6		0x5e
 #define USB_HID_KP_8		0x60
 
+/*
+ * Printable character for a HID usage, or 0 when the key is not text.
+ * This is the US layout, matching the names in usbkeys.cfg.
+ */
+static char TextCharForUsage (unsigned nUsage, boolean bShift)
+{
+	if (nUsage >= 0x04 && nUsage <= 0x1d)		/* A..Z */
+	{
+		return (char) ('a' + (nUsage - 0x04));
+	}
+
+	if (nUsage >= 0x1e && nUsage <= 0x26)		/* 1..9 */
+	{
+		static const char Shifted[] = "!@#$%^&*(";
+		return bShift ? Shifted[nUsage - 0x1e]
+			      : (char) ('1' + (nUsage - 0x1e));
+	}
+
+	if (nUsage == 0x27)				/* 0 */
+	{
+		return bShift ? ')' : '0';
+	}
+
+	if (nUsage == 0x2a)				/* Backspace */
+	{
+		return (char) 8;
+	}
+
+	switch (nUsage)
+	{
+	case 0x2c: return ' ';				/* Space */
+	case 0x2d: return bShift ? '_' : '-';
+	case 0x2e: return bShift ? '+' : '=';
+	case 0x2f: return bShift ? '{' : '[';
+	case 0x30: return bShift ? '}' : ']';
+	case 0x31: return bShift ? '|' : '\\';
+	case 0x64: return bShift ? '|' : '\\';
+	case 0x33: return bShift ? ':' : ';';
+	case 0x34: return bShift ? '"' : '\'';
+	case 0x35: return bShift ? '~' : '`';
+	case 0x36: return bShift ? '<' : ',';
+	case 0x37: return bShift ? '>' : '.';
+	case 0x38: return bShift ? '?' : '/';
+	case 0x54: return '/';				/* keypad */
+	case 0x55: return '*';
+	case 0x56: return '-';
+	case 0x57: return '+';
+	case 0x63: return '.';
+	default:   return 0;
+	}
+}
+
 /* ---------------------------------------------------------------------------
  * State shared with the interrupt handler
  *
@@ -111,6 +163,8 @@ boolean CUSBAtariKeyboard::s_bMenuRequest = FALSE;
 boolean CUSBAtariKeyboard::s_bNumpadAsCursor = FALSE;
 
 boolean CUSBAtariKeyboard::s_bMenuActive = FALSE;
+
+boolean CUSBAtariKeyboard::s_bTextInputActive = FALSE;
 
 /*
  * TRUE after the menu has taken the current Reset shortcut for its Warm reset
@@ -714,6 +768,23 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 		/* Take this key out of the set so the loop makes progress. */
 		Newly.Words[nUsage >> 6] &= ~((u64) 1 << (nUsage & 63));
 
+		/*
+		 * While the file browser asks for text, printable keys become filter
+		 * characters and never reach the Atari key handling below.  Delete is
+		 * deliberately not mapped here: it keeps its browser erase meaning.
+		 */
+		if (s_bTextInputActive)
+		{
+			char c = TextCharForUsage ((unsigned) nUsage, bShiftDown);
+
+			if (c != 0)
+			{
+				QueueMenuEvent (nEvent, ATARI_KEY_NONE, TRUE,
+						bShiftDown, c);
+				continue;
+			}
+		}
+
 		TUsbKeyResult Bound;
 		if (!bMenuActive && s_KeyMap.Resolve ((unsigned) nUsage, nMods, &Bound))
 		{
@@ -752,6 +823,7 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 			s_MenuQueue[nEvent][rnTail].nKey = nMenuKey;
 			s_MenuQueue[nEvent][rnTail].bPressed = TRUE;
 			s_MenuQueue[nEvent][rnTail].bShift = bShiftDown;
+			s_MenuQueue[nEvent][rnTail].c = 0;
 			rnTail = nNext;
 
 			if (nMenuKey == ATARI_KEY_WARMSTART)
@@ -797,6 +869,7 @@ void CUSBAtariKeyboard::HandleReport (unsigned nEvent, unsigned char ucModifiers
 			s_MenuQueue[nEvent][rnTail].nKey = nMenuKey;
 			s_MenuQueue[nEvent][rnTail].bPressed = FALSE;
 			s_MenuQueue[nEvent][rnTail].bShift = bShiftDown;
+			s_MenuQueue[nEvent][rnTail].c = 0;
 			rnTail = nNext;
 		}
 	}
@@ -1360,6 +1433,34 @@ boolean CUSBAtariKeyboard::ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent)
 }
 
 /*
+ * Queues one menu transition, including an optional printable character.
+ * Caller holds s_SpinLock.
+ */
+void CUSBAtariKeyboard::QueueMenuEvent (unsigned nEvent, int nKey,
+					boolean bPressed, boolean bShift, char c)
+{
+	if (nEvent >= USB_KEYBOARD_MAX_DEVICES)
+	{
+		return;
+	}
+
+	unsigned &rnHead = s_nMenuHead[nEvent];
+	unsigned &rnTail = s_nMenuTail[nEvent];
+	unsigned nNext = (rnTail + 1) % MenuQueueSize;
+
+	if (nNext == rnHead)
+	{
+		return;			/* full; keep the older events */
+	}
+
+	s_MenuQueue[nEvent][rnTail].nKey = nKey;
+	s_MenuQueue[nEvent][rnTail].bPressed = bPressed;
+	s_MenuQueue[nEvent][rnTail].bShift = bShift;
+	s_MenuQueue[nEvent][rnTail].c = c;
+	rnTail = nNext;
+}
+
+/*
  * Queues one meta action for the kernel.
  *
  * Called from HandleReport(), whose callers already hold s_SpinLock.
@@ -1457,6 +1558,16 @@ void CUSBAtariKeyboard::SetMenuActive (boolean bActive)
 	}
 
 	s_SpinLock.Release ();
+}
+
+void CUSBAtariKeyboard::SetTextInputActive (boolean bActive)
+{
+	/*
+	 * The interrupt handler reads only the static mirror.  Queued text events
+	 * already in the menu queue are harmless: the OSD ignores them outside the
+	 * browser.
+	 */
+	s_bTextInputActive = bActive;
 }
 
 /* ---------------------------------------------------------------------------

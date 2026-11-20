@@ -135,7 +135,7 @@
  * How many menu key presses can be buffered between two polls.  The kernel
  * polls once per frame, so this is far more than a person can produce.
  */
-#define GPIO_KEYBOARD_MENU_QUEUE_SIZE	8
+#define GPIO_KEYBOARD_MENU_QUEUE_SIZE	16
 
 class CGPIOAtariKeyboard : public CAtariKeyboard
 {
@@ -155,6 +155,7 @@ public:
 	boolean ConsumeMenuRequest (void);
 	boolean ConsumeMenuKeyEvent (TMenuKeyEvent *pEvent);
 	void SetMenuActive (boolean bActive);
+	void SetTextInputActive (boolean bActive);
 	boolean IsPresent (void)	{ return m_bInitialized; }
 
 private:
@@ -174,7 +175,7 @@ private:
 	/// Re-arms and fires the Shift + Help menu request.
 	void UpdateMenuRequest (void);
 
-	void PushMenuKey (int nKeyCode, boolean bPressed);
+	void PushMenuKey (int nKeyCode, boolean bPressed, char c = 0);
 	boolean PopMenuKey (TMenuKeyEvent *pEvent);
 	void ClearMenuQueue (void);
 
@@ -207,6 +208,7 @@ private:
 
 	// Key transitions the menu has not consumed yet.
 	boolean m_bMenuActive;
+	boolean m_bTextInputActive;
 	TMenuKeyEvent m_MenuQueue[GPIO_KEYBOARD_MENU_QUEUE_SIZE];
 	unsigned m_nMenuQueueHead;
 	unsigned m_nMenuQueueCount;

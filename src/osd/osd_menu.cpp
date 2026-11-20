@@ -153,6 +153,8 @@ CAtariMenu::CAtariMenu (void)
 	m_nRepeatKey (ATARI_KEY_NONE),
 	m_nRepeatAtTicks (0),
 	m_BrowseTarget (BrowseNone),
+	m_nBrowseSearchLength (0),
+	m_nBrowserViewCount (0),
 	m_nBrowseTop (0),
 	m_nBrowserSelected (0),
 	m_bBrowserBackSelected (FALSE),
@@ -172,6 +174,7 @@ CAtariMenu::CAtariMenu (void)
 	m_SnapshotPath[0] = '\0';
 	m_BrowseDirectory[0] = '\0';
 	m_BrowseFilter[0] = '\0';
+	m_BrowseSearch[0] = '\0';
 	m_ErasePath[0] = '\0';
 	m_Message[0] = '\0';
 }
@@ -400,7 +403,14 @@ void CAtariMenu::Close (void)
 	m_bBackSelected = FALSE;
 	m_nRepeatKey = ATARI_KEY_NONE;
 	m_BrowseTarget = BrowseNone;
+	m_nBrowseSearchLength = 0;
+	m_BrowseSearch[0] = '\0';
 	ClearPendingErase (FALSE);
+
+	if (m_pHost != 0)
+	{
+		m_pHost->SetTextInputActive (FALSE);
+	}
 
 	if (bWasOpen && m_pHost != 0)
 	{
@@ -430,6 +440,12 @@ void CAtariMenu::Close (void)
 
 void CAtariMenu::OpenScreen (TMenuScreen Screen)
 {
+	if (m_Screen == ScreenBrowse && Screen != ScreenBrowse
+	    && m_pHost != 0)
+	{
+		m_pHost->SetTextInputActive (FALSE);
+	}
+
 	m_Screen = Screen;
 	m_nSelected = 0;
 	m_bBackSelected = HasBackItem ();
@@ -2161,6 +2177,8 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
 	const char *pExtensions = 0;
 
 	m_BrowseTarget = Target;
+	m_nBrowseSearchLength = 0;
+	m_BrowseSearch[0] = '\0';
 
 	switch (Target)
 	{
@@ -2230,6 +2248,11 @@ void CAtariMenu::OpenBrowser (TBrowseTarget Target)
 	m_Screen = ScreenBrowse;
 	m_nSelected = 0;
 	m_bBackSelected = FALSE;
+
+	if (m_pHost != 0)
+	{
+		m_pHost->SetTextInputActive (TRUE);
+	}
 }
 
 /*
@@ -2251,14 +2274,149 @@ void CAtariMenu::ListBrowserDirectory (void)
 	// The listing shows names, not paths, so a volume root needs no leading
 	// separator; everywhere else the directory is passed as-is.
 	m_pStorage->ListWithDirectories (Volume, Directory, m_BrowseFilter);
+
+	BrowserRebuildView ();
+}
+
+/*
+ * Case-insensitive substring search used by the browser filter.
+ */
+static boolean ContainsIgnoreCase (const char *pText, const char *pNeedle)
+{
+	if (pNeedle == 0 || pNeedle[0] == '\0')
+	{
+		return TRUE;
+	}
+
+	for (const char *p = pText; *p != '\0'; p++)
+	{
+		const char *a = p;
+		const char *b = pNeedle;
+
+		while (*a != '\0' && *b != '\0')
+		{
+			char ca = *a;
+			char cb = *b;
+
+			if (ca >= 'a' && ca <= 'z') ca = (char) (ca - 'a' + 'A');
+			if (cb >= 'a' && cb <= 'z') cb = (char) (cb - 'a' + 'A');
+
+			if (ca != cb)
+			{
+				break;
+			}
+
+			a++;
+			b++;
+		}
+
+		if (*b == '\0')
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+void CAtariMenu::BrowserRebuildView (void)
+{
+	m_nBrowserViewCount = 0;
+
+	if (m_pStorage == 0)
+	{
+		return;
+	}
+
+	unsigned nEntries = m_pStorage->GetEntryCount ();
+
+	for (unsigned n = 0; n < nEntries
+	     && m_nBrowserViewCount < STORAGE_MAX_ENTRIES; n++)
+	{
+		const char *pEntry = m_pStorage->GetEntry (n);
+		if (pEntry == 0)
+		{
+			continue;
+		}
+
+		boolean bDirectory = m_pStorage->IsEntryDirectory (n);
+
+		/*
+		 * The filter applies to directories as well as files, so a filter with
+		 * no matches leaves only "..".  The leading '/' that marks a directory
+		 * is not part of the name being searched.
+		 */
+		const char *pName = bDirectory && pEntry[0] == '/' ? pEntry + 1 : pEntry;
+
+		if (   m_nBrowseSearchLength == 0
+		    || ContainsIgnoreCase (pName, m_BrowseSearch))
+		{
+			m_BrowserView[m_nBrowserViewCount++] = n;
+		}
+	}
+}
+
+const char *CAtariMenu::BrowserEntryAt (unsigned nIndex) const
+{
+	if (m_pStorage == 0 || nIndex >= m_nBrowserViewCount)
+	{
+		return 0;
+	}
+
+	return m_pStorage->GetEntry (m_BrowserView[nIndex]);
+}
+
+const char *CAtariMenu::BrowserEntry (void) const
+{
+	return BrowserEntryAt (m_nBrowserSelected);
+}
+
+void CAtariMenu::BrowserAddFilterChar (char c)
+{
+	if (m_nBrowseSearchLength + 1 >= sizeof m_BrowseSearch)
+	{
+		return;
+	}
+
+	m_BrowseSearch[m_nBrowseSearchLength++] = c;
+	m_BrowseSearch[m_nBrowseSearchLength] = '\0';
+
+	BrowserRebuildView ();
+	BrowserResetSelection ();
+}
+
+void CAtariMenu::BrowserRemoveFilterChar (void)
+{
+	if (m_nBrowseSearchLength == 0)
+	{
+		return;
+	}
+
+	m_BrowseSearch[--m_nBrowseSearchLength] = '\0';
+
+	BrowserRebuildView ();
+	BrowserResetSelection ();
+}
+
+void CAtariMenu::BrowserClearFilter (void)
+{
+	if (m_nBrowseSearchLength == 0)
+	{
+		return;
+	}
+
+	m_nBrowseSearchLength = 0;
+	m_BrowseSearch[0] = '\0';
+
+	BrowserRebuildView ();
+	BrowserResetSelection ();
 }
 
 void CAtariMenu::BrowserResetSelection (void)
 {
 	m_nBrowseTop = 0;
 	m_nBrowserSelected = 0;
-	m_bBrowserBackSelected = m_pStorage == 0
-			      || m_pStorage->GetEntryCount () == 0;
+	m_bBrowserBackSelected = m_nBrowserViewCount == 0;
 }
 
 void CAtariMenu::BrowserEnterDirectory (void)
@@ -2268,7 +2426,7 @@ void CAtariMenu::BrowserEnterDirectory (void)
 		return;
 	}
 
-	const char *pEntry = m_pStorage->GetEntry (m_nBrowserSelected);
+	const char *pEntry = BrowserEntry ();
 	if (pEntry == 0 || pEntry[0] != '/')
 	{
 		return;
@@ -2285,6 +2443,9 @@ void CAtariMenu::BrowserEnterDirectory (void)
 				 m_BrowseDirectory, Name);
 
 	CopyText (m_BrowseDirectory, NewDirectory, sizeof m_BrowseDirectory);
+
+	m_nBrowseSearchLength = 0;
+	m_BrowseSearch[0] = '\0';
 
 	ListBrowserDirectory ();
 	ClearPendingErase (TRUE);
@@ -2335,7 +2496,7 @@ void CAtariMenu::BrowserMovePage (int nDelta)
 
 	ClearPendingErase (TRUE);
 
-	unsigned nCount = m_pStorage->GetEntryCount ();
+	unsigned nCount = m_nBrowserViewCount;
 	if (nCount == 0)
 	{
 		m_bBrowserBackSelected = TRUE;
@@ -2422,6 +2583,9 @@ boolean CAtariMenu::BrowserGoUp (void)
 		return FALSE;
 	}
 
+	m_nBrowseSearchLength = 0;
+	m_BrowseSearch[0] = '\0';
+
 	/*
 	 * A directory that lists nothing is not somewhere the user can be: it is
 	 * either a volume that failed to mount, or a directory that has since been
@@ -2432,7 +2596,7 @@ boolean CAtariMenu::BrowserGoUp (void)
 	for (unsigned nAttempt = 0; nAttempt < 16; nAttempt++)
 	{
 		ListBrowserDirectory ();
-		if (m_pStorage->GetEntryCount () > 0)
+		if (m_nBrowserViewCount > 0)
 		{
 			break;
 		}
@@ -2465,7 +2629,7 @@ void CAtariMenu::BrowserChoose (void)
 		return;
 	}
 
-	const char *pEntry = m_pStorage->GetEntry (m_nBrowserSelected);
+	const char *pEntry = BrowserEntry ();
 	if (pEntry == 0)
 	{
 		return;
@@ -2656,7 +2820,7 @@ void CAtariMenu::BrowserErase (void)
 		return;
 	}
 
-	const char *pEntry = m_pStorage->GetEntry (m_nBrowserSelected);
+	const char *pEntry = BrowserEntry ();
 	if (pEntry == 0 || pEntry[0] == '/')
 	{
 		/* Nothing to remove, or a directory: leave the question closed. */
@@ -2709,7 +2873,7 @@ void CAtariMenu::BrowserErase (void)
 	 * Leaving it where it is puts it on the row that followed the erased file,
 	 * which is where the user is looking.
 	 */
-	unsigned nCount = m_pStorage->GetEntryCount ();
+	unsigned nCount = m_nBrowserViewCount;
 	m_bBrowserBackSelected = nCount == 0;
 	if (m_bBrowserBackSelected)
 	{
@@ -2757,9 +2921,39 @@ void CAtariMenu::SaveSettings (void)
  * Key handling
  * ------------------------------------------------------------------------- */
 
-boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed, boolean bShift)
+boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed, boolean bShift,
+				    char c)
 {
-	if (!m_bOpen || nKey == ATARI_KEY_NONE)
+	if (!m_bOpen)
+	{
+		return FALSE;
+	}
+
+	/*
+	 * A printable character is browser search input, not a menu key.  It can
+	 * arrive only while the browser has enabled text input, but ignore any that
+	 * was already queued when the browser closed.
+	 */
+	if (bPressed && c != 0)
+	{
+		ClearPendingErase (TRUE);
+
+		if (m_Screen == ScreenBrowse)
+		{
+			if (c == 8)
+			{
+				BrowserRemoveFilterChar ();
+			}
+			else
+			{
+				BrowserAddFilterChar (c);
+			}
+		}
+
+		return TRUE;
+	}
+
+	if (nKey == ATARI_KEY_NONE)
 	{
 		return FALSE;
 	}
@@ -2849,7 +3043,7 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 
 	if (m_Screen == ScreenBrowse)
 	{
-		unsigned nCount = m_pStorage != 0 ? m_pStorage->GetEntryCount () : 0;
+		unsigned nCount = m_nBrowserViewCount;
 
 		// The ".." row takes one of the panel's rows.
 		unsigned nVisibleRows = m_nVisibleRows > 0 ? m_nVisibleRows - 1 : 0;
@@ -2927,6 +3121,18 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 			return TRUE;
 
 		case ATARI_KEY_ESCAPE:
+			/*
+			 * Escape clears a filter first; only the next Escape leaves the
+			 * browser.  That keeps the existing exit behaviour available
+			 * without losing an easy way back to the full list.
+			 */
+			if (m_nBrowseSearchLength > 0)
+			{
+				ClearPendingErase (TRUE);
+				BrowserClearFilter ();
+				return TRUE;
+			}
+
 			/*
 			 * Escape goes up a directory, and leaves the browser at its root.
 			 * See BrowserBack().
@@ -3131,7 +3337,7 @@ void CAtariMenu::DrawBrowser (void)
 
 	char Title[MENU_TEXT_MAX];
 
-	unsigned nCount = m_pStorage != 0 ? m_pStorage->GetEntryCount () : 0;
+	unsigned nCount = m_nBrowserViewCount;
 	unsigned nEntryRows = m_nVisibleRows > 0 ? m_nVisibleRows - 1 : 0;
 
 	// A row above the first visible one, or below the last, means there is
@@ -3162,20 +3368,24 @@ void CAtariMenu::DrawBrowser (void)
 
 	if (nCount == 0)
 	{
-		// Two different explanations: an empty directory, or a volume that is
-		// not there at all.  Which volume the user expects depends on the
-		// setting, so the message does too.
-		const char *pMessage = "No matching files here";
-
-		if (m_pStorage == 0 || !m_pStorage->IsUserVolumeAvailable ())
+		/*
+		 * An empty directory still explains itself.  A filter with no matches
+		 * does not: the list is deliberately reduced to just the ".." row.
+		 */
+		if (m_nBrowseSearchLength == 0)
 		{
-			pMessage = m_pStorage != 0 && m_pStorage->IsUserVolumeSD ()
-				 ? "The SD card is not available"
-				 : "No USB drive detected";
-		}
+			const char *pMessage = "No matching files here";
 
-		m_pVideo->DrawText (MenuMarginX + MenuIndent, nY,
-				    ATARI_COLOR_TITLE, pMessage);
+			if (m_pStorage == 0 || !m_pStorage->IsUserVolumeAvailable ())
+			{
+				pMessage = m_pStorage != 0 && m_pStorage->IsUserVolumeSD ()
+					 ? "The SD card is not available"
+					 : "No USB drive detected";
+			}
+
+			m_pVideo->DrawText (MenuMarginX + MenuIndent, nY,
+					    ATARI_COLOR_TITLE, pMessage);
+		}
 	}
 	else
 	{
@@ -3187,7 +3397,7 @@ void CAtariMenu::DrawBrowser (void)
 				break;
 			}
 
-			const char *pEntry = m_pStorage->GetEntry (nIndex);
+			const char *pEntry = BrowserEntryAt (nIndex);
 
 			// The leading '/' that marks a directory is not part of the
 			// name; show the directory with a trailing slash instead, which
@@ -3210,9 +3420,39 @@ void CAtariMenu::DrawBrowser (void)
 		}
 	}
 
-	DrawFooter (   m_BrowseTarget == BrowseSnapshotErase
-		    ? "Up/Down  Return/Del erase  Esc"
-		    : "Up/Down  Return  Esc");
+	char Footer[80];
+
+	if (m_nBrowseSearchLength > 0)
+	{
+		char Filter[20];
+		CopyText (Filter, m_BrowseSearch, sizeof Filter);
+		Truncate (Filter, 16);
+
+		if (m_BrowseTarget == BrowseSnapshotErase)
+		{
+			snprintf (Footer, sizeof Footer,
+				  "Filter: %s  Return  Esc=clear  Del erase",
+				  Filter);
+		}
+		else
+		{
+			snprintf (Footer, sizeof Footer,
+				  "Filter: %s  Up/Down  Return  Esc=clear",
+				  Filter);
+		}
+	}
+	else if (m_BrowseTarget == BrowseSnapshotErase)
+	{
+		snprintf (Footer, sizeof Footer,
+			  "Up/Down  Return/Del erase  Esc  Type to filter");
+	}
+	else
+	{
+		snprintf (Footer, sizeof Footer,
+			  "Up/Down  Return  Esc  Type to filter");
+	}
+
+	DrawFooter (Footer);
 
 	unsigned nArrowX = MenuMarginX + MenuPanelWidth - MenuIndent
 			 - m_pVideo->GetTextWidth (UpArrow);

@@ -151,6 +151,7 @@ public:
 	void ColdReset (void);
 	void WarmReset (void);
 	void RestartPi (void);
+	void SetTextInputActive (boolean bActive);
 	boolean PowerCycle (void);
 	void SwapJoystickPorts (void);
 	void ClearMediaFromSettings (void);

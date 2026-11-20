@@ -1551,7 +1551,8 @@ void CAtariKernel::RunFrame (void)
 			{
 				break;
 			}
-			m_Menu.HandleKeyEvent (Event.nKey, Event.bPressed, Event.bShift);
+			m_Menu.HandleKeyEvent (Event.nKey, Event.bPressed, Event.bShift,
+					       Event.c);
 			bMenuKeyHandled = TRUE;
 		}
 	}
@@ -1572,7 +1573,8 @@ void CAtariKernel::RunFrame (void)
 			{
 				break;
 			}
-			m_Menu.HandleKeyEvent (Event.nKey, Event.bPressed, Event.bShift);
+			m_Menu.HandleKeyEvent (Event.nKey, Event.bPressed, Event.bShift,
+					       Event.c);
 			bMenuKeyHandled = TRUE;
 		}
 	}
@@ -2658,6 +2660,14 @@ void CAtariKernel::RestartPi (void)
 	 */
 	CBootLog::Get ()->RecordRuntime ("OSD: restart Pi requested");
 	m_bRestartPi = TRUE;
+}
+
+void CAtariKernel::SetTextInputActive (boolean bActive)
+{
+	if (m_pKeyboard != 0)
+	{
+		m_pKeyboard->SetTextInputActive (bActive);
+	}
 }
 
 boolean CAtariKernel::PowerCycle (void)

@@ -38,9 +38,18 @@
  */
 struct TMenuKeyEvent
 {
+	TMenuKeyEvent (void)
+	:	nKey (ATARI_KEY_NONE),
+		bPressed (FALSE),
+		bShift (FALSE),
+		c (0)
+	{
+	}
+
 	int	nKey;
 	boolean	bPressed;
 	boolean	bShift;
+	char	c;		// printable character, or 0
 };
 
 /*
@@ -166,6 +175,13 @@ public:
 	 * ConsumeMenuKeyEvent() hands them out.
 	 */
 	virtual void SetMenuActive (boolean bActive)		{ (void) bActive; }
+
+	/*
+	 * Enables printable-key reporting for the file browser.  While active, the
+	 * source reports printable characters through TMenuKeyEvent::c and keeps
+	 * those keys from reaching the emulated machine.
+	 */
+	virtual void SetTextInputActive (boolean bActive)	{ (void) bActive; }
 };
 
 /*

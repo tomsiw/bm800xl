@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `600c8de`; the quick save/load support and this
+**Last updated:** after commit `8de0151`; the browser search/filter and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -275,7 +275,9 @@ carries this table; a commit cannot name its own hash.
 | `9c74869` | The OSD header said only `Atari XL/XE`, with no visible way to identify the running release | Added `src/version.h` with a single `ATARI_VERSION` string, shown as `BM800XL v0.8.8` in the main OSD header and recorded in the first boot-log line.  Submenu titles are unchanged.  The updater now deletes `update.emu` first and only renames it to `update.done` if deletion fails. |
 | `1385551` | Updated kernel files were created with zero FAT dates because the bare-metal board has no valid clock, and no metadata was carried over from the USB source | `CAtariStorage::CopyTimestamps()` applies the source `FILINFO` with `f_utime()` to each staged file before replacement.  FatFs is built with `FF_FS_CRTIME=1`, so both creation and modification times are preserved; the Circle patch carries the option. |
 | `600c8de` | Inserting a cartridge queued a cold start at menu close, but ejecting one left the machine running with the old cartridge removed | `ATARI_MountCartridge("")` now queues the same deferred cold start after removing the cartridge.  The OSD message says `Cartridge removed; reset on close`. |
-| (this commit) | Snapshots could only be saved or loaded from the OSD, with no way to bind a game-time quick key | Added `A(Meta_QuickSave)` and `A(Meta_QuickLoad)` with no default bindings.  The keyboard queues them as meta actions; the kernel saves or loads at a frame boundary while the OSD is closed.  The target is the existing current snapshot when it still exists, otherwise `SD:/ATARI/QuickSave.sav`. |
+| `afb853a` | Snapshots could only be saved or loaded from the OSD, with no way to bind a game-time quick key | Added `A(Meta_QuickSave)` and `A(Meta_QuickLoad)` with no default bindings.  The keyboard queues them as meta actions; the kernel saves or loads at a frame boundary while the OSD is closed.  The target is the existing current snapshot when it still exists, otherwise `SD:/ATARI/QuickSave.sav`. |
+| `8de0151` | The main OSD footer did not mention the S/L snapshot shortcuts, and the release was still 0.8.8 | Bumped the version to 0.8.11 and added `S-save  L-load` to the main footer. |
+| (this commit) | A large directory could only be searched by scrolling, with no way to type a file-name fragment | Added browser filtering.  USB and GPIO keyboards report printable characters only while a browser is open; the menu builds a filtered view of the cached listing, with Backspace editing the filter, Escape clearing it, Delete keeping its existing meaning, and only `..` shown when nothing matches. |
 
 ---
 
