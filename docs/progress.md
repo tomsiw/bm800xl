@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `8dd684f`; the update-status message and this
+**Last updated:** after commit `8476736`; the red-halt media clearing and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -281,7 +281,7 @@ carries this table; a commit cannot name its own hash.
 | `a124243` | The S/L hint appeared on every submenu because they share the main-screen drawing path | Select the footer hint from the current screen: the main menu keeps `S-save  L-load`, submenus do not. |
 | `8462a1b` | The main menu had no direct shortcuts, and S/L in the footer were not shown as inverse characters | Added sparse case-insensitive shortcuts `D` Disk drives, `T` Cartridges, `C` Cassettes and `R` Cold reset, drawn as inverse characters.  S and L in the main footer are inverse too.  Version bumped to 0.8.16. |
 | `8dd684f` | The directory listing stopped at 192 entries, so files beyond it could not be shown or filtered | Replaced the fixed static entry array with a heap-backed listing that grows as the directory is read.  Names are allocated at their exact length; the browser view grows too.  A 4096-entry/512 KB soft budget prevents unbounded heap use, and a truncated listing is still safe to browse. |
-| (this commit) | Confirming an update left the old confirmation prompt frozen on screen while the blocking copy ran | Present an immediate `Updating, please wait...` screen before the blocking copy, then restart as soon as it completes.  Version bumped to 0.8.17. |
+| (this commit) | Red halt left the crashing disk/cartridge/cassette paths in the settings, so a reset re-mounted the image and crashed again | Clear the saved media paths in the red-halt branch, as the restart actions already do, before showing red and halting. |
 
 ---
 

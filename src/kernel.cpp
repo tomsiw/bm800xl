@@ -1704,6 +1704,12 @@ void CAtariKernel::RunFrame (void)
 				switch (m_Settings.nCrashAction)
 				{
 				case AtariCrashActionRedHalt:
+					/*
+					 * Halt without leaving the crashing image in the settings.
+					 * Otherwise a reset or power cycle re-mounts it and the
+					 * machine crashes again before the user can reach the menu.
+					 */
+					ClearMediaFromSettings ();
 					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0x00, 0x00));
 					m_bCrashHalt = TRUE;
 					break;

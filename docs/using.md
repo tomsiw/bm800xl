@@ -157,6 +157,10 @@ power cycle are separate items on the main screen.
 | CPU crash | Colours+Restart / Restart / Red halt | What the emulator does after a CPU crash; the default is Colours+Restart |
 | Check for updates | — | Install kernel files from a USB drive; asks for confirmation |
 
+All CPU-crash actions clear the saved disk, cartridge and cassette paths, so a
+crashing image is not mounted again after a reset. **Red halt** shows a red
+screen and halts; the media are already unset when it does.
+
 The **Keyboard** row needs a Pi restart; the others take effect immediately. The
 **User directory** row selects the media volume, not an arbitrary path; the media
 browser still remembers the last directory it was in.
