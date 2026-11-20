@@ -561,6 +561,55 @@ boolean CAtariStorage::EnsureEntryCapacity (unsigned nNeeded)
 	return TRUE;
 }
 
+/*
+ * Directory listing order: directories first, then files, each group
+ * case-insensitively alphabetical.  Directory names carry a leading '/', which
+ * is not part of the name being compared.
+ */
+int CAtariStorage::CompareEntries (const void *pA, const void *pB)
+{
+	const TStorageEntry *pEntryA = (const TStorageEntry *) pA;
+	const TStorageEntry *pEntryB = (const TStorageEntry *) pB;
+
+	if (pEntryA->bDirectory != pEntryB->bDirectory)
+	{
+		return pEntryA->bDirectory ? -1 : 1;
+	}
+
+	const char *pNameA = pEntryA->pName;
+	const char *pNameB = pEntryB->pName;
+
+	if (pEntryA->bDirectory)
+	{
+		pNameA++;
+	}
+	if (pEntryB->bDirectory)
+	{
+		pNameB++;
+	}
+
+	for (;;)
+	{
+		char a = *pNameA;
+		char b = *pNameB;
+
+		if (a >= 'a' && a <= 'z') a = (char) (a - 'a' + 'A');
+		if (b >= 'a' && b <= 'z') b = (char) (b - 'a' + 'A');
+
+		if (a != b)
+		{
+			return a < b ? -1 : 1;
+		}
+		if (a == '\0')
+		{
+			return 0;
+		}
+
+		pNameA++;
+		pNameB++;
+	}
+}
+
 /* ---------------------------------------------------------------------------
  * Directory listing
  * ------------------------------------------------------------------------- */
@@ -753,6 +802,12 @@ unsigned CAtariStorage::ListInternal (const char *pVolume, const char *pDirector
 	}
 
 	f_closedir (&Directory);
+
+	if (m_nEntryCount > 1)
+	{
+		qsort (m_pEntries, m_nEntryCount, sizeof (TStorageEntry),
+		       CompareEntries);
+	}
 
 	return m_nEntryCount;
 }

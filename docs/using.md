@@ -103,6 +103,9 @@ When a directory has more files than the browser can show at once, an up arrow
 appears in the header and a down arrow in the footer while there are files
 hidden above or below the visible rows.
 
+Entries are sorted when the directory is read: directories first, then files,
+each group alphabetically and case-insensitively.
+
 The browser always shows a **`..`** row above the listing. The first real entry
 is selected when the browser opens; Up from it selects `..`, and Down returns to
 the first entry. Left and Right move the selection one page of files at a time.

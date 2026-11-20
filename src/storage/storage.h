@@ -262,6 +262,7 @@ public:
 private:
 	void ResetListing (void);
 	boolean EnsureEntryCapacity (unsigned nNeeded);
+	static int CompareEntries (const void *pA, const void *pB);
 	unsigned ListInternal (const char *pVolume, const char *pDirectory,
 			       const char *pExtensions, boolean bIncludeDirectories);
 
