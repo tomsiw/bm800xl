@@ -477,6 +477,7 @@ private:
 	// Auto-repeat: the held navigation key, and when it next fires.
 	int m_nRepeatKey;
 	unsigned m_nRepeatAtTicks;
+	unsigned m_nRepeatIntervalMs;
 
 	// File browser state
 	TBrowseTarget m_BrowseTarget;

@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `ae3e922`; the directory sorting and this
+**Last updated:** after commit `fa874b8`; the browser page-key repeat and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -282,7 +282,8 @@ carries this table; a commit cannot name its own hash.
 | `8462a1b` | The main menu had no direct shortcuts, and S/L in the footer were not shown as inverse characters | Added sparse case-insensitive shortcuts `D` Disk drives, `T` Cartridges, `C` Cassettes and `R` Cold reset, drawn as inverse characters.  S and L in the main footer are inverse too.  Version bumped to 0.8.16. |
 | `8dd684f` | The directory listing stopped at 192 entries, so files beyond it could not be shown or filtered | Replaced the fixed static entry array with a heap-backed listing that grows as the directory is read.  Names are allocated at their exact length; the browser view grows too.  A 4096-entry/512 KB soft budget prevents unbounded heap use, and a truncated listing is still safe to browse. |
 | `ae3e922` | Red halt left the crashing disk/cartridge/cassette paths in the settings, so a reset re-mounted the image and crashed again | Clear the saved media paths in the red-halt branch, as the restart actions already do, before showing red and halting. |
-| (this commit) | The browser listed directories and files in FAT order, which made large directories hard to scan | Sort each listing once after it is read: directories first, then files, each group alphabetically and case-insensitively.  The existing filter view inherits the order without re-sorting. |
+| `fa874b8` | The browser listed directories and files in FAT order, which made large directories hard to scan | Sort each listing once after it is read: directories first, then files, each group alphabetically and case-insensitively.  The existing filter view inherits the order without re-sorting. |
+| (this commit) | Left/Right paged through the browser only one page per press, so reaching a distant page meant repeated presses | Make Left/Right repeat in the file browser after 400 ms, then every 200 ms.  Submenu Left/Right stays non-repeating so settings are not written repeatedly. |
 
 ---
 

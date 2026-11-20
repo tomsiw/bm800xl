@@ -27,6 +27,8 @@
  */
 #define MENU_REPEAT_DELAY_MS	400
 #define MENU_REPEAT_INTERVAL_MS	80
+#define MENU_PAGE_REPEAT_DELAY_MS	400
+#define MENU_PAGE_REPEAT_INTERVAL_MS	200
 
 // How the menu is laid out.  These are pixels in the framebuffer.
 //
@@ -172,6 +174,7 @@ CAtariMenu::CAtariMenu (void)
 	m_bBackSelected (FALSE),
 	m_nRepeatKey (ATARI_KEY_NONE),
 	m_nRepeatAtTicks (0),
+	m_nRepeatIntervalMs (MENU_REPEAT_INTERVAL_MS),
 	m_BrowseTarget (BrowseNone),
 	m_nBrowseSearchLength (0),
 	m_pBrowserView (0),
@@ -3118,17 +3121,26 @@ boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed, boolean bShift,
 	}
 
 	/*
-	 * Only Up and Down repeat: they move the selection.  Left and Right
-	 * change a setting, which saves the file and can trigger an apply, so
-	 * holding one must not turn into a stream of writes.
+	 * Up and Down move the selection.  In the browser, Left and Right page
+	 * through the listing and are safe to repeat.  In a submenu they change
+	 * and save a setting, so holding one must not turn into a stream of
+	 * writes.
 	 */
-	boolean bRepeatable = nKey == ATARI_KEY_UP || nKey == ATARI_KEY_DOWN;
+	boolean bPageKey = m_Screen == ScreenBrowse
+			&& (nKey == ATARI_KEY_LEFT || nKey == ATARI_KEY_RIGHT);
+	boolean bRepeatable = nKey == ATARI_KEY_UP || nKey == ATARI_KEY_DOWN
+			   || bPageKey;
 
 	if (bRepeatable)
 	{
 		m_nRepeatKey = nKey;
+		m_nRepeatIntervalMs = bPageKey
+				    ? MENU_PAGE_REPEAT_INTERVAL_MS
+				    : MENU_REPEAT_INTERVAL_MS;
 		m_nRepeatAtTicks = CTimer::Get ()->GetTicks ()
-				 + MSEC2HZ (MENU_REPEAT_DELAY_MS);
+				 + MSEC2HZ (bPageKey
+					    ? MENU_PAGE_REPEAT_DELAY_MS
+					    : MENU_REPEAT_DELAY_MS);
 	}
 	else
 	{
@@ -3152,7 +3164,7 @@ boolean CAtariMenu::Tick (void)
 	}
 
 	int nKey = m_nRepeatKey;
-	m_nRepeatAtTicks = nNow + MSEC2HZ (MENU_REPEAT_INTERVAL_MS);
+	m_nRepeatAtTicks = nNow + MSEC2HZ (m_nRepeatIntervalMs);
 
 	(void) HandleKey (nKey, FALSE, FALSE);
 
