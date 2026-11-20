@@ -8,7 +8,7 @@ screen, to close it.
 
 ```
 ┌──────────────────────────────────────────────┐
-│ BM800XL v0.8.16                              │
+│ BM800XL v0.8.17                              │
 ├──────────────────────────────────────────────┤
 │ Disk drives          2 of 4 loaded           │
 │ Cartridge            (none)                  │
@@ -209,7 +209,8 @@ Prepare the drive:
 4. Open **Other options** and select **Check for updates**.
 5. The menu reports what it found. Press Return again to update, or Esc to
    cancel.
-6. After a successful copy the Pi restarts.
+6. The menu shows `Updating, please wait...` and restarts as soon as the update
+   completes.
 
 The updater copies the files to temporary `.new` names on the SD card, verifies
 each copy, and only then replaces the existing files. The source file's FAT

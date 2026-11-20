@@ -2135,11 +2135,26 @@ void CAtariMenu::ActivateSelection (void)
 		{
 			if (m_Updater.HasFiles () && m_nUpdateFrames != 0)
 			{
+				/*
+				 * Apply() blocks until the copy and verification finish.  Put
+				 * the status on screen and present it before entering that
+				 * blocking call, otherwise the last visible frame remains the
+				 * confirmation question for the whole update.
+				 */
+				m_nUpdateFrames = 0;
+				snprintf (m_Message, sizeof m_Message,
+					  "Updating, please wait...");
+				m_nMessageFrames = UPDATE_CONFIRM_FRAMES;
+				Draw ();
+				if (m_pVideo != 0)
+				{
+					m_pVideo->Present ();
+				}
+
 				if (m_pStorage != 0
 				    && m_Updater.Apply (*m_pStorage, m_Message,
 							sizeof m_Message))
 				{
-					m_nUpdateFrames = 0;
 					if (m_pHost != 0)
 					{
 						m_pHost->RestartPi ();
@@ -2148,6 +2163,11 @@ void CAtariMenu::ActivateSelection (void)
 				else
 				{
 					m_nMessageFrames = MESSAGE_FRAMES;
+					Draw ();
+					if (m_pVideo != 0)
+					{
+						m_pVideo->Present ();
+					}
 				}
 			}
 			else if (m_pStorage != 0
