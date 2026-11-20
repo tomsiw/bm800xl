@@ -387,6 +387,9 @@ private:
 	void BrowserRemoveFilterChar (void);
 	void BrowserClearFilter (void);
 
+	/* Activates a main-screen shortcut, or does nothing if it has no match. */
+	void ActivateMainShortcut (char c);
+
 	/*
 	 * A kernel update waiting for its second press.  The scanned file list
 	 * lives in m_Updater; m_nUpdateFrames expires the question so a much later
@@ -400,9 +403,11 @@ private:
 	void DrawMainScreen (void);
 	void DrawBrowser (void);
 	void DrawHeader (const char *pTitle);
-	void DrawFooter (const char *pHint);
+	void DrawFooter (const char *pHint, char cShortcut1 = 0,
+			 char cShortcut2 = 0, int nShortcutOffset1 = -1,
+			 int nShortcutOffset2 = -1);
 	void DrawItem (unsigned nY, boolean bSelected, const char *pLabel,
-		       const char *pValue);
+		       const char *pValue, char cShortcut = 0);
 	void DrawStatusLine (void);
 
 	unsigned GetItemCount (void) const;

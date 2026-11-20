@@ -194,6 +194,10 @@ public:
 	void DrawText (unsigned nX, unsigned nY, TAtariColor Color, const char *pText,
 		       boolean bDoubleSize = FALSE);
 
+	/// Draws one character cell with its foreground and background swapped.
+	void DrawInverseChar (unsigned nX, unsigned nY, TAtariColor ForeColor,
+			      TAtariColor BackColor, char c);
+
 	/*
 	 * The font every text call uses.
 	 *

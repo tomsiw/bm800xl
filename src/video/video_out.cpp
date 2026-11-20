@@ -1325,6 +1325,49 @@ void CAtariVideoOut::DrawText (unsigned nX, unsigned nY, TAtariColor Color,
 	}
 }
 
+void CAtariVideoOut::DrawInverseChar (unsigned nX, unsigned nY,
+				      TAtariColor ForeColor,
+				      TAtariColor BackColor, char c)
+{
+	assert (m_bInitialized);
+
+	CCharGenerator Generator (*m_pFont);
+	unsigned nCharWidth = Generator.GetCharWidth ();
+	unsigned nCharHeight = Generator.GetCharHeight ();
+
+	DrawRect (nX, nY, nCharWidth, nCharHeight, ForeColor);
+
+	for (unsigned nLine = 0; nLine < nCharHeight; nLine++)
+	{
+		CCharGenerator::TPixelLine Line = Generator.GetPixelLine (c, nLine);
+
+		if (Line == 0)
+		{
+			continue;
+		}
+
+		unsigned nPixelY = nY + nLine;
+		if (nPixelY >= m_nHeight)
+		{
+			continue;
+		}
+
+		u16 *pRow = m_pBackBuffer + (uintptr) nPixelY * m_nPitchPixels;
+
+		for (unsigned nPixelX = 0; nPixelX < nCharWidth; nPixelX++)
+		{
+			if (Generator.GetPixel (nPixelX, Line))
+			{
+				unsigned nTargetX = nX + nPixelX;
+				if (nTargetX < m_nWidth)
+				{
+					pRow[nTargetX] = BackColor;
+				}
+			}
+		}
+	}
+}
+
 void CAtariVideoOut::DrawTextBar (unsigned nX, unsigned nY, TAtariColor BackColor,
 				  TAtariColor TextColor, const char *pText)
 {

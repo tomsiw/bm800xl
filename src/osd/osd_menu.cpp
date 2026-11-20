@@ -53,6 +53,25 @@ static const unsigned MenuLabelColumn	= 450;	// x offset of the value column
 // Numbers of entries on each screen.  All five switch statements keyed on
 // m_Screen have to agree with these, so they are named rather than repeated.
 static const unsigned MainItemCount		= 14;
+
+/* Main-screen shortcut per row; 0 means none. */
+static const char MainShortcuts[MainItemCount] =
+{
+	'D',	// Disk drives
+	'T',	// Cartridges
+	'C',	// Cassettes
+	0,	// Joysticks
+	0,	// Machine and memory
+	0,	// Screen
+	0,	// Sound
+	0,	// Save states
+	0,	// Other options
+	'R',	// Cold reset
+	0,	// Warm reset
+	0,	// Power cycle
+	0,	// Restart Pi
+	0	// Close menu
+};
 static const unsigned DiskItemCount		= SETTINGS_MAX_DRIVES * 2;	// insert and eject
 static const unsigned CartridgeItemCount	= 2;	// insert, eject
 static const unsigned CassetteItemCount		= 2;	// insert, eject
@@ -440,10 +459,15 @@ void CAtariMenu::Close (void)
 
 void CAtariMenu::OpenScreen (TMenuScreen Screen)
 {
-	if (m_Screen == ScreenBrowse && Screen != ScreenBrowse
-	    && m_pHost != 0)
+	/*
+	 * Printable-key input belongs to the two screens that use it: the main
+	 * menu for shortcuts, and the browser for filtering.  This is driven by
+	 * screen transitions, not polled per frame.
+	 */
+	if (m_pHost != 0)
 	{
-		m_pHost->SetTextInputActive (FALSE);
+		m_pHost->SetTextInputActive (Screen == ScreenMain
+					  || Screen == ScreenBrowse);
 	}
 
 	m_Screen = Screen;
@@ -2412,6 +2436,37 @@ void CAtariMenu::BrowserClearFilter (void)
 	BrowserResetSelection ();
 }
 
+void CAtariMenu::ActivateMainShortcut (char c)
+{
+	char wanted = c;
+	if (wanted >= 'a' && wanted <= 'z')
+	{
+		wanted = (char) (wanted - 'a' + 'A');
+	}
+
+	for (unsigned i = 0; i < MainItemCount; i++)
+	{
+		if (MainShortcuts[i] == 0)
+		{
+			continue;
+		}
+
+		char shortcut = MainShortcuts[i];
+		if (shortcut >= 'a' && shortcut <= 'z')
+		{
+			shortcut = (char) (shortcut - 'a' + 'A');
+		}
+
+		if (shortcut == wanted)
+		{
+			m_nSelected = i;
+			m_bBackSelected = FALSE;
+			ActivateSelection ();
+			return;
+		}
+	}
+}
+
 void CAtariMenu::BrowserResetSelection (void)
 {
 	m_nBrowseTop = 0;
@@ -2949,6 +3004,31 @@ boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed, boolean bShift,
 				BrowserAddFilterChar (c);
 			}
 		}
+		else if (m_Screen == ScreenMain)
+		{
+			/*
+			 * S and L keep their existing snapshot meaning.  The remaining
+			 * printable keys are sparse main-menu shortcuts.
+			 */
+			if (c == 'S' || c == 's')
+			{
+				if (SaveCurrentSnapshot ())
+				{
+					ExitMenu (ExitClose);
+				}
+			}
+			else if (c == 'L' || c == 'l')
+			{
+				if (LoadLastSnapshot ())
+				{
+					ExitMenu (ExitClose);
+				}
+			}
+			else
+			{
+				ActivateMainShortcut (c);
+			}
+		}
 
 		return TRUE;
 	}
@@ -3244,7 +3324,9 @@ void CAtariMenu::DrawHeader (const char *pTitle)
 			    ATARI_COLOR_WHITE, pTitle);
 }
 
-void CAtariMenu::DrawFooter (const char *pHint)
+void CAtariMenu::DrawFooter (const char *pHint, char cShortcut1,
+			     char cShortcut2, int nShortcutOffset1,
+			     int nShortcutOffset2)
 {
 	unsigned nPanelY = MenuMarginY + MenuPanelHeight - m_nFooterHeight;
 	TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
@@ -3254,10 +3336,46 @@ void CAtariMenu::DrawFooter (const char *pHint)
 	m_pVideo->DrawText (MenuMarginX + MenuIndent,
 			    nPanelY + (m_nFooterHeight - m_nLineHeight) / 2,
 			    ATARI_COLOR_WHITE, pHint);
+
+	if (cShortcut1 == 0 && cShortcut2 == 0)
+	{
+		return;
+	}
+
+	unsigned nCharWidth = m_pVideo->GetTextWidth ();
+	unsigned nY = nPanelY + (m_nFooterHeight - m_nLineHeight) / 2;
+
+	for (unsigned i = 0; pHint[i] != '\0'; i++)
+	{
+		char c = pHint[i];
+		char a = cShortcut1;
+		char b = cShortcut2;
+
+		if (a >= 'a' && a <= 'z') a = (char) (a - 'a' + 'A');
+		if (b >= 'a' && b <= 'z') b = (char) (b - 'a' + 'A');
+
+		boolean bInverse = FALSE;
+		if (a != 0 && c == a && (int) i == nShortcutOffset1)
+		{
+			bInverse = TRUE;
+		}
+		if (b != 0 && c == b && (int) i == nShortcutOffset2)
+		{
+			bInverse = TRUE;
+		}
+
+		if (bInverse)
+		{
+			m_pVideo->DrawInverseChar (MenuMarginX + MenuIndent
+						   + i * nCharWidth,
+						   nY, ATARI_COLOR_WHITE,
+						   Theme.Light, c);
+		}
+	}
 }
 
 void CAtariMenu::DrawItem (unsigned nY, boolean bSelected, const char *pLabel,
-			   const char *pValue)
+			   const char *pValue, char cShortcut)
 {
 	unsigned nPanelX = MenuMarginX;
 	unsigned nRowX = nPanelX + MenuIndent;
@@ -3278,16 +3396,65 @@ void CAtariMenu::DrawItem (unsigned nY, boolean bSelected, const char *pLabel,
 		Color = ATARI_COLOR_GREY;
 	}
 
-	m_pVideo->DrawText (nRowX, nY, Color, pLabel);
+	/*
+	 * Draw a main-screen shortcut character inverted.  Unselected rows use the
+	 * panel/tint colour behind the glyph; selected rows use the light bar.
+	 */
+	unsigned nShortcut = strlen (pLabel);
+	if (cShortcut != 0)
+	{
+		for (unsigned i = 0; pLabel[i] != '\0'; i++)
+		{
+			char a = pLabel[i];
+			char b = cShortcut;
+
+			if (a >= 'a' && a <= 'z') a = (char) (a - 'a' + 'A');
+			if (b >= 'a' && b <= 'z') b = (char) (b - 'a' + 'A');
+
+			if (a == b)
+			{
+				nShortcut = i;
+				break;
+			}
+		}
+	}
+
+	if (nShortcut < strlen (pLabel) && nShortcut < MENU_TEXT_MAX)
+	{
+		char Prefix[MENU_TEXT_MAX];
+
+		if (nShortcut > 0)
+		{
+			memcpy (Prefix, pLabel, nShortcut);
+			Prefix[nShortcut] = '\0';
+			m_pVideo->DrawText (nRowX, nY, Color, Prefix);
+		}
+
+		unsigned nCharWidth = m_pVideo->GetTextWidth ();
+		unsigned nShortcutX = nRowX + nShortcut * nCharWidth;
+
+		m_pVideo->DrawInverseChar (nShortcutX, nY, Color,
+					   bSelected ? Theme.Light : Theme.Dark,
+					   pLabel[nShortcut]);
+
+		if (pLabel[nShortcut + 1] != '\0')
+		{
+			m_pVideo->DrawText (nShortcutX + nCharWidth, nY, Color,
+					    pLabel + nShortcut + 1);
+		}
+	}
+	else
+	{
+		m_pVideo->DrawText (nRowX, nY, Color, pLabel);
+	}
+
 	if (pValue != 0 && pValue[0] != '\0')
 	{
-		{
 		char Value[64];
 		CopyText (Value, pValue, sizeof Value);
 		Truncate (Value, TextColumns (MenuPanelWidth - MenuLabelColumn - 8));
 
 		m_pVideo->DrawText (nPanelX + MenuLabelColumn, nY, Color, Value);
-	}
 	}
 
 	(void) nRowWidth;
@@ -3323,13 +3490,27 @@ void CAtariMenu::DrawMainScreen (void)
 
 	for (unsigned i = 0; i < nCount; i++)
 	{
-		DrawItem (nY, IsItemSelected (i), GetItemLabel (i), GetItemValue (i));
+		char cShortcut = (m_Screen == ScreenMain && i < MainItemCount)
+				? MainShortcuts[i] : 0;
+
+		DrawItem (nY, IsItemSelected (i), GetItemLabel (i), GetItemValue (i),
+			  cShortcut);
 		nY += m_nRowPitch;
 	}
 
-	DrawFooter (m_Screen == ScreenMain
-		    ? "Up/Down  Left/Right  Return  Esc  S-save  L-load"
-		    : "Up/Down  Left/Right  Return  Esc");
+	if (m_Screen == ScreenMain)
+	{
+		const char *pHint =
+			"Up/Down  Left/Right  Return  Esc  S-save  L-load";
+		int nSave = (int) (strstr (pHint, "S-save") - pHint);
+		int nLoad = (int) (strstr (pHint, "L-load") - pHint);
+
+		DrawFooter (pHint, 'S', 'L', nSave, nLoad);
+	}
+	else
+	{
+		DrawFooter ("Up/Down  Left/Right  Return  Esc");
+	}
 }
 
 void CAtariMenu::DrawBrowser (void)

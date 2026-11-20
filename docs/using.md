@@ -8,7 +8,7 @@ screen, to close it.
 
 ```
 ┌──────────────────────────────────────────────┐
-│ BM800XL v0.8.11                              │
+│ BM800XL v0.8.16                              │
 ├──────────────────────────────────────────────┤
 │ Disk drives          2 of 4 loaded           │
 │ Cartridge            (none)                  │
@@ -48,6 +48,20 @@ setting. Escape still returns to the main menu directly.
 While the main menu is open, **S** saves the current snapshot and **L** loads
 the last snapshot. On success the OSD closes and the emulator continues. If
 there is no current snapshot, L opens the normal Load-snapshot browser instead.
+
+The main screen also has a few direct shortcuts, shown by an inverse character
+in the row:
+
+| Shortcut | Row |
+|---|---|
+| `D` / `d` | Disk drives |
+| `T` / `t` | Cartridges |
+| `C` / `c` | Cassettes |
+| `R` / `r` | Cold reset |
+
+They are case-insensitive and work only on the main screen. They are an
+additional way to activate the row; cursor-key and joystick navigation, Return
+and Fire all continue to work unchanged. Other letters are ignored.
 
 While the menu is open, the selected **joystick or gamepad** drives it too: its
 directions act as the cursor keys and its fire button as Return. This works for

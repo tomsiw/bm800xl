@@ -111,10 +111,10 @@ under the makefile's target name.
 The release version is one line in `src/version.h`:
 
 ```cpp
-#define ATARI_VERSION		"0.8.11"
+#define ATARI_VERSION		"0.8.16"
 ```
 
-It appears in the main OSD header as `BM800XL v0.8.11` and in the first line of
+It appears in the main OSD header as `BM800XL v0.8.16` and in the first line of
 the boot log. Changing the line and rebuilding is the whole procedure; the OSD
 adds the `v`. The separate updater compatibility code in
 `src/update/updater.h` is not tied to this number.

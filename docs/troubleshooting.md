@@ -48,7 +48,7 @@ machine hangs immediately afterwards or the power is cut. **Read it on a PC**;
 that is the point of it. It is plain text:
 
 ```
-[       0 ms] BM800XL v0.8.11 emulator for Raspberry Pi
+[       0 ms] BM800XL v0.8.16 emulator for Raspberry Pi
 [       0 ms] Build: Feb 14 2026 11:02:31
 [       0 ms] --- stage: power-on (Circle started) ---
 [      12 ms] SD card interface started

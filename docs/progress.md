@@ -8,8 +8,9 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `8de0151`; the browser search/filter and this
-documentation update are in the commit that carries this line. USB keyboard
+**Last updated:** after commit `a124243`; the main-screen shortcuts, version
+bump and this documentation update are in the commit that carries this line.
+USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
 scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
@@ -277,7 +278,9 @@ carries this table; a commit cannot name its own hash.
 | `600c8de` | Inserting a cartridge queued a cold start at menu close, but ejecting one left the machine running with the old cartridge removed | `ATARI_MountCartridge("")` now queues the same deferred cold start after removing the cartridge.  The OSD message says `Cartridge removed; reset on close`. |
 | `afb853a` | Snapshots could only be saved or loaded from the OSD, with no way to bind a game-time quick key | Added `A(Meta_QuickSave)` and `A(Meta_QuickLoad)` with no default bindings.  The keyboard queues them as meta actions; the kernel saves or loads at a frame boundary while the OSD is closed.  The target is the existing current snapshot when it still exists, otherwise `SD:/ATARI/QuickSave.sav`. |
 | `8de0151` | The main OSD footer did not mention the S/L snapshot shortcuts, and the release was still 0.8.8 | Bumped the version to 0.8.11 and added `S-save  L-load` to the main footer. |
-| (this commit) | A large directory could only be searched by scrolling, with no way to type a file-name fragment | Added browser filtering.  USB and GPIO keyboards report printable characters only while a browser is open; the menu builds a filtered view of the cached listing, with Backspace editing the filter, Escape clearing it, Delete keeping its existing meaning, and only `..` shown when nothing matches. |
+| `ca0dd41` | A large directory could only be searched by scrolling, with no way to type a file-name fragment | Added browser filtering.  USB and GPIO keyboards report printable characters only while a browser is open; the menu builds a filtered view of the cached listing, with Backspace editing the filter, Escape clearing it, Delete keeping its existing meaning, and only `..` shown when nothing matches. |
+| `a124243` | The S/L hint appeared on every submenu because they share the main-screen drawing path | Select the footer hint from the current screen: the main menu keeps `S-save  L-load`, submenus do not. |
+| (this commit) | The main menu had no direct shortcuts, and S/L in the footer were not shown as inverse characters | Added sparse case-insensitive shortcuts `D` Disk drives, `T` Cartridges, `C` Cassettes and `R` Cold reset, drawn as inverse characters.  S and L in the main footer are inverse too.  Version bumped to 0.8.16. |
 
 ---
 
