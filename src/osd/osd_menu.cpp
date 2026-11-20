@@ -18,6 +18,7 @@
 #include "bootlog.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -173,6 +174,8 @@ CAtariMenu::CAtariMenu (void)
 	m_nRepeatAtTicks (0),
 	m_BrowseTarget (BrowseNone),
 	m_nBrowseSearchLength (0),
+	m_pBrowserView (0),
+	m_nBrowserViewCapacity (0),
 	m_nBrowserViewCount (0),
 	m_nBrowseTop (0),
 	m_nBrowserSelected (0),
@@ -200,6 +203,7 @@ CAtariMenu::CAtariMenu (void)
 
 CAtariMenu::~CAtariMenu (void)
 {
+	free (m_pBrowserView);
 }
 
 void CAtariMenu::Initialize (CAtariVideoOut *pVideo, CAtariStorage *pStorage,
@@ -2299,6 +2303,14 @@ void CAtariMenu::ListBrowserDirectory (void)
 	// separator; everywhere else the directory is passed as-is.
 	m_pStorage->ListWithDirectories (Volume, Directory, m_BrowseFilter);
 
+	if (m_pStorage->IsListingTruncated ())
+	{
+		snprintf (m_Message, sizeof m_Message,
+			  "Listing truncated at %u entries",
+			  m_pStorage->GetEntryCount ());
+		m_nMessageFrames = MESSAGE_FRAMES;
+	}
+
 	BrowserRebuildView ();
 }
 
@@ -2354,8 +2366,28 @@ void CAtariMenu::BrowserRebuildView (void)
 
 	unsigned nEntries = m_pStorage->GetEntryCount ();
 
-	for (unsigned n = 0; n < nEntries
-	     && m_nBrowserViewCount < STORAGE_MAX_ENTRIES; n++)
+	if (nEntries > m_nBrowserViewCapacity)
+	{
+		unsigned nCapacity = m_nBrowserViewCapacity != 0
+				   ? m_nBrowserViewCapacity * 2 : 128;
+		if (nCapacity < nEntries)
+		{
+			nCapacity = nEntries;
+		}
+
+		unsigned *pView = (unsigned *)
+			malloc (nCapacity * sizeof (unsigned));
+		if (pView == 0)
+		{
+			return;
+		}
+
+		free (m_pBrowserView);
+		m_pBrowserView = pView;
+		m_nBrowserViewCapacity = nCapacity;
+	}
+
+	for (unsigned n = 0; n < nEntries; n++)
 	{
 		const char *pEntry = m_pStorage->GetEntry (n);
 		if (pEntry == 0)
@@ -2375,7 +2407,7 @@ void CAtariMenu::BrowserRebuildView (void)
 		if (   m_nBrowseSearchLength == 0
 		    || ContainsIgnoreCase (pName, m_BrowseSearch))
 		{
-			m_BrowserView[m_nBrowserViewCount++] = n;
+			m_pBrowserView[m_nBrowserViewCount++] = n;
 		}
 	}
 }
@@ -2387,7 +2419,7 @@ const char *CAtariMenu::BrowserEntryAt (unsigned nIndex) const
 		return 0;
 	}
 
-	return m_pStorage->GetEntry (m_BrowserView[nIndex]);
+	return m_pStorage->GetEntry (m_pBrowserView[nIndex]);
 }
 
 const char *CAtariMenu::BrowserEntry (void) const

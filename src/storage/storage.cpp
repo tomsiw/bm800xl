@@ -20,7 +20,9 @@
 #include <circle/string.h>
 #include <circle/util.h>
 
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static const char FromStorage[] = "storage";
 
@@ -30,6 +32,10 @@ CAtariStorage::CAtariStorage (void)
 	m_bSystemVolume (FALSE),
 	m_bUserVolume (FALSE),
 	m_bUserOnSD (FALSE),
+	m_pEntries (0),
+	m_nEntryCapacity (0),
+	m_nEntryBytes (0),
+	m_bListingTruncated (FALSE),
 	m_nEntryCount (0)
 {
 	m_SystemDirectory[0] = '\0';
@@ -38,6 +44,8 @@ CAtariStorage::CAtariStorage (void)
 
 CAtariStorage::~CAtariStorage (void)
 {
+	ResetListing ();
+
 	if (m_bUserVolume)
 	{
 		f_mount (0, STORAGE_VOLUME_USER, 0);
@@ -502,7 +510,55 @@ boolean CAtariStorage::EnsureDirectory (const char *pDirectory)
 
 void CAtariStorage::ResetListing (void)
 {
+	for (unsigned i = 0; i < m_nEntryCount; i++)
+	{
+		free (m_pEntries[i].pName);
+	}
+
+	free (m_pEntries);
+
+	m_pEntries = 0;
+	m_nEntryCapacity = 0;
+	m_nEntryBytes = 0;
 	m_nEntryCount = 0;
+	m_bListingTruncated = FALSE;
+}
+
+boolean CAtariStorage::EnsureEntryCapacity (unsigned nNeeded)
+{
+	if (nNeeded <= m_nEntryCapacity)
+	{
+		return TRUE;
+	}
+
+	unsigned nCapacity = m_nEntryCapacity != 0 ? m_nEntryCapacity * 2 : 64;
+	if (nCapacity < nNeeded)
+	{
+		nCapacity = nNeeded;
+	}
+	if (nCapacity > STORAGE_MAX_ENTRIES)
+	{
+		nCapacity = STORAGE_MAX_ENTRIES;
+	}
+
+	TStorageEntry *pEntries = (TStorageEntry *)
+		malloc (nCapacity * sizeof (TStorageEntry));
+	if (pEntries == 0)
+	{
+		return FALSE;
+	}
+
+	if (m_nEntryCount != 0)
+	{
+		memcpy (pEntries, m_pEntries,
+			m_nEntryCount * sizeof (TStorageEntry));
+	}
+
+	free (m_pEntries);
+	m_pEntries = pEntries;
+	m_nEntryCapacity = nCapacity;
+
+	return TRUE;
 }
 
 /* ---------------------------------------------------------------------------
@@ -641,29 +697,58 @@ unsigned CAtariStorage::ListInternal (const char *pVolume, const char *pDirector
 
 		if (m_nEntryCount >= STORAGE_MAX_ENTRIES)
 		{
-			break;			// listing is full
+			m_bListingTruncated = TRUE;
+			break;
 		}
 
-		// Directories are marked with a leading '/' so that the menu can
-		// tell them apart from files without keeping a parallel array.
+		/*
+		 * Directories are marked with a leading '/' so that the menu can
+		 * tell them apart from files without keeping a parallel array.
+		 */
+		char Name[STORAGE_NAME_MAX];
+		int nNameLength;
 		if (bIsDirectory)
 		{
-			if (strlen (FileInfo.fname) + 2 > STORAGE_NAME_MAX)
-			{
-				continue;
-			}
-			m_EntryNames[m_nEntryCount][0] = '/';
-			strcpy (&m_EntryNames[m_nEntryCount][1], FileInfo.fname);
+			nNameLength = snprintf (Name, sizeof Name, "/%s",
+						FileInfo.fname);
 		}
 		else
 		{
-			if (strlen (FileInfo.fname) + 1 > STORAGE_NAME_MAX)
-			{
-				continue;
-			}
-			strcpy (m_EntryNames[m_nEntryCount], FileInfo.fname);
+			nNameLength = snprintf (Name, sizeof Name, "%s",
+						FileInfo.fname);
 		}
-		m_EntryIsDirectory[m_nEntryCount] = bIsDirectory;
+
+		if (nNameLength < 0
+		    || (unsigned) nNameLength >= sizeof Name)
+		{
+			continue;
+		}
+
+		unsigned nNameBytes = (unsigned) nNameLength + 1;
+
+		if (m_nEntryBytes + nNameBytes > STORAGE_LIST_BUDGET)
+		{
+			m_bListingTruncated = TRUE;
+			break;
+		}
+
+		if (!EnsureEntryCapacity (m_nEntryCount + 1))
+		{
+			m_bListingTruncated = TRUE;
+			break;
+		}
+
+		char *pName = (char *) malloc (nNameBytes);
+		if (pName == 0)
+		{
+			m_bListingTruncated = TRUE;
+			break;
+		}
+		memcpy (pName, Name, nNameBytes);
+
+		m_pEntries[m_nEntryCount].pName = pName;
+		m_pEntries[m_nEntryCount].bDirectory = bIsDirectory;
+		m_nEntryBytes += nNameBytes;
 		m_nEntryCount++;
 	}
 
@@ -674,18 +759,18 @@ unsigned CAtariStorage::ListInternal (const char *pVolume, const char *pDirector
 
 const char *CAtariStorage::GetEntry (unsigned nIndex) const
 {
-	if (nIndex >= m_nEntryCount)
+	if (nIndex >= m_nEntryCount || m_pEntries == 0)
 	{
 		return 0;
 	}
-	return m_EntryNames[nIndex];
+	return m_pEntries[nIndex].pName;
 }
 
 boolean CAtariStorage::IsEntryDirectory (unsigned nIndex) const
 {
-	if (nIndex >= m_nEntryCount)
+	if (nIndex >= m_nEntryCount || m_pEntries == 0)
 	{
 		return FALSE;
 	}
-	return m_EntryIsDirectory[nIndex];
+	return m_pEntries[nIndex].bDirectory;
 }

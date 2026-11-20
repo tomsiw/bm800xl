@@ -64,9 +64,10 @@
 /* Longest file name in a directory listing, including the terminating NUL. */
 #define STORAGE_NAME_MAX	(FF_LFN_BUF + 1)
 
-/* Directory listing size.  A media directory with more entries than this is
- * still usable: the listing is only ever shown one page at a time. */
-#define STORAGE_MAX_ENTRIES	192
+/* Directory listing size.  The list itself is heap-backed; these are safety
+ * limits so a pathological directory cannot consume the whole heap. */
+#define STORAGE_MAX_ENTRIES	4096
+#define STORAGE_LIST_BUDGET	(512 * 1024)
 
 /* Longest file extension filter, e.g. "ATR". */
 #define STORAGE_MAX_FILTER	16
@@ -205,6 +206,13 @@ public:
 	/* \return Number of entries from the most recent List call. */
 	unsigned GetEntryCount (void) const		{ return m_nEntryCount; }
 
+	/*
+	 * TRUE when the most recent listing stopped at the entry or memory budget.
+	 * The entries returned are still valid; the rest of the directory was not
+	 * read.
+	 */
+	boolean IsListingTruncated (void) const		{ return m_bListingTruncated; }
+
 	/* \return Name of entry INDEX, including the "/" prefix for a directory,
 	 *	    or NULL if INDEX is out of range. */
 	const char *GetEntry (unsigned nIndex) const;
@@ -253,6 +261,7 @@ public:
 
 private:
 	void ResetListing (void);
+	boolean EnsureEntryCapacity (unsigned nNeeded);
 	unsigned ListInternal (const char *pVolume, const char *pDirectory,
 			       const char *pExtensions, boolean bIncludeDirectories);
 
@@ -278,8 +287,16 @@ private:
 
 	char m_SystemDirectory[STORAGE_PATH_MAX];
 
-	char m_EntryNames[STORAGE_MAX_ENTRIES][STORAGE_NAME_MAX];
-	boolean m_EntryIsDirectory[STORAGE_MAX_ENTRIES];
+	struct TStorageEntry
+	{
+		char	*pName;
+		boolean	bDirectory;
+	};
+
+	TStorageEntry *m_pEntries;
+	unsigned m_nEntryCapacity;
+	unsigned m_nEntryBytes;
+	boolean m_bListingTruncated;
 	unsigned m_nEntryCount;
 };
 

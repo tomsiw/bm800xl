@@ -484,7 +484,8 @@ private:
 	char m_BrowseFilter[STORAGE_MAX_FILTER];
 	char m_BrowseSearch[32];	// typed filter, empty when unused
 	unsigned m_nBrowseSearchLength;
-	unsigned m_BrowserView[STORAGE_MAX_ENTRIES];	// indices into the listing
+	unsigned *m_pBrowserView;		// indices into the listing
+	unsigned m_nBrowserViewCapacity;
 	unsigned m_nBrowserViewCount;
 	unsigned m_nBrowseTop;		// first visible entry
 	unsigned m_nBrowserSelected;

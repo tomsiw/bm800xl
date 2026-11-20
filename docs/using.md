@@ -333,9 +333,10 @@ clears the filter.
 This works with both the USB keyboard and a real Atari keyboard on the GPIO
 header. A joystick can navigate the filtered list but cannot type into it.
 
-A directory listing is capped at 192 entries by the storage layer; the filter can
-only search entries in that listing. This is the existing browser limit, not a
-new filter limit.
+The directory listing is heap-backed and is no longer capped at 192 entries. A
+soft safety limit of 4096 entries or 512 KB of file names stops a pathological
+directory from consuming the whole heap; if reached, the browser shows the
+entries that fit. The filter searches that loaded listing.
 
 ### Keeping media on the SD card instead
 
