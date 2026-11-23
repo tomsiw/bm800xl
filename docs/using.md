@@ -8,7 +8,7 @@ screen, to close it.
 
 ```
 ┌──────────────────────────────────────────────┐
-│ BM800XL v0.8.17                              │
+│ BM800XL v0.9.1                               │
 ├──────────────────────────────────────────────┤
 │ Disk drives          2 of 4 loaded           │
 │ Cartridge            (none)                  │
@@ -160,6 +160,7 @@ power cycle are separate items on the main screen.
 | User directory | `SD:` / `USB:` | Which volume the media browser starts from |
 | CPU crash | Colours+Restart / Restart / Red halt | What the emulator does after a CPU crash; the default is Colours+Restart |
 | Pause on OSD | On / Off | Stop the emulated machine while the menu is open; close the menu to resume |
+| View runtime log | — | Read `runtimelog.txt` in the OSD, with Up/Down scrolling |
 | Check for updates | — | Install kernel files from a USB drive; asks for confirmation |
 
 All CPU-crash actions clear the saved disk, cartridge and cassette paths, so a
@@ -174,6 +175,14 @@ panel; each redraw repaints from the last frame, so tint does not accumulate.
 Changing the machine type or RAM while paused rebuilds the machine immediately,
 but it does not boot until the menu closes. Turning the option off while the
 menu is open resumes the machine behind the menu.
+
+**View runtime log** opens `SD:/ATARI/runtimelog.txt` in a read-only viewer.
+Up/Down scroll one line at a time and Left/Right scroll horizontally; holding
+any of them repeats. Escape returns to Other options. A `<` at the start of a
+line means text is hidden to the left, and a `>` at the end means it continues
+to the right. The log is a snapshot taken when the viewer opens, so newer lines
+appear after leaving and reopening it. Only the newest 4096 lines are indexed,
+and the viewer allocates its small line index only while it is open.
 
 The **Keyboard** row needs a Pi restart; the others take effect immediately. The
 **User directory** row selects the media volume, not an arbitrary path; the media

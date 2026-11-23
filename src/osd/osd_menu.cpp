@@ -16,6 +16,7 @@
 #include <circle/timer.h>
 
 #include "bootlog.h"
+#include "port/vfs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +30,10 @@
 #define MENU_REPEAT_INTERVAL_MS	80
 #define MENU_PAGE_REPEAT_DELAY_MS	400
 #define MENU_PAGE_REPEAT_INTERVAL_MS	200
+
+// Upper bound on the runtime-log line index.  The viewer shows the newest
+// RUNTIME_LOG_MAX_LINES lines when the file is longer.
+#define RUNTIME_LOG_MAX_LINES	4096
 
 // How the menu is laid out.  These are pixels in the framebuffer.
 //
@@ -87,7 +92,7 @@ static const unsigned MAX_SNAPSHOT_MEDIA	= 24;
 static const unsigned VideoItemCount		= 6;	// standard, artifacting, resolution, aspect, scanlines, factor
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
-static const unsigned OtherItemCount		= 9;	// static OSD, theme, BRK, numpad, keyboard, user dir, crash action, pause on OSD, updates
+static const unsigned OtherItemCount		= 10;	// static OSD, theme, BRK, numpad, keyboard, user dir, crash action, pause, view log, updates
 
 static const char FromMenu[] = "menu";
 
@@ -186,6 +191,15 @@ CAtariMenu::CAtariMenu (void)
 	m_nEraseFrames (0),
 	m_nMessageFrames (0),
 	m_nUpdateFrames (0),
+	m_pLogFile (0),
+	m_pLogOffsets (0),
+	m_nLogLineCount (0),
+	m_nLogFirst (0),
+	m_nLogTotalLines (0),
+	m_nLogTopLine (0),
+	m_nLogLeft (0),
+	m_nLogMaxLength (0),
+	m_bLogTruncated (FALSE),
 	m_nLineHeight (16),
 	m_nRowPitch (26),
 	m_nHeaderHeight (40),
@@ -207,6 +221,7 @@ CAtariMenu::CAtariMenu (void)
 CAtariMenu::~CAtariMenu (void)
 {
 	free (m_pBrowserView);
+	CloseRuntimeLog ();
 }
 
 void CAtariMenu::Initialize (CAtariVideoOut *pVideo, CAtariStorage *pStorage,
@@ -431,6 +446,7 @@ void CAtariMenu::Close (void)
 	m_BrowseTarget = BrowseNone;
 	m_nBrowseSearchLength = 0;
 	m_BrowseSearch[0] = '\0';
+	CloseRuntimeLog ();
 	ClearPendingErase (FALSE);
 
 	if (m_pHost != 0)
@@ -466,6 +482,11 @@ void CAtariMenu::Close (void)
 
 void CAtariMenu::OpenScreen (TMenuScreen Screen)
 {
+	if (m_Screen == ScreenRuntimeLog && Screen != ScreenRuntimeLog)
+	{
+		CloseRuntimeLog ();
+	}
+
 	/*
 	 * Printable-key input belongs to the two screens that use it: the main
 	 * menu for shortcuts, and the browser for filtering.  This is driven by
@@ -534,7 +555,8 @@ unsigned CAtariMenu::GetItemCount (void) const
 
 boolean CAtariMenu::HasBackItem (void) const
 {
-	return m_Screen != ScreenMain && m_Screen != ScreenBrowse;
+	return m_Screen != ScreenMain && m_Screen != ScreenBrowse
+	    && m_Screen != ScreenRuntimeLog;
 }
 
 boolean CAtariMenu::IsItemSelected (unsigned nIndex) const
@@ -767,7 +789,8 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 5: return "User directory";
 		case 6: return "CPU crash";
 		case 7: return "Pause on OSD";
-		case 8: return "Check for updates";
+		case 8: return "View runtime log";
+		case 9: return "Check for updates";
 		}
 		break;
 
@@ -1136,6 +1159,7 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			}
 		case 7: return S.bPauseOnOSD ? "On" : "Off";
 		case 8:
+		case 9:
 			return "";
 		}
 		break;
@@ -1684,6 +1708,7 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			break;
 
 		case 8:
+		case 9:
 			bChanged = FALSE;
 			break;
 
@@ -2142,6 +2167,10 @@ void CAtariMenu::ActivateSelection (void)
 	case ScreenOther:
 		if (m_nSelected == 8)
 		{
+			OpenRuntimeLog ();
+		}
+		else if (m_nSelected == 9)
+		{
 			if (m_Updater.HasFiles () && m_nUpdateFrames != 0)
 			{
 				/*
@@ -2454,6 +2483,333 @@ const char *CAtariMenu::BrowserEntryAt (unsigned nIndex) const
 const char *CAtariMenu::BrowserEntry (void) const
 {
 	return BrowserEntryAt (m_nBrowserSelected);
+}
+
+void CAtariMenu::CloseRuntimeLog (void)
+{
+	if (m_pLogFile != 0)
+	{
+		ATARI_VFS_Close (m_pLogFile);
+		m_pLogFile = 0;
+	}
+
+	free (m_pLogOffsets);
+	m_pLogOffsets = 0;
+	m_nLogLineCount = 0;
+	m_nLogFirst = 0;
+	m_nLogTotalLines = 0;
+	m_nLogTopLine = 0;
+	m_nLogLeft = 0;
+	m_nLogMaxLength = 0;
+	m_bLogTruncated = FALSE;
+}
+
+unsigned CAtariMenu::RuntimeLogRows (void) const
+{
+	return m_nVisibleRows > 0 ? m_nVisibleRows : 1;
+}
+
+void CAtariMenu::OpenRuntimeLog (void)
+{
+	CloseRuntimeLog ();
+
+	OpenScreen (ScreenRuntimeLog);
+
+	if (m_pStorage == 0)
+	{
+		return;
+	}
+
+	char Path[SETTINGS_PATH_MAX];
+	m_pStorage->MakeSystemPath (Path, sizeof Path, RUNTIME_LOG_FILE_NAME);
+
+	m_pLogFile = ATARI_VFS_Open (Path, "rb");
+	if (m_pLogFile == 0)
+	{
+		return;
+	}
+
+	m_pLogOffsets = (unsigned *)
+		malloc (RUNTIME_LOG_MAX_LINES * sizeof (unsigned));
+	if (m_pLogOffsets == 0)
+	{
+		ATARI_VFS_Close (m_pLogFile);
+		m_pLogFile = 0;
+		return;
+	}
+
+	char Buffer[256];
+	unsigned nWrite = 0;
+	unsigned nLineLength = 0;
+	unsigned long nOffset = 0;
+	boolean bAtLineStart = TRUE;
+
+	for (;;)
+	{
+		size_t nRead = ATARI_VFS_Read (Buffer, 1, sizeof Buffer, m_pLogFile);
+		if (nRead == 0)
+		{
+			break;
+		}
+
+		for (size_t i = 0; i < nRead; i++)
+		{
+			if (bAtLineStart)
+			{
+				unsigned nSlot;
+
+				if (m_nLogLineCount < RUNTIME_LOG_MAX_LINES)
+				{
+					nSlot = nWrite++;
+					m_nLogLineCount++;
+				}
+				else
+				{
+					nSlot = nWrite % RUNTIME_LOG_MAX_LINES;
+					nWrite = (nWrite + 1) % RUNTIME_LOG_MAX_LINES;
+					m_bLogTruncated = TRUE;
+				}
+
+				m_pLogOffsets[nSlot] = (unsigned) nOffset;
+				m_nLogTotalLines++;
+				nLineLength = 0;
+				bAtLineStart = FALSE;
+			}
+
+			if (Buffer[i] == '\n')
+			{
+				if (nLineLength > m_nLogMaxLength)
+				{
+					m_nLogMaxLength = nLineLength;
+				}
+				bAtLineStart = TRUE;
+				nLineLength = 0;
+			}
+			else if (Buffer[i] != '\r')
+			{
+				nLineLength++;
+			}
+			nOffset++;
+		}
+	}
+
+	if (nLineLength > m_nLogMaxLength)
+	{
+		m_nLogMaxLength = nLineLength;
+	}
+
+	m_nLogFirst = m_bLogTruncated ? nWrite : 0;
+
+	unsigned nRows = RuntimeLogRows ();
+	m_nLogTopLine = m_nLogLineCount > nRows
+		      ? m_nLogLineCount - nRows : 0;
+}
+
+boolean CAtariMenu::ReadRuntimeLogLine (unsigned nLine, char *pLine,
+					unsigned nSize)
+{
+	if (pLine == 0 || nSize == 0 || m_pLogFile == 0
+	    || nLine >= m_nLogLineCount || m_pLogOffsets == 0)
+	{
+		return FALSE;
+	}
+
+	unsigned nSlot = (m_nLogFirst + nLine) % RUNTIME_LOG_MAX_LINES;
+
+	if (ATARI_VFS_Seek (m_pLogFile, (long) m_pLogOffsets[nSlot],
+			    SEEK_SET) != 0)
+	{
+		return FALSE;
+	}
+
+	unsigned nLength = 0;
+	char c;
+
+	while (nLength + 1 < nSize)
+	{
+		if (ATARI_VFS_Read (&c, 1, 1, m_pLogFile) != 1)
+		{
+			break;
+		}
+		if (c == '\n')
+		{
+			break;
+		}
+		if (c != '\r')
+		{
+			pLine[nLength++] = c;
+		}
+	}
+
+	pLine[nLength] = '\0';
+
+	return TRUE;
+}
+
+void CAtariMenu::ScrollRuntimeLog (int nDelta)
+{
+	unsigned nRows = RuntimeLogRows ();
+
+	if (nDelta < 0)
+	{
+		if (m_nLogTopLine > 0)
+		{
+			m_nLogTopLine--;
+		}
+	}
+	else
+	{
+		if (m_nLogTopLine + nRows < m_nLogLineCount)
+		{
+			m_nLogTopLine++;
+		}
+	}
+}
+
+void CAtariMenu::ScrollRuntimeLogHorizontal (int nDelta)
+{
+	unsigned nColumns = TextColumns (MenuPanelWidth - 2 * MenuIndent);
+	unsigned nMaxLeft = m_nLogMaxLength > nColumns
+			  ? m_nLogMaxLength - nColumns : 0;
+
+	if (nDelta < 0)
+	{
+		if (m_nLogLeft > 0)
+		{
+			m_nLogLeft--;
+		}
+	}
+	else
+	{
+		if (m_nLogLeft < nMaxLeft)
+		{
+			m_nLogLeft++;
+		}
+	}
+}
+
+void CAtariMenu::DrawRuntimeLog (void)
+{
+	DrawHeader (m_bLogTruncated ? "Runtime log (tail)" : "Runtime log");
+
+	unsigned nRows = RuntimeLogRows ();
+	unsigned nY = MenuMarginY + m_nItemTop;
+
+	if (m_pLogFile == 0)
+	{
+		m_pVideo->DrawText (MenuMarginX + MenuIndent, nY,
+				    ATARI_COLOR_TITLE,
+				    "Cannot open runtimelog.txt");
+	}
+	else if (m_nLogLineCount == 0)
+	{
+		m_pVideo->DrawText (MenuMarginX + MenuIndent, nY,
+				    ATARI_COLOR_TITLE, "Runtime log is empty");
+	}
+	else
+	{
+		for (unsigned n = 0; n < nRows; n++)
+		{
+			unsigned nLine = m_nLogTopLine + n;
+			if (nLine >= m_nLogLineCount)
+			{
+				break;
+			}
+
+			char Line[CBootLog::MaxLineLength + 2];
+			if (ReadRuntimeLogLine (nLine, Line, sizeof Line))
+			{
+				unsigned nLength = strlen (Line);
+				unsigned nColumns =
+					TextColumns (MenuPanelWidth - 2 * MenuIndent);
+				unsigned nLeft = m_nLogLeft < nLength
+					       ? m_nLogLeft : nLength;
+
+				boolean bLeft = m_nLogLeft > 0
+					     && m_nLogLeft < nLength;
+				unsigned nStart = nLeft;
+				if (bLeft)
+				{
+					/*
+					 * The '<' occupies the first cell.  Start the text one
+					 * character later as well, so the visible content really
+					 * shifts left instead of merely replacing its first
+					 * character with the indicator.
+					 */
+					nStart++;
+				}
+
+				unsigned nContentColumns = nColumns;
+				if (bLeft && nContentColumns > 0)
+				{
+					nContentColumns--;
+				}
+
+				boolean bRight = nLength > nStart + nContentColumns;
+				if (bRight && nContentColumns > 0)
+				{
+					nContentColumns--;
+				}
+
+				char Display[CBootLog::MaxLineLength + 4];
+				unsigned nOut = 0;
+
+				if (bLeft)
+				{
+					Display[nOut++] = '<';
+				}
+
+				unsigned nCopy = nLength > nStart ? nLength - nStart : 0;
+				if (nCopy > nContentColumns)
+				{
+					nCopy = nContentColumns;
+				}
+				for (unsigned i = 0; i < nCopy; i++)
+				{
+					Display[nOut++] = Line[nStart + i];
+				}
+
+				if (bRight)
+				{
+					Display[nOut++] = '>';
+				}
+				Display[nOut] = '\0';
+
+				m_pVideo->DrawText (MenuMarginX + MenuIndent, nY,
+						    ATARI_COLOR_GREY, Display);
+			}
+			else
+			{
+				m_pVideo->DrawText (MenuMarginX + MenuIndent, nY,
+						    ATARI_COLOR_TITLE, "<read error>");
+			}
+
+			nY += m_nRowPitch;
+		}
+	}
+
+	char Footer[80];
+
+	if (m_nLogLineCount != 0)
+	{
+		unsigned nBase = m_nLogTotalLines - m_nLogLineCount;
+		unsigned nFirst = nBase + m_nLogTopLine + 1;
+		unsigned nLast = nBase + m_nLogTopLine + nRows;
+		if (nLast > m_nLogTotalLines)
+		{
+			nLast = m_nLogTotalLines;
+		}
+
+		snprintf (Footer, sizeof Footer,
+			  "Up/Down  Left/Right  Esc=back  %u-%u/%u",
+			  nFirst, nLast, m_nLogTotalLines);
+	}
+	else
+	{
+		snprintf (Footer, sizeof Footer, "Up/Down  Left/Right  Esc=back");
+	}
+
+	DrawFooter (Footer);
 }
 
 void CAtariMenu::BrowserAddFilterChar (char c)
@@ -3134,8 +3490,11 @@ boolean CAtariMenu::HandleKeyEvent (int nKey, boolean bPressed, boolean bShift,
 	 */
 	boolean bPageKey = m_Screen == ScreenBrowse
 			&& (nKey == ATARI_KEY_LEFT || nKey == ATARI_KEY_RIGHT);
+	boolean bLogKey = m_Screen == ScreenRuntimeLog
+			&& (nKey == ATARI_KEY_UP || nKey == ATARI_KEY_DOWN
+			    || nKey == ATARI_KEY_LEFT || nKey == ATARI_KEY_RIGHT);
 	boolean bRepeatable = nKey == ATARI_KEY_UP || nKey == ATARI_KEY_DOWN
-			   || bPageKey;
+			   || bPageKey || bLogKey;
 
 	if (bRepeatable)
 	{
@@ -3189,6 +3548,38 @@ boolean CAtariMenu::HandleKey (int nKey, boolean bShift, boolean bControl)
 	if (nKey == ATARI_KEY_NONE)
 	{
 		return FALSE;
+	}
+
+	if (m_Screen == ScreenRuntimeLog)
+	{
+		switch (nKey)
+		{
+		case ATARI_KEY_UP:
+			ScrollRuntimeLog (-1);
+			return TRUE;
+
+		case ATARI_KEY_DOWN:
+			ScrollRuntimeLog (1);
+			return TRUE;
+
+		case ATARI_KEY_LEFT:
+			ScrollRuntimeLogHorizontal (-1);
+			return TRUE;
+
+		case ATARI_KEY_RIGHT:
+			ScrollRuntimeLogHorizontal (1);
+			return TRUE;
+
+		case ATARI_KEY_ESCAPE:
+			CloseRuntimeLog ();
+			OpenScreen (ScreenOther);
+			m_nSelected = 8;
+			m_nRepeatKey = ATARI_KEY_NONE;
+			return TRUE;
+
+		default:
+			return TRUE;
+		}
 	}
 
 	if (m_Screen == ScreenBrowse)
@@ -3767,12 +4158,19 @@ void CAtariMenu::Draw (void)
 	{
 		DrawBrowser ();
 	}
+	else if (m_Screen == ScreenRuntimeLog)
+	{
+		DrawRuntimeLog ();
+	}
 	else
 	{
 		DrawMainScreen ();
 	}
 
-	DrawStatusLine ();
+	if (m_Screen != ScreenRuntimeLog)
+	{
+		DrawStatusLine ();
+	}
 
 	// A transient message reports the outcome of the last action.  It can carry
 	// a file name, so it is cut to the panel like everything else.

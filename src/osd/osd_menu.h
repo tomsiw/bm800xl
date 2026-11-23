@@ -25,6 +25,7 @@
 #define ATARI_PI_OSD_MENU_H
 
 #include <circle/types.h>
+#include <stdio.h>
 
 #include "atari_port.h"
 #include "settings.h"
@@ -215,6 +216,7 @@ private:
 		ScreenSnapshots,
 		ScreenOther,
 		ScreenBrowse,
+		ScreenRuntimeLog,
 	};
 
 	// A file browser that can be entered from any of the file settings.
@@ -402,6 +404,13 @@ private:
 	// Drawing helpers, all of them in terms of the video output's primitives
 	void DrawMainScreen (void);
 	void DrawBrowser (void);
+	void DrawRuntimeLog (void);
+	void OpenRuntimeLog (void);
+	void CloseRuntimeLog (void);
+	void ScrollRuntimeLog (int nDelta);
+	void ScrollRuntimeLogHorizontal (int nDelta);
+	boolean ReadRuntimeLogLine (unsigned nLine, char *pLine, unsigned nSize);
+	unsigned RuntimeLogRows (void) const;
 	void DrawHeader (const char *pTitle);
 	void DrawFooter (const char *pHint, char cShortcut1 = 0,
 			 char cShortcut2 = 0, int nShortcutOffset1 = -1,
@@ -506,6 +515,17 @@ private:
 	// Kernel update: scanned files, and how long the confirmation stays open.
 	CAtariUpdater m_Updater;
 	unsigned m_nUpdateFrames;
+
+	// Runtime-log viewer state.  Allocated only while the viewer is open.
+	FILE *m_pLogFile;
+	unsigned *m_pLogOffsets;
+	unsigned m_nLogLineCount;
+	unsigned m_nLogFirst;
+	unsigned m_nLogTotalLines;
+	unsigned m_nLogTopLine;
+	unsigned m_nLogLeft;
+	unsigned m_nLogMaxLength;
+	boolean m_bLogTruncated;
 
 	/*
 	 * Vertical layout, derived from the font in Initialize().
