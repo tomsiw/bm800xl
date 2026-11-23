@@ -406,6 +406,7 @@ CAtariKernel::CAtariKernel (void)
 	m_bFrameErrorReported (FALSE),
 	m_bCrashHandled (FALSE),
 	m_bCrashHalt (FALSE),
+	m_bEmulationPaused (FALSE),
 	m_bKeyboardSeen (FALSE),
 	m_bKeyboardWarned (FALSE),
 	m_nKeyboardFrames (0)
@@ -1104,6 +1105,29 @@ boolean CAtariKernel::InitializeKeyboard (void)
 	return TRUE;
 }
 
+void CAtariKernel::PauseEmulation (void)
+{
+	ATARI_ReleaseKeyboard ();
+	m_bEmulationPaused = TRUE;
+}
+
+void CAtariKernel::ResumeEmulation (void)
+{
+	if (m_pKeyboard != 0)
+	{
+		ATARI_SetKeyboardSource (
+			[](void *pContext, atari_keyboard_state_t *pState)
+			{
+				static_cast<CAtariKeyboard *> (pContext)->GetState (pState);
+			},
+			m_pKeyboard);
+	}
+
+	ATARI_ResetFramePacing ();
+	ATARI_AudioReset ();
+	m_bEmulationPaused = FALSE;
+}
+
 /*
  * Brings up the controllers.
  *
@@ -1585,6 +1609,26 @@ void CAtariKernel::RunFrame (void)
 	}
 
 	/*
+	 * Pause on OSD.  The machine is stopped at a frame boundary, after all
+	 * menu input for this iteration has been handled -- a settings change made
+	 * in this frame has already rebuilt the core if it needed to.  No emulated
+	 * frame is run until the OSD closes (or the option is turned off).
+	 */
+	boolean bPaused = m_Menu.IsOpen () && m_Settings.bPauseOnOSD;
+
+	if (bPaused != m_bEmulationPaused)
+	{
+		if (bPaused)
+		{
+			PauseEmulation ();
+		}
+		else
+		{
+			ResumeEmulation ();
+		}
+	}
+
+	/*
 	 * Tell the keyboard where the menu ended up, and do it AFTER the keys have
 	 * been handled.
 	 *
@@ -1651,91 +1695,94 @@ void CAtariKernel::RunFrame (void)
 	 * at this frame boundary, with the menu closed, so a snapshot never races
 	 * the frame that is being emulated or the OSD's key handling.
 	 */
-	HandleMetaActions ();
-
-	// Emulate one frame.  The emulation core pulls the keyboard state itself,
-	// through the callback installed in InitializeKeyboard().
-	if (!ATARI_RunFrame ())
+	if (!bPaused)
 	{
-		/*
-		 * The frame could not be completed.  The core has already described
-		 * why, in ATARI_LastError().
-		 *
-		 * This is reported once per distinct failure rather than acted on every
-		 * frame.  It used to warm-reset the machine here, which turned any
-		 * persistent fault into a loop: the machine restarted, hit the same
-		 * condition, and restarted again, so the screen flickered with an
-		 * unreadable repeat of the same message and the cause could never be
-		 * seen.  Worse, the reset cleared the boot log's buffer, so the evidence
-		 * was destroyed by the handling of it.
-		 *
-		 * A CPU crash still resets, because that genuinely leaves the machine in
-		 * a state it cannot continue from.  Everything else is left running and
-		 * reported, so that the machine has a chance to recover and the log
-		 * keeps a record either way.
-		 */
-		const char *pReason = ATARI_LastError ();
+		HandleMetaActions();
 
-		if (!m_bFrameErrorReported || strcmp (pReason, m_LastFrameError) != 0)
-		{
-			m_bFrameErrorReported = TRUE;
-			strncpy (m_LastFrameError, pReason, sizeof m_LastFrameError - 1);
-			m_LastFrameError[sizeof m_LastFrameError - 1] = '\0';
-
-			m_pBootLog->RecordRuntimef ("Frame error: %s", pReason);
-		}
-
-		if (ATARI_LastErrorIsCpuCrash ())
+		// Emulate one frame.  The emulation core pulls the keyboard state itself,
+		// through the callback installed in InitializeKeyboard().
+		if (!ATARI_RunFrame ())
 		{
 			/*
-			 * A CPU crash cannot be recovered from inside the emulated machine.
-			 * Archive the evidence first, then apply the configured action.
-			 * Do not warm-reset: that would hit the same fault again and keep
-			 * appending the same error.
-			 */
-			if (!m_bCrashHandled)
+			* The frame could not be completed.  The core has already described
+			* why, in ATARI_LastError().
+			*
+			* This is reported once per distinct failure rather than acted on every
+			* frame.  It used to warm-reset the machine here, which turned any
+			* persistent fault into a loop: the machine restarted, hit the same
+			* condition, and restarted again, so the screen flickered with an
+			* unreadable repeat of the same message and the cause could never be
+			* seen.  Worse, the reset cleared the boot log's buffer, so the evidence
+			* was destroyed by the handling of it.
+			*
+			* A CPU crash still resets, because that genuinely leaves the machine in
+			* a state it cannot continue from.  Everything else is left running and
+			* reported, so that the machine has a chance to recover and the log
+			* keeps a record either way.
+			*/
+			const char *pReason = ATARI_LastError ();
+
+			if (!m_bFrameErrorReported || strcmp (pReason, m_LastFrameError) != 0)
 			{
-				m_bCrashHandled = TRUE;
+				m_bFrameErrorReported = TRUE;
+				strncpy (m_LastFrameError, pReason, sizeof m_LastFrameError - 1);
+				m_LastFrameError[sizeof m_LastFrameError - 1] = '\0';
 
-				m_pBootLog->Record ("CPU crash: archiving the logs and "
-						    "applying the configured action");
-				m_pBootLog->CloseLogFileAndArchive (m_Storage);
-
-				switch (m_Settings.nCrashAction)
-				{
-				case AtariCrashActionRedHalt:
-					/*
-					 * Halt without leaving the crashing image in the settings.
-					 * Otherwise a reset or power cycle re-mounts it and the
-					 * machine crashes again before the user can reach the menu.
-					 */
-					ClearMediaFromSettings ();
-					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0x00, 0x00));
-					m_bCrashHalt = TRUE;
-					break;
-
-				case AtariCrashActionRestart:
-					ClearMediaFromSettings ();
-					m_bRestartPi = TRUE;
-					break;
-
-				case AtariCrashActionColoursRestart:
-				default:
-					ClearMediaFromSettings ();
-
-					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0xff, 0xff));
-					m_Timer.MsDelay (1000);
-					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0xff, 0x00));
-					m_Timer.MsDelay (1000);
-					m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0x00, 0x00));
-					m_Timer.MsDelay (1000);
-
-					m_bRestartPi = TRUE;
-					break;
-				}
+				m_pBootLog->RecordRuntimef ("Frame error: %s", pReason);
 			}
 
-			return;
+			if (ATARI_LastErrorIsCpuCrash ())
+			{
+				/*
+				* A CPU crash cannot be recovered from inside the emulated machine.
+				* Archive the evidence first, then apply the configured action.
+				* Do not warm-reset: that would hit the same fault again and keep
+				* appending the same error.
+				*/
+				if (!m_bCrashHandled)
+				{
+					m_bCrashHandled = TRUE;
+
+					m_pBootLog->Record ("CPU crash: archiving the logs and "
+								"applying the configured action");
+					m_pBootLog->CloseLogFileAndArchive (m_Storage);
+
+					switch (m_Settings.nCrashAction)
+					{
+					case AtariCrashActionRedHalt:
+						/*
+						* Halt without leaving the crashing image in the settings.
+						* Otherwise a reset or power cycle re-mounts it and the
+						* machine crashes again before the user can reach the menu.
+						*/
+						ClearMediaFromSettings ();
+						m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0x00, 0x00));
+						m_bCrashHalt = TRUE;
+						break;
+
+					case AtariCrashActionRestart:
+						ClearMediaFromSettings ();
+						m_bRestartPi = TRUE;
+						break;
+
+					case AtariCrashActionColoursRestart:
+					default:
+						ClearMediaFromSettings ();
+
+						m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0xff, 0xff));
+						m_Timer.MsDelay (1000);
+						m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0xff, 0x00));
+						m_Timer.MsDelay (1000);
+						m_Video.FillSolid (ATARI_COLOR_RGB (0xff, 0x00, 0x00));
+						m_Timer.MsDelay (1000);
+
+						m_bRestartPi = TRUE;
+						break;
+					}
+				}
+
+				return;
+			}
 		}
 	}
 
@@ -1922,6 +1969,15 @@ void CAtariKernel::RunFrame (void)
 					     Snapshot.cpu_pc, Snapshot.cpu_a);
 			m_pBootLog->Recordf ("  frames emulated: %u", Snapshot.frames);
 		}
+	}
+
+	/*
+	 * No core frame means no frame pacer to sleep for us.  Keep the paused
+	 * loop responsive without spinning at full speed.
+	 */
+	if (bPaused)
+	{
+		m_Timer.MsDelay (10);
 	}
 }
 

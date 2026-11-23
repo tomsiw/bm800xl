@@ -337,6 +337,18 @@ typedef void (*atari_keyboard_fn)(void *context, atari_keyboard_state_t *state);
  */
 void ATARI_SetKeyboardSource(atari_keyboard_fn callback, void *context);
 
+/*
+ * Releases all keys and detaches the keyboard source.
+ *
+ * Used while emulation is paused: the core must not keep a key held when it
+ * resumes, and no new key state should be read until the source is installed
+ * again.
+ */
+void ATARI_ReleaseKeyboard(void);
+
+/* Resets the host-side frame deadline after a pause. */
+void ATARI_ResetFramePacing(void);
+
 /* Converts an upper-case letter 'A'..'Z' to its Atari KBCODE. */
 unsigned ATARI_KeyCodeForLetter(char letter);
 

@@ -159,11 +159,21 @@ power cycle are separate items on the main screen.
 | Keyboard | USB keyboard / GPIO keyboard | Chooses the keyboard source; takes effect on the next start |
 | User directory | `SD:` / `USB:` | Which volume the media browser starts from |
 | CPU crash | Colours+Restart / Restart / Red halt | What the emulator does after a CPU crash; the default is Colours+Restart |
+| Pause on OSD | On / Off | Stop the emulated machine while the menu is open; close the menu to resume |
 | Check for updates | — | Install kernel files from a USB drive; asks for confirmation |
 
 All CPU-crash actions clear the saved disk, cartridge and cassette paths, so a
 crashing image is not mounted again after a reset. **Red halt** shows a red
 screen and halts; the media are already unset when it does.
+
+**Pause on OSD** is off by default. When on, opening the menu freezes the
+emulated machine at a frame boundary and closing it resumes from the same point.
+The OSD, browser, snapshots and media actions remain available while paused.
+With `STATIC_OSD=0` the frozen picture stays visible and tinted behind the
+panel; each redraw repaints from the last frame, so tint does not accumulate.
+Changing the machine type or RAM while paused rebuilds the machine immediately,
+but it does not boot until the menu closes. Turning the option off while the
+menu is open resumes the machine behind the menu.
 
 The **Keyboard** row needs a Pi restart; the others take effect immediately. The
 **User directory** row selects the media volume, not an arbitrary path; the media
@@ -629,6 +639,7 @@ KEYBOARD=0
 NUMPAD_CURSOR=1
 CONTINUE_ON_BRK=1
 STATIC_OSD=1
+PAUSE_ON_OSD=0
 OSD_THEME=BLUE
 JOY_INTERFACE=USB
 JOY_SWAP=0
@@ -661,6 +672,7 @@ SYSTEM_DIR=SD:/ATARI
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
 | `STATIC_OSD` | 0 or 1 — 1 (the default) draws the menu over a frozen picture on an opaque panel; 0 repaints and tints the picture behind it, which costs noticeably more |
+| `PAUSE_ON_OSD` | 0 or 1 — 1 stops the emulated machine while the menu is open and resumes it on close; 0 (the default) keeps it running behind the menu |
 | `OSD_THEME` | `BLUE` (default), `RED`, `GREEN`, `BLACK`, `ORANGE`, `PURPLE`, `TEAL` or `MAGENTA` — colour of the OSD bars, cursor and panel; the same setting as Other options → OSD theme |
 | `JOY_INTERFACE` | `USB`, `GPIO` or `KEYBOARD` — which interface feeds the two joystick ports; the same setting as the menu's Joysticks → Interface, and it takes effect the next time the Pi is switched off and on |
 | `JOY_SWAP` | 0 or 1 — 1 exchanges the two joystick ports, and takes effect immediately |

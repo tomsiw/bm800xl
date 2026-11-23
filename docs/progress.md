@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `fa874b8`; the browser page-key repeat and this
+**Last updated:** after commit `f61fba8`; the pause-on-OSD option and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -283,7 +283,8 @@ carries this table; a commit cannot name its own hash.
 | `8dd684f` | The directory listing stopped at 192 entries, so files beyond it could not be shown or filtered | Replaced the fixed static entry array with a heap-backed listing that grows as the directory is read.  Names are allocated at their exact length; the browser view grows too.  A 4096-entry/512 KB soft budget prevents unbounded heap use, and a truncated listing is still safe to browse. |
 | `ae3e922` | Red halt left the crashing disk/cartridge/cassette paths in the settings, so a reset re-mounted the image and crashed again | Clear the saved media paths in the red-halt branch, as the restart actions already do, before showing red and halting. |
 | `fa874b8` | The browser listed directories and files in FAT order, which made large directories hard to scan | Sort each listing once after it is read: directories first, then files, each group alphabetically and case-insensitively.  The existing filter view inherits the order without re-sorting. |
-| (this commit) | Left/Right paged through the browser only one page per press, so reaching a distant page meant repeated presses | Make Left/Right repeat in the file browser after 400 ms, then every 200 ms.  Submenu Left/Right stays non-repeating so settings are not written repeatedly. |
+| `f61fba8` | Left/Right paged through the browser only one page per press, so reaching a distant page meant repeated presses | Make Left/Right repeat in the file browser after 400 ms, then every 200 ms.  Submenu Left/Right stays non-repeating so settings are not written repeatedly. |
+| (this commit) | The machine kept running behind the OSD, with no way to freeze it while changing settings or browsing | Added `PAUSE_ON_OSD`, default off.  When enabled, the kernel skips `ATARI_RunFrame()` while the OSD is open, releases the keyboard source, keeps the last picture, and resets audio and frame pacing on resume.  With `STATIC_OSD=0`, each OSD redraw repaints the frozen frame before tinting, so transparent mode does not accumulate tint or cursor shadows.  **Check for updates** is now the last Other options row.  Exposed as Other options → Pause on OSD and in `settings.cfg`. |
 
 ---
 

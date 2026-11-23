@@ -155,6 +155,12 @@ struct TAtariSettings
 	boolean		bStaticOSD;
 
 	/*
+	 * Whether the emulated machine stops while the OSD is open and resumes
+	 * when it closes.
+	 */
+	boolean		bPauseOnOSD;
+
+	/*
 	 * Controllers.
 	 *
 	 * One interface at a time, not both: the two Atari ports are fed from either

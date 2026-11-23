@@ -178,6 +178,10 @@ private:
 	// Creates the keyboard the settings ask for.
 	boolean InitializeKeyboard (void);
 
+	/* Stops and restarts emulated time around an OSD pause. */
+	void PauseEmulation (void);
+	void ResumeEmulation (void);
+
 	/*
 	 * Reports a failed start-up on screen and holds it there.
 	 *
@@ -301,6 +305,7 @@ private:
 	boolean			m_bFrameErrorReported;
 	boolean			m_bCrashHandled;
 	boolean			m_bCrashHalt;
+	boolean			m_bEmulationPaused;
 	char			m_LastFrameError[96];
 
 	/*

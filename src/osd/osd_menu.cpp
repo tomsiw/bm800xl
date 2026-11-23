@@ -87,7 +87,7 @@ static const unsigned MAX_SNAPSHOT_MEDIA	= 24;
 static const unsigned VideoItemCount		= 6;	// standard, artifacting, resolution, aspect, scanlines, factor
 static const unsigned SoundItemCount		= 3;	// enable, volume, stereo
 static const unsigned SnapshotItemCount		= 4;	// save, save new, load, erase
-static const unsigned OtherItemCount		= 8;	// static OSD, theme, BRK, numpad, keyboard, user dir, crash action, updates
+static const unsigned OtherItemCount		= 9;	// static OSD, theme, BRK, numpad, keyboard, user dir, crash action, pause on OSD, updates
 
 static const char FromMenu[] = "menu";
 
@@ -766,7 +766,8 @@ const char *CAtariMenu::GetItemLabel (unsigned nIndex) const
 		case 4: return "Keyboard";
 		case 5: return "User directory";
 		case 6: return "CPU crash";
-		case 7: return "Check for updates";
+		case 7: return "Pause on OSD";
+		case 8: return "Check for updates";
 		}
 		break;
 
@@ -1133,7 +1134,8 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			default:
 				return "Colours+Restart";
 			}
-		case 7:
+		case 7: return S.bPauseOnOSD ? "On" : "Off";
+		case 8:
 			return "";
 		}
 		break;
@@ -1678,6 +1680,10 @@ void CAtariMenu::AdjustSetting (int nDelta)
 			break;
 
 		case 7:
+			S.bPauseOnOSD = S.bPauseOnOSD ? FALSE : TRUE;
+			break;
+
+		case 8:
 			bChanged = FALSE;
 			break;
 
@@ -2134,7 +2140,7 @@ void CAtariMenu::ActivateSelection (void)
 		break;
 
 	case ScreenOther:
-		if (m_nSelected == 7)
+		if (m_nSelected == 8)
 		{
 			if (m_Updater.HasFiles () && m_nUpdateFrames != 0)
 			{

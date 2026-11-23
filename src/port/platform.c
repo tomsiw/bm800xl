@@ -776,6 +776,22 @@ void ATARI_SetKeyboardSource(atari_keyboard_fn callback, void *context)
 	s_keyboard_context = context;
 }
 
+void ATARI_ReleaseKeyboard(void)
+{
+	ATARI_SetKeyboardSource(0, 0);
+
+	INPUT_key_code = ATARI_KEY_NONE;
+	INPUT_key_shift = 0;
+	INPUT_key_consol = INPUT_CONSOL_NONE;
+}
+
+void ATARI_ResetFramePacing(void)
+{
+	s_next_frame_time = 0;
+	s_frame_phase = 0;
+	s_bFrameOverran = 0;
+}
+
 unsigned ATARI_KeyCodeForLetter(char letter)
 {
 	/*

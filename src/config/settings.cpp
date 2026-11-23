@@ -88,6 +88,7 @@ void Settings_SetDefaults (TAtariSettings *pSettings)
 	 * who wants to see the machine keep moving behind the menu.
 	 */
 	pSettings->bStaticOSD = TRUE;
+	pSettings->bPauseOnOSD = FALSE;
 	pSettings->nOsdTheme = AtariOsdThemeBlue;
 
 	pSettings->bScanlines = FALSE;
@@ -370,6 +371,13 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 		if (ParseBool (pValue, &bValue))
 		{
 			pSettings->bStaticOSD = bValue;
+		}
+	}
+	else if (strcmp (pKey, "PAUSE_ON_OSD") == 0)
+	{
+		if (ParseBool (pValue, &bValue))
+		{
+			pSettings->bPauseOnOSD = bValue;
 		}
 	}
 	else if (strcmp (pKey, "OSD_THEME") == 0)
@@ -686,6 +694,8 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 		    Settings.bContinueOnBrk ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "STATIC_OSD=%d\n",
 		    Settings.bStaticOSD ? 1 : 0);
+	AppendLine (Buffer, sizeof Buffer, &nUsed, "PAUSE_ON_OSD=%d\n",
+		    Settings.bPauseOnOSD ? 1 : 0);
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "OSD_THEME=%s\n",
 		    Settings.nOsdTheme == AtariOsdThemeRed ? "RED"
 		    : Settings.nOsdTheme == AtariOsdThemeGreen ? "GREEN"
