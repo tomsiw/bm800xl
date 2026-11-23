@@ -141,6 +141,59 @@ static TMenuTheme ThemeFor (int nTheme)
 	}
 }
 
+int CAtariMenu::PickRandomOsdTheme (void)
+{
+	static const int Themes[] =
+	{
+		AtariOsdThemeBlue,
+		AtariOsdThemeRed,
+		AtariOsdThemeGreen,
+		AtariOsdThemeBlack,
+		AtariOsdThemeOrange,
+		AtariOsdThemePurple,
+		AtariOsdThemeTeal,
+		AtariOsdThemeMagenta
+	};
+
+	if (m_nRandomState == 0)
+	{
+		m_nRandomState = (unsigned) CTimer::GetClockTicks64 ()
+			       ^ (unsigned) (uintptr) this;
+	}
+
+	m_nRandomState = m_nRandomState * 1664525u + 1013904223u;
+
+	unsigned nIndex = m_nRandomState % 8;
+	int nTheme = Themes[nIndex];
+
+	/*
+	 * Avoid making "Random" look broken by returning the colour already on
+	 * screen, when another predefined theme is available.
+	 */
+	if (nTheme == m_nActiveOsdTheme)
+	{
+		nTheme = Themes[(nIndex + 1) % 8];
+	}
+
+	return nTheme;
+}
+
+void CAtariMenu::SelectOsdTheme (int nTheme)
+{
+	if (nTheme == AtariOsdThemeRandom)
+	{
+		m_nActiveOsdTheme = PickRandomOsdTheme ();
+	}
+	else if (nTheme >= AtariOsdThemeBlue && nTheme < AtariOsdThemeRandom)
+	{
+		m_nActiveOsdTheme = nTheme;
+	}
+	else
+	{
+		m_nActiveOsdTheme = AtariOsdThemeBlue;
+	}
+}
+
 /*
  * Copies SOURCE into DESTINATION, always terminating and never overflowing.
  *
@@ -174,6 +227,8 @@ CAtariMenu::CAtariMenu (void)
 	m_pHost (0),
 	m_pSettings (0),
 	m_bOpen (FALSE),
+	m_nActiveOsdTheme (AtariOsdThemeBlue),
+	m_nRandomState (0),
 	m_Screen (ScreenMain),
 	m_nSelected (0),
 	m_bBackSelected (FALSE),
@@ -350,6 +405,12 @@ void CAtariMenu::Toggle (void)
 	}
 
 	m_bOpen = TRUE;
+
+	if (m_pSettings != 0)
+	{
+		SelectOsdTheme (m_pSettings->nOsdTheme);
+	}
+
 	OpenScreen (ScreenMain);
 
 	if (m_pHost != 0)
@@ -1136,6 +1197,7 @@ const char *CAtariMenu::GetItemValue (unsigned nIndex) const
 			case AtariOsdThemePurple:	return "Purple";
 			case AtariOsdThemeTeal:		return "Teal";
 			case AtariOsdThemeMagenta:	return "Magenta";
+			case AtariOsdThemeRandom:	return "Random";
 			case AtariOsdThemeBlue:
 			default:			return "Blue";
 			}
@@ -1620,7 +1682,8 @@ void CAtariMenu::AdjustSetting (int nDelta)
 					AtariOsdThemeOrange,
 					AtariOsdThemePurple,
 					AtariOsdThemeTeal,
-					AtariOsdThemeMagenta
+					AtariOsdThemeMagenta,
+					AtariOsdThemeRandom
 				};
 				const int nCount = (int) (sizeof Themes / sizeof Themes[0]);
 
@@ -1636,6 +1699,7 @@ void CAtariMenu::AdjustSetting (int nDelta)
 
 				nIndex = (nIndex + nDelta + nCount) % nCount;
 				S.nOsdTheme = Themes[nIndex];
+				SelectOsdTheme (S.nOsdTheme);
 			}
 			break;
 
@@ -3776,7 +3840,7 @@ void CAtariMenu::DrawHeader (const char *pTitle)
 {
 	unsigned nPanelX = MenuMarginX;
 	unsigned nPanelY = MenuMarginY;
-	TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
+	TMenuTheme Theme = ThemeFor (m_nActiveOsdTheme);
 
 	m_pVideo->DrawRect (nPanelX, nPanelY, MenuPanelWidth, m_nHeaderHeight,
 			       Theme.Light);
@@ -3790,7 +3854,7 @@ void CAtariMenu::DrawFooter (const char *pHint, char cShortcut1,
 			     int nShortcutOffset2)
 {
 	unsigned nPanelY = MenuMarginY + MenuPanelHeight - m_nFooterHeight;
-	TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
+	TMenuTheme Theme = ThemeFor (m_nActiveOsdTheme);
 
 	m_pVideo->DrawRect (MenuMarginX, nPanelY, MenuPanelWidth, m_nFooterHeight,
 			       Theme.Light);
@@ -3841,7 +3905,7 @@ void CAtariMenu::DrawItem (unsigned nY, boolean bSelected, const char *pLabel,
 	unsigned nPanelX = MenuMarginX;
 	unsigned nRowX = nPanelX + MenuIndent;
 	unsigned nRowWidth = MenuPanelWidth - MenuIndent * 2;
-	TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
+	TMenuTheme Theme = ThemeFor (m_nActiveOsdTheme);
 
 	if (bSelected)
 	{
@@ -4138,14 +4202,14 @@ void CAtariMenu::Draw (void)
 	 */
 	if (m_pSettings->bStaticOSD)
 	{
-		TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
+		TMenuTheme Theme = ThemeFor (m_nActiveOsdTheme);
 
 		m_pVideo->DrawRect (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight,
 				    Theme.Dark);
 	}
 	else
 	{
-		TMenuTheme Theme = ThemeFor (m_pSettings->nOsdTheme);
+		TMenuTheme Theme = ThemeFor (m_nActiveOsdTheme);
 
 		m_pVideo->TintRect (nPanelX, nPanelY, MenuPanelWidth, MenuPanelHeight,
 				    Theme.Dark, 35);

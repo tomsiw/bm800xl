@@ -8,7 +8,7 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `6b39c70`; the runtime-log viewer and this
+**Last updated:** after commit `0e3e8ab`; the random OSD theme and this
 documentation update are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
@@ -285,7 +285,8 @@ carries this table; a commit cannot name its own hash.
 | `fa874b8` | The browser listed directories and files in FAT order, which made large directories hard to scan | Sort each listing once after it is read: directories first, then files, each group alphabetically and case-insensitively.  The existing filter view inherits the order without re-sorting. |
 | `f61fba8` | Left/Right paged through the browser only one page per press, so reaching a distant page meant repeated presses | Make Left/Right repeat in the file browser after 400 ms, then every 200 ms.  Submenu Left/Right stays non-repeating so settings are not written repeatedly. |
 | `6b39c70` | The machine kept running behind the OSD, with no way to freeze it while changing settings or browsing | Added `PAUSE_ON_OSD`, default off.  When enabled, the kernel skips `ATARI_RunFrame()` while the OSD is open, releases the keyboard source, keeps the last picture, and resets audio and frame pacing on resume.  With `STATIC_OSD=0`, each OSD redraw repaints the frozen frame before tinting, so transparent mode does not accumulate tint or cursor shadows.  **Check for updates** is now the last Other options row.  Exposed as Other options → Pause on OSD and in `settings.cfg`. |
-| (this commit) | `runtimelog.txt` could only be read by removing the SD card, and **Check for updates** needed a stable last position | Added a read-only runtime-log viewer in Other options: it indexes the newest 4096 lines when opened, scrolls with Up/Down and horizontally with Left/Right, repeats held scroll keys, marks clipped text with `<`/`>`, reads only the visible lines, and frees its file handle and index on exit.  **Check for updates** remains last.  Version bumped to 0.9.1. |
+| `0e3e8ab` | `runtimelog.txt` could only be read by removing the SD card, and **Check for updates** needed a stable last position | Added a read-only runtime-log viewer in Other options: it indexes the newest 4096 lines when opened, scrolls with Up/Down and horizontally with Left/Right, repeats held scroll keys, marks clipped text with `<`/`>`, reads only the visible lines, and frees its file handle and index on exit.  **Check for updates** remains last.  Version bumped to 0.9.1. |
+| (this commit) | OSD themes were always fixed for a session, with no way to vary the look automatically | Added `OSD_THEME=RANDOM`: at each OSD opening it chooses one of the eight existing themes, avoiding an immediate repeat, and keeps it for that session.  Drawing uses a resolved active theme, so no new colours are generated. |
 
 ---
 

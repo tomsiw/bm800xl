@@ -401,6 +401,10 @@ private:
 
 	void SaveSettings (void);
 
+	/* Resolves the stored theme (including Random) to a concrete theme. */
+	void SelectOsdTheme (int nTheme);
+	int PickRandomOsdTheme (void);
+
 	// Drawing helpers, all of them in terms of the video output's primitives
 	void DrawMainScreen (void);
 	void DrawBrowser (void);
@@ -479,6 +483,8 @@ private:
 	char m_SnapshotPath[SETTINGS_PATH_MAX];
 
 	boolean m_bOpen;
+	int m_nActiveOsdTheme;
+	unsigned m_nRandomState;
 	TMenuScreen m_Screen;
 	unsigned m_nSelected;
 	boolean m_bBackSelected;

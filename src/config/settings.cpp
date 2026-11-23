@@ -410,6 +410,10 @@ static void ApplySetting (TAtariSettings *pSettings, const char *pKey, char *pVa
 		{
 			pSettings->nOsdTheme = AtariOsdThemeMagenta;
 		}
+		else if (EqualsIgnoreCase (pValue, "RANDOM"))
+		{
+			pSettings->nOsdTheme = AtariOsdThemeRandom;
+		}
 		else
 		{
 			pSettings->nOsdTheme = AtariOsdThemeBlue;
@@ -704,6 +708,7 @@ boolean Settings_Save (const CAtariStorage &Storage, const char *pPath,
 		    : Settings.nOsdTheme == AtariOsdThemePurple ? "PURPLE"
 		    : Settings.nOsdTheme == AtariOsdThemeTeal ? "TEAL"
 		    : Settings.nOsdTheme == AtariOsdThemeMagenta ? "MAGENTA"
+		    : Settings.nOsdTheme == AtariOsdThemeRandom ? "RANDOM"
 		    : "BLUE");
 	AppendLine (Buffer, sizeof Buffer, &nUsed, "SCANLINES=%d\n",
 		    Settings.bScanlines ? 1 : 0);

@@ -153,7 +153,7 @@ power cycle are separate items on the main screen.
 | Row | Values | Effect |
 |---|---|---|
 | Static OSD | On / Off | Draw the menu over a frozen picture instead of repainting a dimmed live one |
-| OSD theme | Blue / Red / Green / Black / Orange / Purple / Teal / Magenta | Colour of the OSD bars, cursor and central panel |
+| OSD theme | Blue / Red / Green / Black / Orange / Purple / Teal / Magenta / Random | Colour of the OSD bars, cursor and central panel |
 | Continue on BRK | On / Off | 1 runs BRK as the machine does; 0 stops the frame and logs it |
 | NumPad as cursor | On / Off | Keypad arrows act as cursor keys |
 | Keyboard | USB keyboard / GPIO keyboard | Chooses the keyboard source; takes effect on the next start |
@@ -200,6 +200,11 @@ OSD theme pairs, used for the light bars/cursor and dark panel/tint:
 | Purple | `#7040C0` | `#1A1030` |
 | Teal | `#008080` | `#002A2A` |
 | Magenta | `#B03080` | `#300818` |
+
+**Random** is a mode, not another colour: each time the OSD opens it picks one
+of the eight themes above. The choice is kept for that OSD session; returning
+from a submenu does not re-randomise it, and the next opening picks again. No
+new colours are generated.
 
 ### Updating the emulator from USB
 
@@ -682,7 +687,7 @@ SYSTEM_DIR=SD:/ATARI
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
 | `STATIC_OSD` | 0 or 1 — 1 (the default) draws the menu over a frozen picture on an opaque panel; 0 repaints and tints the picture behind it, which costs noticeably more |
 | `PAUSE_ON_OSD` | 0 or 1 — 1 stops the emulated machine while the menu is open and resumes it on close; 0 (the default) keeps it running behind the menu |
-| `OSD_THEME` | `BLUE` (default), `RED`, `GREEN`, `BLACK`, `ORANGE`, `PURPLE`, `TEAL` or `MAGENTA` — colour of the OSD bars, cursor and panel; the same setting as Other options → OSD theme |
+| `OSD_THEME` | `BLUE` (default), `RED`, `GREEN`, `BLACK`, `ORANGE`, `PURPLE`, `TEAL`, `MAGENTA` or `RANDOM` — colour of the OSD bars, cursor and panel; `RANDOM` chooses one of the eight fixed themes each time the OSD opens; the same setting as Other options → OSD theme |
 | `JOY_INTERFACE` | `USB`, `GPIO` or `KEYBOARD` — which interface feeds the two joystick ports; the same setting as the menu's Joysticks → Interface, and it takes effect the next time the Pi is switched off and on |
 | `JOY_SWAP` | 0 or 1 — 1 exchanges the two joystick ports, and takes effect immediately |
 | `CRASH_ACTION` | `COLOURS_RESTART` (default), `RESTART` or `HALT` — what happens after a CPU crash; the same setting as Other options → CPU crash |

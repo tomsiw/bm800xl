@@ -89,6 +89,7 @@ enum TAtariOsdTheme
 	AtariOsdThemePurple,
 	AtariOsdThemeTeal,
 	AtariOsdThemeMagenta,
+	AtariOsdThemeRandom,
 	AtariOsdThemeUnknown
 };
 
