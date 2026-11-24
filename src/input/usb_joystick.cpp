@@ -29,6 +29,7 @@
  */
 
 #include "joystick.h"
+#include "bootlog.h"
 
 #include <circle/logger.h>
 #include <circle/string.h>
@@ -314,6 +315,30 @@ static TMapping ResolveMapping (const char *pId, const TGamePadState *pState)
 	}
 
 	/*
+	 * Speedlink Competition Pro (reported as MOSIC USB 2A4K GamePad),
+	 * measured with probe/gamepad:
+	 *
+	 *   axes 0/1, centre 128, left/up 0, right/down 255;
+	 *   four fire buttons on bits 0x1, 0x2, 0x4 and 0x8.
+	 *
+	 * This has to precede the generic rules: it reports two axes, which is
+	 * below the five-axis rule, and no hat.
+	 */
+	if (strcmp (p, "ven40b-6533") == 0)
+	{
+		m.pName = "axes/buttons (Competition Pro)";
+		m.Left  = DirAx (0, 64, FALSE);		/* left  -> 0   */
+		m.Right = DirAx (0, 192, TRUE);		/* right -> 255 */
+		m.Up    = DirAx (1, 64, FALSE);		/* up    -> 0   */
+		m.Down  = DirAx (1, 192, TRUE);		/* down  -> 255 */
+		m.Fire  = DirBtn (0x00001);
+		m.Fire2 = DirBtn (0x00002);
+		m.nMoreFire = 0x00004 | 0x00008;
+
+		return m;
+	}
+
+	/*
 	 * Microntek USB joystick (ven79-6), measured: left/right on axis 0 and
 	 * up/down on axis 1, fire on the pad's first two buttons.  Checked before
 	 * the hat rule because this pad also reports one hat, which it does not
@@ -581,6 +606,19 @@ void CUSBAtariJoystick::Attach (CUSBGamePadDevice *pDevice)
 				pState != 0 ? pState->nhats : 0,
 				pState != 0 ? pState->naxes : 0,
 				m_Map.pName);
+
+	/*
+	 * Also put the same facts in the runtime log.  This is the file the user
+	 * can read from the OSD or the SD card, and it is the first thing needed
+	 * when a controller is attached but does not move anything.
+	 */
+	CBootLog::Get ()->RecordRuntimef (
+		"usbjoy: %s id=%s buttons=%d hats=%d axes=%d map=%s",
+		GetName (), Id,
+		pState != 0 ? pState->nbuttons : 0,
+		pState != 0 ? pState->nhats : 0,
+		pState != 0 ? pState->naxes : 0,
+		m_Map.pName);
 }
 
 boolean CUSBAtariJoystick::Initialize (void)

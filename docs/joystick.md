@@ -167,6 +167,10 @@ matched one at a time, from the measurements recorded in
 the four directions and the two buttons that were measured work, and an
 unidentified button does nothing rather than firing by accident.
 
+The **Speedlink Competition Pro** reports as `ven40b-6533` (MOSIC USB 2A4K
+GamePad). Its stick is on the first two axes and all four of its buttons are
+fire.
+
 The **8BitDo Pro 2 Wired for Xbox** is one of the named controllers: it presents
 as an Xbox One pad (`2dc8-2000/2014/201e`) and uses Circle's Xbox One driver.
 That driver needed its ID in the factory table, the LED-on/auth-done GIP init

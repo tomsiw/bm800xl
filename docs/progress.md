@@ -620,8 +620,9 @@ a button bit, an axis with a threshold and side, or a hat.
 | `ven57e-2009` Nintendo Pro (Circle's Switch Pro driver) | button bits: UP `0x8000`, DOWN `0x20000`, LEFT `0x40000`, RIGHT `0x10000` | A `0x200`, B `0x100` |
 | `ven79-11` generic | axes: left/right on index 3, up/down on index 4 (0 = left/up, 255 = right/down) | bits `0x2` and `0x4` |
 | `ven79-6` Microntek | axes: left/right on index 0, up/down on index 1 | bits `0x2` and `0x4` |
+| `ven40b-6533` Speedlink Competition Pro (MOSIC USB 2A4K GamePad) | axes: left/right on index 0, up/down on index 1; 0 = left/up, 255 = right/down | bits `0x1`, `0x2`, `0x4`, `0x8` |
 
-All three verified in the probe, pressing every direction and fire.
+All four verified in the probe, pressing every direction and fire.
 
 One more controller is recognised by the same mechanism: the **8BitDo Pro 2
 Wired for Xbox** (`ven2dc8-2000/2014/201e`).  It is a GIP/Xbox One device, and
