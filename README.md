@@ -39,11 +39,11 @@ unmodified.
 
 **Storage**
 - Up to four disk drives, ATR and XFD images, **read and write**
-- Cartridges in CAR format
+- Cartridges in CAR and ROM format
 - Cassettes in CAS format, **read and write**, in both standard and turbo timing —
   a turbo tape is detected when it is inserted and needs a power cycle to switch
   the machine into the mode it requires
-- Disk and cartridge images live on a **USB drive** or on the **SD card**
+- Disk, cartridge and cassette images live on a **USB drive** or on the **SD card**
   (`SD:/USERDATA`); settings, snapshots and the OS ROM images live on the
   **SD card**
 
@@ -62,7 +62,7 @@ unmodified.
   screen instead of repainting the picture under it
 - Adaptive fill: if a frame cannot be drawn within its deadline, the picture is
   skipped rather than the emulation, and the skip is reported in the log
-- Machine snapshots: save and load
+- Machine snapshots: save, save as new, load and erase
 - All settings persisted on the SD card automatically
 
 ---
@@ -187,22 +187,26 @@ needs, see [SD card setup](docs/sd-card-setup.md).
 ## Quick start
 
 If you would rather build the emulator yourself, everything is compiled for 64-bit
-(AArch64). **Two images cover every supported model**, and both can sit on one SD
-card because the firmware picks between them by name:
+(AArch64). **Three images cover every supported model**, and they can sit on one
+SD card because the firmware picks between them by name:
 
 ```powershell
-# kernel8.img - the one to start with: Pi Zero 2 W, Pi 3, Pi 4, Pi 400
+# kernel8.img - the general A53 build: Pi Zero 2 W, Pi 3, Pi 400
+# (Pi 4 only if the [pi4] section is removed from config.txt)
 pwsh -ExecutionPolicy Bypass -File scripts\build.ps1 -Profile kernel64
 
 # kernel_2712.img - the Raspberry Pi 5
 pwsh -ExecutionPolicy Bypass -File scripts\build.ps1 -Profile kernel64-pi5
 
+# kernel8-rpi4.img - the A72 build selected by config64.txt on a Pi 4
+pwsh -ExecutionPolicy Bypass -File scripts\build.ps1 -Profile kernel64-pi4
+
 # confirm the images are sound and named for the right boards
 pwsh -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
-Both build to about 840 KiB, comfortably inside Circle's **2 MiB** kernel limit.
-Then follow [Building](docs/building.md), or jump straight to
+All three build to about 875–900 KiB, comfortably inside Circle's **2 MiB**
+kernel limit. Then follow [Building](docs/building.md), or jump straight to
 [docs/sd-card-setup.md](docs/sd-card-setup.md) if you already have the images.
 
 ---
@@ -218,14 +222,15 @@ decides which models an image can run on.
 | `kernel64-pi5` | `kernel_2712.img` | Raspberry Pi 5 |
 | `kernel64-pi4` | `kernel8-rpi4.img` | Pi 4, Pi 400, CM4 — Cortex-A72-optimised |
 
-**Recommended:** build `kernel64` and `kernel64-pi5`. Copy both files to the SD
-card and each board loads the right one; you do not have to decide in advance
-which Pi the card will go into.
+**Recommended:** build all three and copy all three images plus
+`armstub8-rpi4.bin` to the SD card. With the stock `config64.txt`, the Pi 4
+firmware selects `kernel8-rpi4.img`; the other boards select `kernel8.img` or
+`kernel_2712.img`.
 
-`kernel64-pi4` is optional. It is the same code compiled for the Pi 4's
-Cortex-A72 instead of the more general Cortex-A53, so it will not run on a Zero 2
-W or Pi 3 — but it is the fastest option if the card is only ever going to be in
-a Pi 4.
+`kernel64-pi4` is the Cortex-A72 build. It is not optional when using the stock
+`config64.txt` on a Pi 4, because that file names `kernel8-rpi4.img` in its
+`[pi4]` section. It will not run on a Zero 2 W or Pi 3; to use the general
+`kernel8.img` on a Pi 4 instead, remove the `[pi4]` `armstub` and `kernel` lines.
 
 ### Why a Pi 5 needs its own image
 
@@ -247,9 +252,9 @@ lists the extra files it needs. Hence the separate build.
 ### A single kernel, as far as the firmware is concerned
 
 The Pi 5 firmware looks for `kernel_2712.img` first and `kernel8.img` on every
-other model. Put both files on the card and nothing needs configuring: the right
-one is loaded without you choosing. This is why the two images coexist rather
-than replacing one another.
+other model. The Pi 4 section of `config64.txt` selects `kernel8-rpi4.img`.
+Put the images on the card and nothing needs configuring: the right one is
+loaded without you choosing.
 
 There is no 32-bit build. Every supported model has a 64-bit core, and the Pi 5
 can only run AArch64, so an AArch32 image would add a second toolchain and a
@@ -344,7 +349,7 @@ This matters, so it is stated plainly rather than buried.
 **Verified in this repository (build-time):**
 
 - All kernel images build cleanly and link as AArch64
-  (`aarch64-none-elf`), about 835-860 KiB each.
+  (`aarch64-none-elf`), about 875–900 KiB each.
 - `scripts/verify.ps1` confirms each image is ELF64/AArch64, has its entry point
   at 0x80000, contains `_start`, carries the filename the firmware looks for on
   that board, and that its `.bss` ends before Circle's 2 MiB kernel region.

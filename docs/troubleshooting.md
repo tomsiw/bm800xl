@@ -48,7 +48,7 @@ machine hangs immediately afterwards or the power is cut. **Read it on a PC**;
 that is the point of it. It is plain text:
 
 ```
-[       0 ms] BM800XL v0.9.1 emulator for Raspberry Pi
+[       0 ms] BM800XL v0.9.2 emulator for Raspberry Pi
 [       0 ms] Build: Feb 14 2026 11:02:31
 [       0 ms] --- stage: power-on (Circle started) ---
 [      12 ms] SD card interface started
@@ -111,9 +111,9 @@ to boot — silently. There is no error message, only a dark screen.
 
 | Build profile | File the firmware loads | Boards |
 |---|---|---|
-| `kernel64` | `kernel8.img` | Pi Zero 2 W, Pi 3, Pi 4, Pi 400 |
+| `kernel64` | `kernel8.img` | Pi Zero 2 W, Pi 3, Pi 4, Pi 400 (Pi 4 only when `[pi4]` is removed from `config.txt`) |
 | `kernel64-pi5` | `kernel_2712.img` | Raspberry Pi 5 |
-| `kernel64-pi4` | `kernel8-rpi4.img` | Pi 4, Pi 400 (A72-optimised) |
+| `kernel64-pi4` | `kernel8-rpi4.img` | Pi 4, Pi 400 (A72-optimised; selected by the stock `[pi4]` section) |
 
 Check the name character by character. `kernel_2712.img` has an underscore, and
 `kernel8-rpi4.img` will only be loaded on a Pi 4 — on a Zero 2 W or Pi 3 the
@@ -128,7 +128,7 @@ and if it is over, **halts silently**. No message, no colour, nothing.
 Get-Item build\kernel64\kernel8.img | Select-Object Length
 ```
 
-The built images are about 820–845 KiB, so this is unlikely unless something has
+The built images are about 875–900 KiB, so this is unlikely unless something has
 gone wrong in the link. `verify.ps1` reports the image size and checks where the
 kernel's `.bss` ends against Circle's region.
 
@@ -166,7 +166,9 @@ needs a build made for it rather than a renamed one:
 
 | Board | Needs | A `kernel8.img` will not work because |
 |---|---|---|
-| Pi Zero 2 W, Pi 3, Pi 4, Pi 400 | `kernel8.img` | — |
+| Pi Zero 2 W, Pi 3, Pi 400 | `kernel8.img` | — |
+| Pi 4 / 400 / CM4 with stock `config.txt` | `kernel8-rpi4.img` plus `armstub8-rpi4.bin` | the `[pi4]` section names that image and stub |
+| Pi 4 / 400 with `[pi4]` removed | `kernel8.img` | — |
 | Raspberry Pi 5 | `kernel_2712.img` | its peripherals are behind the RP1 southbridge, and Circle compiles that support in only for `RASPPI=5` |
 
 If only `kernel8.img` is on the card and it is put in a Pi 5, the firmware falls
@@ -557,7 +559,7 @@ crash entries, closes the logs, moves them to `SD:/ATARI/bootlog.crash` and
 |---|---|
 | `COLOURS_RESTART` (default) | clears every disk, cartridge and cassette path, shows white, yellow and red for one second each, then restarts the Pi |
 | `RESTART` | clears every disk, cartridge and cassette path, then restarts the Pi |
-| `HALT` | shows a red screen and halts; media are not cleared and the Pi is not restarted |
+| `HALT` | clears every disk, cartridge and cassette path, shows a red screen and halts; the Pi is not restarted |
 
 It does not keep warm-resetting the same fault.
 
@@ -614,7 +616,7 @@ Four things worth knowing before changing anything:
 If the frame rate is low:
 
 - Build the optimised profile for the board — `kernel64-pi4` for a Pi 4.
-- Turn off accurate PAL blending (F12 → Display → Artifacting → `PAL blending
+- Turn off accurate PAL blending (F12 → Screen → Artifacting → `PAL blending
   (accurate)` → `None` or `PAL blending (simple)`).
 - Use the 720p output rather than 1080p: the fill costs what the picture area
   costs, and 1080p is 2.25 times the pixels — about 4.8 ms against 10.8 ms on a

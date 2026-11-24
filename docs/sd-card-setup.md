@@ -8,8 +8,9 @@ the Pi boots from.
 
 ```
 SD card root
-├── kernel8.img              <- the emulator: Zero 2 W, Pi 3, Pi 4, Pi 400
+├── kernel8.img              <- general: Zero 2 W, Pi 3, Pi 400; Pi 4 without [pi4]
 ├── kernel_2712.img          <- the Pi 5 build (optional, but copy it)
+├── kernel8-rpi4.img         <- Pi 4 / 400 / CM4 A72 build selected by [pi4]
 ├── armstub8-rpi4.bin        <- Pi 4 only, and only with kernel8-rpi4.img
 ├── config.txt               <- copied from external/circle/boot/config64.txt
 ├── start.elf                <- Raspberry Pi firmware
@@ -38,9 +39,11 @@ automatically when that setting is used, and the menu's file browser then shows
 nothing outside it. See
 [Keeping media on the SD card instead](using.md#keeping-media-on-the-sd-card-instead).
 
-The two kernel images are alternatives, not additions: the firmware picks one by
-name and ignores the other. Copy both and the card works in every supported
-model without further thought. See
+The kernel images are alternatives, not additions: the firmware picks one by
+name and ignores the others. Copy all three images plus `armstub8-rpi4.bin` and
+the card works in every supported model with the stock `config.txt`. If you
+deliberately want the general `kernel8.img` on a Pi 4 instead, remove the
+`[pi4]` `armstub` and `kernel` lines. See
 [Which image gets loaded](#which-image-gets-loaded).
 
 The `ROMS/` and `ATARI/` directories are created automatically if they are
@@ -195,15 +198,21 @@ match the emulated frame rate exactly.
 ### 5. Copy the kernel images
 
 ```powershell
-# every model except the Pi 5
+# Pi Zero 2 W, Pi 3, Pi 400 (and Pi 4 if [pi4] is removed from config.txt)
 Copy-Item build\kernel64\kernel8.img D:\
 
 # the Pi 5
 Copy-Item build\kernel64-pi5\kernel_2712.img D:\
+
+# the Pi 4 / 400 / CM4 A72 build selected by the stock [pi4] section
+Copy-Item build\kernel64-pi4\kernel8-rpi4.img D:\
+Copy-Item external\circle\boot\armstub8-rpi4.bin D:\
 ```
 
-Copy both. They do not conflict: each is a complete emulator for a different
-board, and the firmware loads one of them.
+Copy all three. They do not conflict: each is a complete emulator for a different
+board, and the firmware loads one of them. With the stock `config.txt` the Pi 4
+`[pi4]` section selects `kernel8-rpi4.img`, so all three plus
+`armstub8-rpi4.bin` are needed for a card that boots on every model.
 
 Once the emulator is running, a release can also be installed from a USB drive
 without removing the card; see
@@ -213,11 +222,13 @@ without removing the card; see
 
 | Board | File the firmware looks for |
 |---|---|
-| Pi Zero 2 W, Pi 3, Pi 4, Pi 400, CM3/CM4 | `kernel8.img` |
+| Pi Zero 2 W, Pi 3, Pi 400 | `kernel8.img` |
 | Raspberry Pi 5 | `kernel_2712.img` |
+| Pi 4 / 400 / CM4 with stock `config.txt` | `kernel8-rpi4.img`, selected by `[pi4]` |
+| Pi 4 / 400 / CM4 with `[pi4]` removed | `kernel8.img` |
 
 This is the firmware's own naming, not a choice this project makes, and it is why
-the two images exist rather than one. A single `kernel8.img` cannot serve the Pi 5
+separate images exist rather than one. A single `kernel8.img` cannot serve the Pi 5
 because the Pi 5's peripherals are behind the RP1 southbridge, reached over PCIe,
 and Circle compiles that support in only for `RASPPI=5` — see
 [Supported models](../README.md#why-a-pi-5-needs-its-own-image).
@@ -272,11 +283,10 @@ Then copy it to the root of the SD card:
 Copy-Item external\circle\boot\armstub8-rpi4.bin D:\
 ```
 
-**If you are not using `kernel64-pi4`**, you do not need the file — but the
-`[pi4]` section of `config64.txt` will still name it. That is harmless: the
-firmware only reaches that line on a Pi 4, and a `config.txt` naming a file that
-is not present is not an error. Either copy the 336-byte file anyway, or delete
-the `armstub=` line from the `[pi4]` section.
+**If you are not using `kernel64-pi4`**, remove both the `armstub=` and
+`kernel=kernel8-rpi4.img` lines from the `[pi4]` section. The stock section
+expects both files; keeping it while the files are absent can leave a Pi 4 with
+no bootable kernel. If you keep the section, copy both files.
 
 > **Does this project need the stub at all?** Not strictly. It exists for FIQ
 > support on the Pi 4, 400 and CM4, and this emulator uses no FIQ — Circle's
@@ -348,8 +358,10 @@ Press **F12** to open the menu. Your settings are written to
 Before blaming the build, check:
 
 - The image file is named exactly right for the board: `kernel8.img` for a Zero
-  2 W, Pi 3, Pi 4 or Pi 400, and `kernel_2712.img` for a Pi 5. A wrong name means
-  the firmware finds nothing to boot, and the screen stays dark with no message.
+  2 W, Pi 3, Pi 4 or Pi 400, `kernel_2712.img` for a Pi 5, or
+  `kernel8-rpi4.img` when the A72 build and its armstub are selected in
+  `config.txt`. A wrong name means the firmware finds nothing to boot, and the
+  screen stays dark with no message.
 - `config.txt` is present and is Circle's `config64.txt`, not one written for a
   Linux installation. A `config.txt` containing `cmdline.txt`-style options or a
   `dtoverlay=` for Linux hardware will confuse the firmware.

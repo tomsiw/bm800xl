@@ -164,8 +164,8 @@ adapter, for instance — reports its buttons in whatever order its HID descript
 lists them, and then a number says nothing about which button it is. Those are
 matched one at a time, from the measurements recorded in
 [project progress](progress.md#8-usb-gamepads--where-this-stands): on such a pad
-the four directions and the two buttons that were measured work, and an
-unidentified button does nothing rather than firing by accident.
+the measured directions and fire buttons work, and an unidentified button does
+nothing rather than firing by accident.
 
 The **Speedlink Competition Pro** reports as `ven40b-6533` (MOSIC USB 2A4K
 GamePad). Its stick is on the first two axes and all four of its buttons are

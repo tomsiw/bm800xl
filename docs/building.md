@@ -73,7 +73,7 @@ See [SD card setup](sd-card-setup.md) for the full file list, where each file
 goes, and which model needs which. The short version:
 
 ```
-kernel8.img  kernel_2712.img        the emulator (from build/)
+kernel8.img  kernel_2712.img  kernel8-rpi4.img    the emulator (from build/)
 start.elf  fixup.dat                firmware, Pi Zero 2 W and Pi 3
 start4.elf  fixup4.dat              firmware, Pi 4 and Pi 400
 bootcode.bin                        first-stage loader, Pi Zero 2 W and Pi 3
@@ -91,12 +91,17 @@ pwsh -ExecutionPolicy Bypass -File scripts\build.ps1 -Profile kernel64
 
 # kernel_2712.img - Raspberry Pi 5
 pwsh -ExecutionPolicy Bypass -File scripts\build.ps1 -Profile kernel64-pi5
+
+# kernel8-rpi4.img - the Pi 4 / 400 / CM4 A72 build selected by config64.txt
+pwsh -ExecutionPolicy Bypass -File scripts\build.ps1 -Profile kernel64-pi4
 ```
 
 The finished images appear in `build/<profile>/`:
 
 ```
 build/kernel64/kernel8.img              <- copy to the SD card
+build/kernel64-pi5/kernel_2712.img      <- Pi 5
+build/kernel64-pi4/kernel8-rpi4.img     <- Pi 4 / 400 / CM4
 build/kernel64/atari-emulator.elf       <- for debugging
 build/kernel64/atari-emulator.map       <- linker map
 build/kernel64/atari-emulator.lst       <- disassembly
@@ -111,10 +116,10 @@ under the makefile's target name.
 The release version is one line in `src/version.h`:
 
 ```cpp
-#define ATARI_VERSION		"0.9.1"
+#define ATARI_VERSION		"0.9.2"
 ```
 
-It appears in the main OSD header as `BM800XL v0.9.1` and in the first line of
+It appears in the main OSD header as `BM800XL v0.9.2` and in the first line of
 the boot log. Changing the line and rebuilding is the whole procedure; the OSD
 adds the `v`. The separate updater compatibility code in
 `src/update/updater.h` is not tied to this number.
@@ -158,7 +163,7 @@ forth is safe rather than a source of confusing link errors.
 A healthy build prints, at the end:
 
 ```
-    OK   kernel8.img  (839.1 KiB)
+    OK   kernel8.img  (878.3 KiB)
 ```
 
 Then confirm the images really are what they claim to be:
@@ -168,9 +173,9 @@ pwsh -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
 ```
-  OK   kernel64        kernel8.img           839.1 KiB  Pi Zero 2 W, Pi 3, Pi 4, Pi 400, CM3/CM4
-  OK   kernel64-pi5    kernel_2712.img       859.8 KiB  Raspberry Pi 5 (AArch64, Cortex-A76, RP1)
-  OK   kernel64-pi4    kernel8-rpi4.img      857.5 KiB  Pi 4, Pi 400, CM4 (AArch64, Cortex-A72 optimised)
+  OK   kernel64        kernel8.img           878.3 KiB  Pi Zero 2 W, Pi 3, Pi 4, Pi 400, CM3/CM4
+  OK   kernel64-pi5    kernel_2712.img       899.0 KiB  Raspberry Pi 5 (AArch64, Cortex-A76, RP1)
+  OK   kernel64-pi4    kernel8-rpi4.img      896.7 KiB  Pi 4, Pi 400, CM4 (AArch64, Cortex-A72 optimised)
 
   All built images verified.
 ```
@@ -208,8 +213,9 @@ three and keep them. What it does invalidate is the shared state:
   `.target`, and are wiped when the target changes.
 
 So switching profiles is safe, at the cost of rebuilding Circle each time. If you
-just want a card that works in every model, build `kernel64` and `kernel64-pi5`
-once and copy both files; you never have to switch again.
+just want a card that works in every model with the stock `config64.txt`, build
+`kernel64`, `kernel64-pi5` and `kernel64-pi4` once and copy all three images plus
+`armstub8-rpi4.bin`; you never have to switch again.
 
 ## Pinned revisions
 

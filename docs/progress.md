@@ -8,8 +8,8 @@ This document records where the project stands, what has been established by
 measurement rather than assumption, and what to do next. It is written to be read
 cold, without the history that produced it.
 
-**Last updated:** after commit `0e3e8ab`; the random OSD theme and this
-documentation update are in the commit that carries this line. USB keyboard
+**Last updated:** after commit `c7dc5f0`; the documentation consistency pass and
+the additions recorded below are in the commit that carries this line. USB keyboard
 remapping, BRK handling and snapshot erasing are implemented and verified on
 hardware; the output is muted while the OSD is open; the build and verification
 scripts refuse a kernel that does not fit in Circle's 2 MB region; the OSD is
@@ -268,7 +268,7 @@ carries this table; a commit cannot name its own hash.
 | `dbf3275` | Left/Right in the file browser fell through to the menu's default action and closed the OSD | Left/Right now move one page of file rows.  Left on the first page selects `..`; Right on the last page selects the last file.  Page size is the number of visible file rows, and scrolling follows the selected page. |
 | `a7f632c` | Saving or loading the current snapshot required opening the Snapshots submenu and its browser | Added main-screen shortcuts: `S` runs Save snapshot and `L` loads the current snapshot directly.  A successful save or load closes the OSD; no current snapshot makes `L` open the normal Load-snapshot browser.  The current path remains runtime-only. |
 | `24cadbf` | `STATIC_OSD`, `CONTINUE_ON_BRK`, `NUMPAD_CURSOR`, `KEYBOARD` and `USER_DIR` were settings-file-only, with no OSD entry | Added an Other options screen under the main menu.  It exposes Static OSD, Continue on BRK, NumPad as cursor, Keyboard (USB/GPIO, next start) and User directory (SD:/USB:).  SYSTEM_DIR remains file-only because the storage setup ignores it. |
-| `1cc5b0a` | A CPU crash always cleared the media and restarted the Pi; there was no way to inspect the halted state or get a visible warning first | Added `CRASH_ACTION` and an Other options row.  `COLOURS_RESTART` is the default: archive the logs, clear media, show white/yellow/red for one second each and reboot.  `RESTART` archives and reboots without the colour delay; `HALT` archives, shows red and halts without clearing media. |
+| `1cc5b0a` | A CPU crash always cleared the media and restarted the Pi; there was no way to inspect the halted state or get a visible warning first | Added `CRASH_ACTION` and an Other options row.  `COLOURS_RESTART` is the default: archive the logs, clear media, show white/yellow/red for one second each and reboot.  `RESTART` archives and reboots without the colour delay; `HALT` archives, shows red and halts without clearing media (the media-clearing behaviour was added later in `ae3e922`). |
 | `18082ca` | The OSD bars, cursor and panel were fixed blue/grey, with no way to change the theme | Added `OSD_THEME` and an Other options row with Blue, Red, Green, Black, Orange, Purple, Teal and Magenta.  Bars, cursor and static panel use the light/dark theme pair; with `STATIC_OSD=0`, the live picture is tinted with the dark theme instead of being dimmed toward black. |
 | `0a8ac32` | A key held while the USB keyboard was first enumerated was lost: Circle processed the first report before the raw handler was attached, and no new report arrived while the key stayed held | Added `CUSBKeyboardDevice::GetLastReport()` to Circle and replayed that report to the listeners when the raw handler is attached.  F8/Option held at power-on, and any other pre-enumeration key, is now present on the first emulated frame. |
 | `48bbd4b` | A new kernel image could only be installed by removing the SD card and copying it from a PC | Added `Check for updates` to Other options.  The USB root must contain `update.emu` with the current compatibility code (`Noal`) and one or more accepted kernel/armstub files; the updater validates sizes and SD free space, stages and verifies copies, replaces the files, then renames the marker to `update.done` or deletes it if the rename fails.  There is no target-board check, backup or rollback, and the USB drive must be inserted before power-on. |
@@ -286,7 +286,10 @@ carries this table; a commit cannot name its own hash.
 | `f61fba8` | Left/Right paged through the browser only one page per press, so reaching a distant page meant repeated presses | Make Left/Right repeat in the file browser after 400 ms, then every 200 ms.  Submenu Left/Right stays non-repeating so settings are not written repeatedly. |
 | `6b39c70` | The machine kept running behind the OSD, with no way to freeze it while changing settings or browsing | Added `PAUSE_ON_OSD`, default off.  When enabled, the kernel skips `ATARI_RunFrame()` while the OSD is open, releases the keyboard source, keeps the last picture, and resets audio and frame pacing on resume.  With `STATIC_OSD=0`, each OSD redraw repaints the frozen frame before tinting, so transparent mode does not accumulate tint or cursor shadows.  **Check for updates** is now the last Other options row.  Exposed as Other options → Pause on OSD and in `settings.cfg`. |
 | `0e3e8ab` | `runtimelog.txt` could only be read by removing the SD card, and **Check for updates** needed a stable last position | Added a read-only runtime-log viewer in Other options: it indexes the newest 4096 lines when opened, scrolls with Up/Down and horizontally with Left/Right, repeats held scroll keys, marks clipped text with `<`/`>`, reads only the visible lines, and frees its file handle and index on exit.  **Check for updates** remains last.  Version bumped to 0.9.1. |
-| (this commit) | OSD themes were always fixed for a session, with no way to vary the look automatically | Added `OSD_THEME=RANDOM`: at each OSD opening it chooses one of the eight existing themes, avoiding an immediate repeat, and keeps it for that session.  Drawing uses a resolved active theme, so no new colours are generated. |
+| `25b4280` | OSD themes were always fixed for a session, with no way to vary the look automatically | Added `OSD_THEME=RANDOM`: at each OSD opening it chooses one of the eight existing themes, avoiding an immediate repeat, and keeps it for that session.  Drawing uses a resolved active theme, so no new colours are generated. |
+| `1c9f256` | The Speedlink Competition Pro USB joystick was unrecognised and its attach details were not in the runtime log | Added the measured `ven40b-6533` mapping (axes 0/1, all four buttons as fire) and a runtime-log attach line naming the ID, report counts and selected mapping. |
+| `c7dc5f0` | The Android Competition Pro variant had no mapping | Added an explicitly unverified `ven79-181c` mapping from the SDL database: axes 0/1, fire on bits `0x1`, `0x2`, `0x8` and `0x10`. |
+| (this commit) | Several documents still described the older menu labels, two-image SD layout, browser limit and configuration details | Reviewed the documentation against the current source: corrected the main OSD diagram and key table, `Screen`/`Save states` naming, Other options order, random-theme behaviour, runtime-log controls, Competition Pro variants, three-image SD layout and image sizes.  Version bumped to 0.9.2. |
 
 ---
 
@@ -623,7 +626,7 @@ a button bit, an axis with a threshold and side, or a hat.
 | `ven40b-6533` Speedlink Competition Pro (MOSIC USB 2A4K GamePad) | axes: left/right on index 0, up/down on index 1; 0 = left/up, 255 = right/down | bits `0x1`, `0x2`, `0x4`, `0x8` |
 | `ven79-181c` Speedlink Competition Pro Android (unverified) | assumed axes: left/right on index 0, up/down on index 1; SDL mapping says b0/b1/b3/b4 | bits `0x1`, `0x2`, `0x8`, `0x10` |
 
-All four verified in the probe, pressing every direction and fire.
+All four measured controllers verified in the probe, pressing every direction and fire.  The `ven79-181c` Android Competition Pro entry is a database-derived guess and has not been tested on this hardware.
 
 One more controller is recognised by the same mechanism: the **8BitDo Pro 2
 Wired for Xbox** (`ven2dc8-2000/2014/201e`).  It is a GIP/Xbox One device, and

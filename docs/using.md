@@ -7,22 +7,32 @@ the GPIO header, to open the menu. Press it again, or press Escape from the main
 screen, to close it.
 
 ```
-┌──────────────────────────────────────────────┐
-│ BM800XL v0.9.1                               │
-├──────────────────────────────────────────────┤
-│ Disk drives          2 of 4 loaded           │
-│ Cartridge            (none)                  │
-│ Machine and memory   Atari XL, 64 kB         │
-│ Display              PAL, 1280x720           │
-│ Sound                80%                     │
-│ Snapshots            Save / load / erase     │
-│ Other options        Static OSD, BRK, ...    │
-│ Close menu                                   │
-├──────────────────────────────────────────────┤
-│ Atari XL  64 kB  PAL  49.9 fps               │
-│ Up/Down move  Left/Right change  Return sel  │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ BM800XL v0.9.2                                               │
+├──────────────────────────────────────────────────────────────┤
+│ Disk drives          2 of 4 loaded                           │
+│ Cartridges           (none)                                  │
+│ Cassettes            (none)                                  │
+│ Joysticks            USB gamepads                            │
+│ Machine and memory   Atari XL (600XL/800XL), 64 kB           │
+│ Screen               PAL, 1280x720, 4:3                      │
+│ Sound                80%                                     │
+│ Save states          Save / load / erase                     │
+│ Other options                                                │
+│ Cold reset                                                   │
+│ Warm reset           <F10>                                   │
+│ Power cycle          <Shift+F10>                             │
+│ Restart Pi                                                   │
+│ Close menu           <F12> / <Esc>                           │
+├──────────────────────────────────────────────────────────────┤
+│ Atari XL  64 kB  PAL  49.9 fps                               │
+│ Up/Down  Left/Right  Return  Esc  S-save  L-load             │
+└──────────────────────────────────────────────────────────────┘
 ```
+
+The highlighted characters in **D**isk drives, Car**t**ridges, **C**assettes
+and cold **r**eset are shown inversely and act as direct main-screen shortcuts.
+The **S** and **L** in the footer do the same for save and load.
 
 The version in the header is the release currently running. It is also written
 to the boot log at start-up.
@@ -33,13 +43,13 @@ to the boot log at start-up.
 |---|---|
 | Up / Down | Move the selection |
 | Left / Right | Change the selected setting, or toggle a disk's read-only flag |
-| Return or Space | Select the item |
+| Return | Select the item |
+| Space | Select in settings submenus; types a space in the browser filter; no action on the main screen |
 | Escape | Up one directory in the browser; otherwise back a screen, and close from the main screen |
-| Delete | Eject the selected drive, cassette or cartridge |
+| Delete | On a media screen, eject the selected drive, cassette or cartridge; in the Erase snapshot browser, confirm the erase |
 
 Holding **Up** or **Down** repeats after a short delay, so a long list can be
-walked without pressing the key repeatedly. Return, Space, Escape and Delete
-act once.
+walked without pressing the key repeatedly. Return, Escape and Delete act once.
 
 Every settings submenu opens with a **`..`** row first, already selected. Return,
 Fire or Space on it goes back to the main menu; Down moves to the first real
@@ -114,7 +124,7 @@ file. Holding either page key repeats after a short delay. Return/Fire on `..`
 goes up one directory, or leaves the browser at its root. Escape does the same
 thing.
 
-**Cartridge** — Load a cartridge image (CAR or ROM).
+**Cartridges** — Load a cartridge image (CAR or ROM).
 
 **Joysticks** — Which interface feeds the two Atari joystick ports: **USB
 gamepads**, the two **9-pin ports** on the GPIO header, or keys on the **USB
@@ -131,7 +141,7 @@ before the emulator starts, and the menu says so when you change it.
 the video standard, and a "restore defaults" item that resets the machine
 settings without losing your mounted media.
 
-**Display** — PAL or NTSC, the artifacting mode, the output resolution, the aspect
+**Screen** — PAL or NTSC, the artifacting mode, the output resolution, the aspect
 ratio, and the scanline effect with its strength
 (1280x720 or 1920x1080). Changing the resolution stores the new value but cannot
 take effect until the Raspberry Pi is switched off and on again, because the
@@ -145,7 +155,7 @@ other way round: it is satisfied by that same *Power cycle* item.
 
 **Sound** — On or off, volume in 5% steps, and stereo (two POKEYs).
 
-**Snapshots** — Save, load or erase a machine snapshot. Warm reset, cold reset and
+**Save states** — Save, load or erase a machine snapshot. Warm reset, cold reset and
 power cycle are separate items on the main screen.
 
 **Other options** — Settings that have no other menu home:
@@ -160,7 +170,7 @@ power cycle are separate items on the main screen.
 | User directory | `SD:` / `USB:` | Which volume the media browser starts from |
 | CPU crash | Colours+Restart / Restart / Red halt | What the emulator does after a CPU crash; the default is Colours+Restart |
 | Pause on OSD | On / Off | Stop the emulated machine while the menu is open; close the menu to resume |
-| View runtime log | — | Read `runtimelog.txt` in the OSD, with Up/Down scrolling |
+| View runtime log | — | Read `runtimelog.txt` in the OSD, scrolling with Up/Down and Left/Right |
 | Check for updates | — | Install kernel files from a USB drive; asks for confirmation |
 
 All CPU-crash actions clear the saved disk, cartridge and cassette paths, so a
@@ -678,10 +688,10 @@ SYSTEM_DIR=SD:/ATARI
 | `SOUND` | 0 or 1 |
 | `VOLUME` | 0 to 100 |
 | `STEREO` | 0 or 1 — two POKEYs |
-| `RESOLUTION` | 0 = 1280x720, 1 = 1920x1080 — the same setting as the menu's Display → Resolution; it takes effect the next time the Pi is switched off and on |
-| `ASPECT` | `4:3`, `2X`, `3X` or `4X` -- the same setting as the menu's Display -> Aspect ratio, applied at once; `4X` needs a display that can hold 1344x960, so in practice 1080p |
-| `SCANLINES` | 0 or 1 — the scanline effect; the same setting as the menu's Display → Scanlines, applied at once |
-| `SCANLINE_FACTOR` | 85, 90 or 95 — brightness of the dim bands in per cent; the same setting as Display → Scanline factor, applied at once |
+| `RESOLUTION` | 0 = 1280x720, 1 = 1920x1080 — the same setting as the menu's Screen → Resolution; it takes effect the next time the Pi is switched off and on |
+| `ASPECT` | `4:3`, `2X`, `3X` or `4X` -- the same setting as the menu's Screen -> Aspect ratio, applied at once; `4X` needs a display that can hold 1344x960, so in practice 1080p |
+| `SCANLINES` | 0 or 1 — the scanline effect; the same setting as the menu's Screen → Scanlines, applied at once |
+| `SCANLINE_FACTOR` | 85, 90 or 95 — brightness of the dim bands in per cent; the same setting as Screen → Scanline factor, applied at once |
 | `KEYBOARD` | 0 = USB, 1 = GPIO |
 | `NUMPAD_CURSOR` | 0 or 1 — keypad arrows act as cursor keys |
 | `CONTINUE_ON_BRK` | 0 or 1 — 1 (the default) runs BRK as the machine does; 0 stops the frame and logs it |
