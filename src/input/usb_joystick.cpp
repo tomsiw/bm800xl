@@ -59,11 +59,11 @@ static const char FromJoystick[] = "usbjoy";
 
 /*
  * A controller that has stopped sending reports is treated as released after
- * this long.  Without it, unplugging a controller mid-press would leave the
- * emulated joystick stuck in that direction, which is far more annoying than
- * the alternative.
+ * this many timer ticks.  Circle's timer runs at HZ (100 Hz), so one minute is
+ * 60 * HZ ticks.  The previous 1000 was compared as ticks and therefore meant
+ * ten seconds, not one.
  */
-#define USB_JOYSTICK_TIMEOUT_MS 1000
+#define USB_JOYSTICK_TIMEOUT_TICKS (60 * HZ)
 
 /*
  * An analog axis is read as a direction when it is beyond this fraction of its
@@ -758,7 +758,8 @@ unsigned CUSBAtariJoystick::GetDirections (void)
 	 * A controller that has gone quiet is treated as released, so an unplugged
 	 * or crashed controller cannot leave a direction held down.
 	 */
-	if (CTimer::Get ()->GetTicks () - m_nLastSeen > USB_JOYSTICK_TIMEOUT_MS)
+	if (CTimer::Get ()->GetTicks () - m_nLastSeen
+	    > USB_JOYSTICK_TIMEOUT_TICKS)
 	{
 		return 0;
 	}
@@ -829,7 +830,8 @@ int CUSBAtariJoystick::GetTrigger (void)
 		return ATARI_JOY_TRIG_OPEN;
 	}
 
-	if (CTimer::Get ()->GetTicks () - m_nLastSeen > USB_JOYSTICK_TIMEOUT_MS)
+	if (CTimer::Get ()->GetTicks () - m_nLastSeen
+	    > USB_JOYSTICK_TIMEOUT_TICKS)
 	{
 		return ATARI_JOY_TRIG_OPEN;
 	}
