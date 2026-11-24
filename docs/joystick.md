@@ -169,7 +169,8 @@ unidentified button does nothing rather than firing by accident.
 
 The **Speedlink Competition Pro** reports as `ven40b-6533` (MOSIC USB 2A4K
 GamePad). Its stick is on the first two axes and all four of its buttons are
-fire.
+fire. The Android variant (`ven79-181c`) has a best-effort mapping from the SDL
+controller database; its four buttons are bits `0x1`, `0x2`, `0x8` and `0x10`.
 
 The **8BitDo Pro 2 Wired for Xbox** is one of the named controllers: it presents
 as an Xbox One pad (`2dc8-2000/2014/201e`) and uses Circle's Xbox One driver.

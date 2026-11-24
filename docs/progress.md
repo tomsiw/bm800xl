@@ -621,6 +621,7 @@ a button bit, an axis with a threshold and side, or a hat.
 | `ven79-11` generic | axes: left/right on index 3, up/down on index 4 (0 = left/up, 255 = right/down) | bits `0x2` and `0x4` |
 | `ven79-6` Microntek | axes: left/right on index 0, up/down on index 1 | bits `0x2` and `0x4` |
 | `ven40b-6533` Speedlink Competition Pro (MOSIC USB 2A4K GamePad) | axes: left/right on index 0, up/down on index 1; 0 = left/up, 255 = right/down | bits `0x1`, `0x2`, `0x4`, `0x8` |
+| `ven79-181c` Speedlink Competition Pro Android (unverified) | assumed axes: left/right on index 0, up/down on index 1; SDL mapping says b0/b1/b3/b4 | bits `0x1`, `0x2`, `0x8`, `0x10` |
 
 All four verified in the probe, pressing every direction and fire.
 

@@ -339,6 +339,26 @@ static TMapping ResolveMapping (const char *pId, const TGamePadState *pState)
 	}
 
 	/*
+	 * Speedlink Competition Pro Android variant (ven79-181c).  This mapping is
+	 * from the SDL controller database and is unverified on this hardware:
+	 * axes 0/1, and the four controls are b0, b1, b3 and b4 -- b2 is not used.
+	 * If it proves wrong, only this ID is affected.
+	 */
+	if (strcmp (p, "ven79-181c") == 0)
+	{
+		m.pName = "axes/buttons (Competition Pro Android)";
+		m.Left  = DirAx (0, 64, FALSE);		/* left  -> 0   */
+		m.Right = DirAx (0, 192, TRUE);		/* right -> 255 */
+		m.Up    = DirAx (1, 64, FALSE);		/* up    -> 0   */
+		m.Down  = DirAx (1, 192, TRUE);		/* down  -> 255 */
+		m.Fire  = DirBtn (0x00001);
+		m.Fire2 = DirBtn (0x00002);
+		m.nMoreFire = 0x00008 | 0x00010;
+
+		return m;
+	}
+
+	/*
 	 * Microntek USB joystick (ven79-6), measured: left/right on axis 0 and
 	 * up/down on axis 1, fire on the pad's first two buttons.  Checked before
 	 * the hat rule because this pad also reports one hat, which it does not
